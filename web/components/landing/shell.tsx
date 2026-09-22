@@ -18,17 +18,16 @@ export const APP_PATH = "/app";
 
 const pill = "inline-flex h-14 items-center justify-center rounded-full px-7 text-[17px] font-bold whitespace-nowrap transition-[filter,opacity,background-color] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text";
 const TONES = {
-  dark: { main: "bg-lime text-on-lime hover:brightness-95", second: "border border-line text-text hover:bg-surface-2", note: "muted" },
-  onLime: { main: "bg-on-lime text-lime hover:opacity-90", second: "border border-on-lime text-on-lime hover:bg-on-lime/10", note: "onLime" },
+  dark: { main: "bg-lime text-on-lime hover:brightness-95", note: "muted" },
+  onLime: { main: "bg-on-lime text-lime hover:opacity-90", note: "onLime" },
 } as const;
 
-/** Open app, and a second way in for anyone not ready: the playground on this page. No wallet steps here. */
+/** One way in: the app. No wallet steps on the landing. */
 export function StartButtons({ tone = "dark", className }: { tone?: "dark" | "onLime"; className?: string }) {
   const t = TONES[tone];
   return (
     <div className={cn("flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center", className)}>
       <a href={APP_PATH} className={cn(pill, t.main)}>Open app</a>
-      <a href="#build" className={cn(pill, t.second)}>Try it first</a>
       <Label tone={t.note} className="sm:ml-2">Stellar testnet</Label>
     </div>
   );

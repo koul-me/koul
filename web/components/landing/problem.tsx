@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
 const FALLING = "M0,34 C26,30 44,48 68,46 C92,44 106,62 128,62 C150,62 164,80 184,90 C206,101 228,116 252,124 C278,131 300,134 320,136";
 const HELD = "M0,34 C26,30 44,48 68,46 C92,44 106,62 128,62 C150,62 164,80 184,90 C198,92 210,86 228,82 C258,78 290,76 320,74";
 const LEVEL_Y = 90;
-/** Where the line meets the level, as a share of the width, for the marker and the time under it. */
-const CROSS_X = 184 / 320;
+/** Where both lines meet the level, in the drawing's own units, so the marker sits exactly on the curve. */
+const CROSS_X = 184;
 const CROSS_AT = "03:12";
 
 function Panel({ title, note, tone, path, crossed, still, children }: {
@@ -37,6 +37,7 @@ function Panel({ title, note, tone, path, crossed, still, children }: {
       <div className="relative">
         <svg viewBox="0 0 320 150" className="h-[150px] w-full" role="img" aria-label={`${title}: an example reading crossing its level at ${CROSS_AT}`}>
           <line x1="0" y1={LEVEL_Y} x2="320" y2={LEVEL_Y} stroke="currentColor" strokeWidth="1" strokeDasharray="4 5" className="text-line" />
+          <line x1={CROSS_X} y1="0" x2={CROSS_X} y2="150" stroke="currentColor" strokeWidth="1" className="text-line" />
           <motion.path
             d={path}
             fill="none"
@@ -48,16 +49,16 @@ function Panel({ title, note, tone, path, crossed, still, children }: {
             animate={{ pathLength: still || crossed ? 1 : 0 }}
             transition={{ duration: still ? 0 : 1.1, ease: "easeInOut" }}
           />
+          {/* Inside the drawing, so it scales with the curve and stays on it at any card width. */}
+          <motion.circle
+            cx={CROSS_X}
+            cy={LEVEL_Y}
+            className={tone === "lime" ? "fill-lime" : "fill-danger"}
+            initial={false}
+            animate={{ r: crossed ? 6 : 0, opacity: crossed ? 1 : 0 }}
+            transition={{ delay: still ? 0 : 0.8 }}
+          />
         </svg>
-        <span className="absolute top-0 h-full w-px bg-line" style={{ left: `${CROSS_X * 100}%` }} aria-hidden />
-        <motion.span
-          className={cn("absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
-          style={{ left: `${CROSS_X * 100}%`, top: `${(LEVEL_Y / 150) * 100}%` }}
-          animate={{ opacity: crossed ? 1 : 0, scale: crossed ? 1 : 0.4 }}
-          initial={false}
-          transition={{ delay: still ? 0 : 0.8 }}
-          aria-hidden
-        />
       </div>
       <div className="min-h-[52px]">{children}</div>
     </Tile>
