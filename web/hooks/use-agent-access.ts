@@ -49,7 +49,7 @@ export function useAgentAccess() {
   const p = usePoll<{ rules: ContextRule[]; ledger: number }>(
     isConnected && address && kit ? `agent:${address}` : null,
     async () => { const [rules, latest] = await Promise.all([readRulesOnChain(kit!), kit!.rpc.getLatestLedger()]); return { rules, ledger: latest.sequence }; },
-    { intervalMs: 60_000, enabled: isConnected && !!kit, deps: [txEpoch] },
+    { intervalMs: 300_000, enabled: isConnected && !!kit, deps: [txEpoch] },
   );
   const grants = useMemo<AgentGrant[]>(() => {
     if (!p.data) return [];

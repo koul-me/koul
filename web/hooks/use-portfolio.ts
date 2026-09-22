@@ -15,7 +15,7 @@ export interface ChainAutopilotsState { list: ChainAutopilot[]; loading: boolean
 /** Every autopilot the router holds for this wallet. Empty until the first read lands. */
 export function useChainAutopilots(): ChainAutopilotsState {
   const { address, isConnected, txEpoch } = usePasskeyWallet();
-  const p = usePoll<ChainAutopilot[]>(isConnected && address ? `autopilots:${address}` : null, () => readChainAutopilots(address!), { intervalMs: 30_000, enabled: isConnected, deps: [txEpoch] });
+  const p = usePoll<ChainAutopilot[]>(isConnected && address ? `autopilots:${address}` : null, () => readChainAutopilots(address!), { intervalMs: 120_000, enabled: isConnected, deps: [txEpoch] });
   const loading = isConnected && p.data === undefined && (p.loading || (!p.error && p.updatedAt === 0));
   return { list: isConnected ? p.data ?? [] : [], loading, error: p.error, refresh: p.refresh };
 }
@@ -42,7 +42,7 @@ export const EMPTY_HEALTH: Health = { factor: null, hasLoan: false, minimum: 1.2
 export function usePortfolio(): PortfolioState {
   const w = useWallet();
   const key = w.isConnected && w.address ? `portfolio:${w.address}` : null;
-  const p = usePoll(key, () => readWalletPortfolio(w.address!), { intervalMs: 30_000, enabled: w.isConnected, deps: [w.txEpoch] });
+  const p = usePoll(key, () => readWalletPortfolio(w.address!), { intervalMs: 60_000, enabled: w.isConnected, deps: [w.txEpoch] });
   if (!w.isConnected) {
     return { positions: EMPTY_POSITIONS, health: EMPTY_HEALTH, nft: null, accountId: null, loaded: false, loading: w.initializing, error: null, connected: false, empty: false, refresh: p.refresh };
   }

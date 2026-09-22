@@ -63,8 +63,8 @@ export function useAutopilotLive(): AutopilotLiveState {
   const primary = useMemo(() => (chain.list.length ? chain.list.reduce((a, b) => (b.id < a.id ? b : a)) : null), [chain.list]);
   const id = primary?.id ?? null;
 
-  const check = usePoll<RuleState[]>(isConnected && address && id !== null ? `check:${address}:${id}` : null, () => readCheck(address!, id!), { intervalMs: 15_000, enabled: isConnected && id !== null, deps: [txEpoch] });
-  const tick = usePoll<Executed | null>(isConnected && address && id !== null ? `tick:${address}:${id}` : null, () => reader.simulateTick(address!, id!).catch(() => null), { intervalMs: 30_000, enabled: isConnected && id !== null, deps: [txEpoch] });
+  const check = usePoll<RuleState[]>(isConnected && address && id !== null ? `check:${address}:${id}` : null, () => readCheck(address!, id!), { intervalMs: 60_000, enabled: isConnected && id !== null, deps: [txEpoch] });
+  const tick = usePoll<Executed | null>(isConnected && address && id !== null ? `tick:${address}:${id}` : null, () => reader.simulateTick(address!, id!).catch(() => null), { intervalMs: 60_000, enabled: isConnected && id !== null, deps: [txEpoch] });
 
   return useMemo(() => {
     const access = { active: agent.active !== null, daysLeft: agent.daysLeft, ruleId: agent.active?.ruleId ?? null, loaded: agent.loaded };

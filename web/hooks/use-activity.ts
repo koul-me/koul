@@ -101,7 +101,7 @@ export function toRows(events: WalletEvent[], wallet: string): ActivityRow[] {
 export function useActivity(): ActivityState {
   const { isConnected, address, txEpoch } = usePasskeyWallet();
   // Stale while revalidating: the last answer paints at once, the node is asked again straight away.
-  const p = usePoll(isConnected && address ? `events:${address}` : null, () => readWalletEvents(address!), { intervalMs: 45_000, enabled: isConnected, deps: [txEpoch], initial: () => (address ? loadEventsSnapshot(address) : undefined) });
+  const p = usePoll(isConnected && address ? `events:${address}` : null, () => readWalletEvents(address!), { intervalMs: 90_000, enabled: isConnected, deps: [txEpoch], initial: () => (address ? loadEventsSnapshot(address) : undefined) });
   return useMemo(() => {
     if (!isConnected || !address) return { rows: [], loading: false, error: null, connected: false, loaded: false, since: null, refresh: p.refresh };
     const loading = p.data === undefined && (p.loading || (!p.error && p.updatedAt === 0));

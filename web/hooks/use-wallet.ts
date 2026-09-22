@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePasskeyWallet, useWalletBalance, useCreateWallet, useConnectWallet, toSembolError, type SembolError } from "@sembol/passkey-react";
-import { XOXNO } from "@/lib/koul";
+import { usePasskeyWallet, useCreateWallet, useConnectWallet, toSembolError, type SembolError } from "@sembol/passkey-react";
 import { shortAddress } from "@/lib/format";
+import { invalidate } from "@/lib/data/store";
 
-/** The connected passkey wallet, balances included. Thin wrapper over Sembol so pages import one thing. */
+/**
+ * The connected passkey wallet. Thin wrapper over Sembol so pages import one thing. Balances come from the one
+ * portfolio read (usePortfolio), not from here: this hook runs in a dozen components, and polling balances in each
+ * of them multiplied the RPC traffic.
+ */
 export function useWallet() {
   const w = usePasskeyWallet();
-  const usdc = useWalletBalance({ token: { contractId: XOXNO.usdc }, enabled: w.isConnected, refreshInterval: 30_000 });
-  const xlm = useWalletBalance({ token: "native", enabled: w.isConnected, refreshInterval: 60_000 });
   const [copied, setCopied] = useState(false);
   const copy = useCallback(async () => {
     if (!w.address) return false;
@@ -18,10 +20,8 @@ export function useWallet() {
   return {
     ...w,
     short: w.address ? shortAddress(w.address) : null,
-    usdc: usdc.formatted !== null ? Number(usdc.formatted) : null,
-    usdcStatus: usdc.status,
-    xlm: xlm.formatted !== null ? Number(xlm.formatted) : null,
-    refetchBalances: async () => { await Promise.all([usdc.refetch(), xlm.refetch()]); },
+    /** Read the balances again now, after something moved them outside a wallet transaction. */
+    refetchBalances: async () => { invalidate("portfolio:"); },
     copy,
     copied,
     initializing: w.status === "initializing",

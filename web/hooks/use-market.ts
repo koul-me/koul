@@ -9,7 +9,7 @@ import { MAX_PRICE_AGE_SECS } from "@/lib/koul";
 export interface PoolsState { pools: Pool[]; loading: boolean; error: Error | null; updatedAt: number; refresh: () => Promise<void> }
 
 export function usePools(): PoolsState {
-  const p = usePoll<Pool[]>("pools", readPools, { intervalMs: 45_000 });
+  const p = usePoll<Pool[]>("pools", readPools, { intervalMs: 120_000 });
   const loading = p.data === undefined && (p.loading || (!p.error && p.updatedAt === 0));
   return { pools: p.data ?? [], loading, error: p.error, updatedAt: p.updatedAt, refresh: p.refresh };
 }
@@ -18,7 +18,7 @@ export interface MarketsState { markets: MarketReading[]; loading: boolean; erro
 
 /** Every XOXNO testnet market with live rates. */
 export function useMarkets(): MarketsState {
-  const p = usePoll<MarketReading[]>("markets", readMarkets, { intervalMs: 45_000 });
+  const p = usePoll<MarketReading[]>("markets", readMarkets, { intervalMs: 120_000 });
   const loading = p.data === undefined && (p.loading || (!p.error && p.updatedAt === 0));
   return { markets: p.data ?? [], loading, error: p.error, updatedAt: p.updatedAt, refresh: p.refresh };
 }
@@ -30,7 +30,7 @@ export interface FxState { fx: FxPrice; loading: boolean; error: Error | null; r
 
 /** USD/TRY, polled every 10 s so the oracle admin's changes show on stage within seconds. */
 export function useFx(): FxState {
-  const p = usePoll<FxPrice>("fx", readFx, { intervalMs: 10_000 });
+  const p = usePoll<FxPrice>("fx", readFx, { intervalMs: 60_000 });
   const loading = p.data === undefined && (p.loading || (!p.error && p.updatedAt === 0));
   return { fx: p.data ?? NO_FX, loading, error: p.error, refresh: p.refresh };
 }

@@ -99,16 +99,28 @@ export function usePoll<T>(key: string | null, fetcher: () => Promise<T>, opts: 
     if (!key || !enabled) return;
     let cancelled = false;
     const run = () => { if (!cancelled) void refreshKey(key, () => fetcherRef.current()); };
-    const e = entry<T>(key);
-    const age = Date.now() - e.snap.updatedAt;
-    if (e.snap.data === undefined || age > Math.max(intervalMs, 1500)) run();
+    const stale = () => { const e = entry<T>(key); return e.snap.data === undefined || Date.now() - e.snap.updatedAt > Math.max(intervalMs, 1500); };
+    if (stale()) run();
     if (!intervalMs) return () => { cancelled = true; };
-    const t = setInterval(run, intervalMs);
-    return () => { cancelled = true; clearInterval(t); };
+    // A tab in the background polls nothing; coming back reads whatever went stale while it was away. Left open for
+    // hours, a hidden tab used to send thousands of RPC calls for screens nobody was looking at.
+    const t = setInterval(() => { if (!document.hidden) run(); }, intervalMs);
+    const onVisible = () => { if (!document.hidden && stale()) run(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { cancelled = true; clearInterval(t); document.removeEventListener("visibilitychange", onVisible); };
   }, [key, enabled, intervalMs, depsKey]);
 
   const refresh = useCallback(() => (key ? refreshKey(key, () => fetcherRef.current()) : Promise.resolve()), [key]);
   return { data: snap.data, error: snap.error, loading: snap.loading && snap.data === undefined, refreshing: snap.loading && snap.data !== undefined, updatedAt: snap.updatedAt, refresh };
+}
+
+/** True while the page is on screen, for pollers this store does not own (the wallet kit's balances). */
+export function useVisible(): boolean {
+  return useSyncExternalStore(
+    (cb) => { document.addEventListener("visibilitychange", cb); return () => document.removeEventListener("visibilitychange", cb); },
+    () => !document.hidden,
+    () => true,
+  );
 }
 
 /**
