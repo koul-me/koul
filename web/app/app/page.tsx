@@ -71,7 +71,7 @@ export default function HomePage() {
             <motion.div {...tile}><PnlTile pnl={history?.pnl ?? null} pnlPct={history?.pnlPct ?? null} loading={!loaded || !activity.loaded} /></motion.div>
             <motion.div {...tile}><IdleTile idle={idle} loading={!loaded} target={target ? `Hub ${target.hub}` : null} onPutToWork={() => setPutOpen(true)} busy={false} /></motion.div>
           </div>
-          <motion.div {...tile} className="flex min-w-0 flex-1"><ChartTile balance={balance} series={history?.series ?? null} loading={!loaded} className="h-full w-full" /></motion.div>
+          <motion.div {...tile} className="flex min-w-0 flex-1"><ChartTile balance={balance} series={history?.series ?? null} loading={!loaded} now={now} className="h-full w-full" /></motion.div>
         </div>
       </div>
       <motion.div {...tile}><AutopilotTile ap={ap} now={now} /></motion.div>
