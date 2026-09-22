@@ -1,163 +1,157 @@
 "use client";
 
 /**
- * How it works, in three steps held on screen while you scroll: you write a rule, the rule lives in the router
- * contract, and a check makes it run itself. Each step draws its own diagram. Holding them only works where the
- * three fit on one screen, so on a phone, and with reduced motion on, the steps simply stack instead.
+ * How it works, in three cards side by side (stacked on a phone): say what you want and it becomes a rule, the
+ * rule is stored on-chain next to your wallet, and a check makes it run itself. Each card draws its own small
+ * picture. Nothing is pinned to the scroll, so the page never stalls.
  */
 import * as React from "react";
-import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
-import { ArrowDown, Check } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { Check, KeyRound, ScrollText, Wallet } from "lucide-react";
 import { Label, Tile } from "@/components/signal";
-import { DUR, rise, tween } from "@/lib/motion";
-import { useMedia } from "@/lib/landing/use-media";
+import { DUR, tween } from "@/lib/motion";
 import { Section } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
 import { cn } from "@/lib/utils";
 
-const STEPS = [
-  { n: "01", title: "Write a rule", line: "A condition, a level, an action." },
-  { n: "02", title: "It lives on-chain", line: "Stored in the router contract, in your order." },
-  { n: "03", title: "It runs itself", line: "A check arrives. The first matching rule runs." },
-];
-
+const SENTENCE = "Repay my loan if health drops under 1.25";
 const RULE: Chip[] = [
-  { key: "if", text: "IF", tone: "mono" },
-  { key: "subject", text: "loan health", tone: "mono" },
+  { key: "subject", text: "health", tone: "mono" },
   { key: "level", text: "< 1.25", tone: "accent" },
   { key: "action", text: "Repay debt", tone: "action" },
 ];
 
-const STORED = [
-  { i: 1, text: "IF loan health < 1.25 → Repay debt" },
-  { i: 2, text: "IF rate gap > 1.00% → Move to the better pool" },
-  { i: 3, text: "IF wallet > 100 USDC → Supply to a pool" },
-];
+const RUN = ["Check arrives", "Router reads live data", "Rule 1 matches", "Wallet executes"];
 
-const RUN = [
-  "A check arrives",
-  "The router reads live data",
-  "Rule 1 matches first",
-  "Your wallet executes it",
-];
+const TYPE_MS = 45;
+const HOLD_MS = 900;
+const SHOW_MS = 2600;
 
-function Write() {
+/** Types the sentence, shows the rule it becomes, then starts again. With reduced motion both simply sit there. */
+function useTyping(still: boolean) {
+  const [n, setN] = React.useState(0);
+  const [shown, setShown] = React.useState(false);
+  React.useEffect(() => {
+    if (still) return;
+    let typed = 0;
+    let stopped = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const tick = () => {
+      if (stopped) return;
+      typed += 1;
+      setN(typed);
+      if (typed < SENTENCE.length) { timers.push(setTimeout(tick, TYPE_MS)); return; }
+      timers.push(setTimeout(() => {
+        setShown(true);
+        timers.push(setTimeout(() => { setShown(false); typed = 0; setN(0); timers.push(setTimeout(tick, 400)); }, SHOW_MS));
+      }, HOLD_MS));
+    };
+    timers.push(setTimeout(tick, 600));
+    return () => { stopped = true; for (const t of timers) clearTimeout(t); };
+  }, [still]);
+  return still ? { text: SENTENCE, typing: false, shown: true } : { text: SENTENCE.slice(0, n), typing: n < SENTENCE.length, shown };
+}
+
+function SayIt({ still }: { still: boolean }) {
+  const { text, typing, shown } = useTyping(still);
   return (
-    <div className="grid gap-5">
-      <Label>The rule you write</Label>
-      <RuleChips chips={RULE} />
-      <div className="rounded-[var(--radius-group)] bg-surface-2 p-4">
+    <div className="grid min-w-0 gap-3">
+      <div className="min-h-[76px] rounded-[var(--radius-group)] border border-accent-text p-4">
         <Label tone="lime">Tell Koul</Label>
-        <p className="mt-2 text-[16px]">&ldquo;Repay my loan if health drops under 1.25&rdquo;</p>
+        <p className="mt-1.5 text-[16px] leading-snug">
+          {text}
+          <span className={cn("ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[0.15em] bg-accent-text", typing ? "animate-blink" : "opacity-0")} aria-hidden />
+        </p>
+      </div>
+      <div className="min-h-[40px]">
+        <RuleChips chips={RULE} shown={shown ? RULE.length : 0} size="sm" />
       </div>
     </div>
   );
 }
 
 function OnChain() {
+  const node = "flex min-w-0 flex-1 flex-col items-center gap-2 rounded-[var(--radius-group)] bg-surface-2 px-3 py-4 text-center";
   return (
-    <div className="grid min-w-0 gap-4">
-      <Label>Router contract · your rule set</Label>
-      <div className="min-w-0 rounded-[var(--radius-group)] border border-accent-text p-4">
-        <div className="min-w-0 divide-y divide-line">
-          {STORED.map((r, i) => (
-            <motion.div key={r.i} {...rise(6)} transition={tween(DUR.base)} style={{ transitionDelay: `${i * 40}ms` }} className="flex min-w-0 items-center gap-3 py-3">
-              <span className="mono inline-flex size-6 shrink-0 items-center justify-center rounded-full text-accent-text">{r.i}</span>
-              <span className="mono min-w-0 truncate text-text">{r.text}</span>
-            </motion.div>
-          ))}
+    <div className="grid gap-3">
+      <div className="flex items-stretch gap-2">
+        <div className={node}>
+          <Wallet className="size-5 text-accent-text" aria-hidden />
+          <span className="text-[14px] font-bold">Your wallet</span>
+        </div>
+        <div className="flex shrink-0 flex-col items-center justify-center gap-1 px-1">
+          <KeyRound className="size-4 text-muted" aria-hidden />
+          <span className="h-px w-8 bg-accent-text" aria-hidden />
+        </div>
+        <div className={node}>
+          <ScrollText className="size-5 text-accent-text" aria-hidden />
+          <span className="text-[14px] font-bold">Router contract</span>
         </div>
       </div>
-      <Label tone="lime">First match runs</Label>
+      <div className="grid grid-cols-3 gap-2">
+        {["Rule 1", "Rule 2", "Rule 3"].map((r, i) => (
+          <span key={r} className={cn("mono rounded-full py-2 text-center text-[12px]", i === 0 ? "bg-lime text-on-lime" : "bg-surface-2 text-muted")}>{r}</span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function Runs({ still }: { still: boolean }) {
-  const [lit, setLit] = React.useState(still ? RUN.length : 0);
+  const [lit, setLit] = React.useState(0);
   React.useEffect(() => {
     if (still) return;
-    const t = setInterval(() => setLit((n) => (n >= RUN.length ? 0 : n + 1)), 700);
+    const t = setInterval(() => setLit((n) => (n >= RUN.length + 1 ? 0 : n + 1)), 650);
     return () => clearInterval(t);
   }, [still]);
-  const shown = still ? RUN.length : lit;
+  const shown = still ? RUN.length : Math.min(lit, RUN.length);
   return (
-    <div className="grid gap-3">
-      <Label>One pass</Label>
+    <ol className="grid gap-2.5">
       {RUN.map((r, i) => (
-        <div key={r} className="flex items-center gap-3">
+        <li key={r} className="flex items-center gap-3">
           <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors", i < shown ? "bg-lime text-on-lime" : "bg-surface-2 text-muted")}>
             {i < shown ? <Check className="size-3.5" aria-hidden /> : <span className="mono text-[11px]">{i + 1}</span>}
           </span>
-          <span className={cn("text-[16px] transition-colors", i < shown ? "text-text" : "text-muted")}>{r}</span>
-        </div>
+          <span className={cn("text-[15px] transition-colors", i < shown ? "text-text" : "text-muted")}>{r}</span>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
-function Diagram({ step, still }: { step: number; still: boolean }) {
-  return (
-    <Tile className="flex min-h-[380px] min-w-0 flex-col justify-center p-6 md:min-h-[420px] md:p-8">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div className="min-w-0" key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={tween(DUR.fast)}>
-          {step === 0 ? <Write /> : step === 1 ? <OnChain /> : <Runs still={still} />}
-        </motion.div>
-      </AnimatePresence>
-    </Tile>
-  );
-}
-
-function StepText({ s, active }: { s: (typeof STEPS)[number]; active: boolean }) {
-  return (
-    <div className={cn("border-l-2 py-3 pl-5 transition-colors md:py-4", active ? "border-accent-text" : "border-line")}>
-      <Label tone={active ? "lime" : "muted"}>{s.n}</Label>
-      <h3 className={cn("mt-2 text-[26px] font-bold leading-tight transition-colors md:text-[32px]", active ? "text-text" : "text-muted")}>{s.title}</h3>
-      <p className={cn("mt-2 max-w-[46ch] text-[16px] transition-colors md:text-[17px]", active ? "text-muted" : "text-muted")}>{s.line}</p>
-    </div>
-  );
-}
+const STEPS = [
+  { n: "01", title: "Say it", line: "Plain words become a rule." },
+  { n: "02", title: "Store it", line: "The rule lives on-chain, next to your wallet." },
+  { n: "03", title: "Forget it", line: "Checks run all day. The first match fires." },
+] as const;
 
 export function How() {
   const still = useReducedMotion() ?? false;
-  // Holding the steps only works where all three fit on one screen.
-  const wide = useMedia("(min-width: 1024px) and (min-height: 700px)");
-  const ref = React.useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
-  const [step, setStep] = React.useState(0);
-  useMotionValueEvent(scrollYProgress, "change", (v) => setStep(Math.max(0, Math.min(STEPS.length - 1, Math.floor(v * STEPS.length)))));
-
-  if (still || !wide) {
-    return (
-      <Section title="Three steps, then it is out of your hands.">
-        <div className="mt-10 grid min-w-0 gap-10">
-          {STEPS.map((s, i) => (
-            <div key={s.n} className="grid min-w-0 gap-5 md:grid-cols-2 md:items-center md:gap-10">
-              <StepText s={s} active />
-              <Diagram step={i} still />
-            </div>
-          ))}
-        </div>
-      </Section>
-    );
-  }
-
   return (
-    <section aria-label="How it works" className="px-4 md:px-8">
-      <div ref={ref} className="relative mx-auto w-full max-w-[1280px]" style={{ height: `${STEPS.length * 90}vh` }}>
-        <div className="sticky top-0 flex min-h-screen flex-col justify-center py-16">
-          <header className="max-w-[760px]">
-            <h2 className="t-title">Three steps, then it is out of your hands.</h2>
-          </header>
-          <div className="mt-8 grid min-w-0 gap-8 md:mt-12 md:grid-cols-2 md:items-center md:gap-12">
-            <div className="grid gap-2">
-              {STEPS.map((s, i) => <StepText key={s.n} s={s} active={i === step} />)}
-              <Label tone="muted" className="mt-2 flex items-center gap-2"><ArrowDown className="size-3.5" aria-hidden /> Keep scrolling</Label>
-            </div>
-            <Diagram step={step} still={false} />
-          </div>
-        </div>
+    <Section id="how" label="How it works" title="Three steps. Then it runs without you.">
+      <div className="mt-10 grid min-w-0 gap-4 md:gap-5 lg:grid-cols-3">
+        {STEPS.map((s, i) => (
+          <motion.div
+            key={s.n}
+            className="min-w-0"
+            initial={still ? false : { opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ ...tween(DUR.slow), delay: i * 0.08 }}
+          >
+            <Tile className="flex h-full min-w-0 flex-col gap-6 p-6 md:p-7">
+              <div>
+                <Label tone="lime">{s.n}</Label>
+                <h3 className="mt-2 text-[26px] font-extrabold leading-tight tracking-tight">{s.title}</h3>
+                <p className="mt-1 text-[16px] text-muted">{s.line}</p>
+              </div>
+              <div className="mt-auto min-w-0">
+                {i === 0 ? <SayIt still={still} /> : i === 1 ? <OnChain /> : <Runs still={still} />}
+              </div>
+            </Tile>
+          </motion.div>
+        ))}
       </div>
-    </section>
+    </Section>
   );
 }

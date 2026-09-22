@@ -10,7 +10,7 @@ import { Hero } from "./hero";
 import { Problem } from "./problem";
 import { How } from "./how";
 import { Playground } from "./playground";
-import { SayIt } from "./say-it";
+import { UseCases } from "./use-cases";
 import { Safety } from "./safety";
 import { BuiltOn, FinalCta, Footer } from "./close";
 
@@ -21,9 +21,9 @@ export function Landing() {
       <main>
         <Hero />
         <Problem />
+        <UseCases />
         <How />
         <Playground />
-        <SayIt />
         <Safety />
         <BuiltOn />
         <FinalCta />

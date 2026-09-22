@@ -113,7 +113,7 @@ export function Playground() {
       : `Rule ${runsIndex + 1} runs.`;
 
   return (
-    <Section id="build" title="Write one. Move the market. Watch it run." lead="Invented numbers, in your browser. The walk is the router's own.">
+    <Section id="build" label="Try it" title="Move the market. Watch a rule fire." lead="Drag a slider, then press Run. Nothing here touches the chain.">
       {/* The market sets the scene, so it spans the top; the rules and what they do to the position sit under it. */}
       <Tile className="mt-10 grid gap-5 p-5 md:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">

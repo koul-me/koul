@@ -75,7 +75,7 @@ export function Hero() {
             ))}
           </h1>
           <p className="mt-6 max-w-[46ch] text-[19px] text-muted md:text-[22px]">
-            Conditional execution for your DeFi positions, from your own wallet.
+            Rules that watch your DeFi position and act for you. Your funds never leave your wallet.
           </p>
           <StartButtons className="mt-8" />
         </div>

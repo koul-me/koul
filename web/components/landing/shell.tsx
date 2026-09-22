@@ -46,7 +46,7 @@ export function StartButtons({ tone = "dark", className }: { tone?: "dark" | "on
 /** A full-bleed band with the page's column inside it. */
 export function Section({ id, label, title, lead, children, className, inner }: { id?: string; label?: string; title?: React.ReactNode; lead?: React.ReactNode; children?: React.ReactNode; className?: string; inner?: string }) {
   return (
-    <section id={id} className={cn("px-4 py-20 md:px-8 md:py-28", className)}>
+    <section id={id} className={cn("px-4 py-14 md:px-8 md:py-20", className)}>
       <div className={cn("mx-auto w-full max-w-[1280px]", inner)}>
         {(label || title || lead) && (
           <motion.header

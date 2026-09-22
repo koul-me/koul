@@ -38,6 +38,12 @@ export function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
+const NAV = [
+  { href: "#how", label: "How it works" },
+  { href: "#build", label: "Try it" },
+  { href: "#safety", label: "Safety" },
+];
+
 export function TopBar() {
   const { scrollY } = useScroll();
   const [past, setPast] = React.useState(false);
@@ -47,7 +53,12 @@ export function TopBar() {
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4 md:px-8 md:py-5">
           <span className="text-[24px] font-extrabold tracking-tight md:text-[28px]">KOUL</span>
           <div className="flex items-center gap-2">
-            <a href="#build" className="label inline-flex h-11 items-center rounded-full px-4 text-muted transition-colors hover:text-text">Try a rule</a>
+            <nav aria-label="Sections" className="hidden items-center md:flex">
+              {NAV.map((n) => (
+                <a key={n.href} href={n.href} className="label inline-flex h-11 items-center rounded-full px-4 text-muted transition-colors hover:text-text">{n.label}</a>
+              ))}
+            </nav>
+            <a href="#build" className="label inline-flex h-11 items-center rounded-full bg-surface px-4 text-text transition-[filter] hover:brightness-110 md:hidden">Try it</a>
             <ThemeToggle />
           </div>
         </div>
