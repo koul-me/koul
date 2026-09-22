@@ -6,7 +6,8 @@ Read this first in every session. Update the checklist and the "Where we are" li
 
 Deployed, all from this repo on `master`, every push redeploys:
 
-- App: https://koul-stellar.vercel.app, Vercel project `koul`, root directory `web`. Environment: `ANTHROPIC_API_KEY`,
+- App: https://koul.me (also https://koul-stellar.vercel.app), Vercel project `koul` under the personal scope,
+  root directory `web`, production branch `master`. Environment: `ANTHROPIC_API_KEY`,
   `KEEPER_SECRET`, `FUNDS_ALLOW_PRODUCTION=1`, `ANCHOR_HOME_DOMAINS`. Vercel authentication off so the link opens for
   anyone.
 - Oracle admin: https://koul-oracle.vercel.app/oracle, Vercel project `koul-oracle`, root directory `oracle-admin`,
