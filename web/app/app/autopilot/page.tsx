@@ -91,13 +91,13 @@ export default function AutopilotPage() {
   const blocker = problem
     ?? (rules.length === 0 && live.status === "off" ? "Add at least one rule" : null)
     ?? (rules.length > 0 && contractCount > MAX_CONTRACT_RULES ? `The router holds at most ${MAX_CONTRACT_RULES} rules on-chain and this list becomes ${contractCount}` : null)
-    ?? (rules.length > 0 && needsPosition && idle < 1 ? "Deposit at least 1 USDC first: the first save opens your XOXNO position" : null)
+    ?? (rules.length > 0 && needsPosition && idle < 1 ? "Deposit at least 1 USDC first: it opens your XOXNO lending account" : null)
     ?? (rules.length > 0 && toCoreAutopilot({ rules }, 0n).unsupported.length ? "One rule is not something the router can run" : null);
   const [waitingForId, setWaitingForId] = React.useState(false);
   const busy = armer.openAction.busy || armer.grantAction.busy || armer.rulesAction.busy || waitingForId;
   const first = live.status === "off";
   const verb = first ? "Start" : "Update";
-  const busyLabel = armer.openAction.busy ? "Opening your position" : waitingForId ? "Reading your position" : armer.grantAction.busy ? "Giving access" : armer.rulesAction.busy ? (first ? "Starting autopilot" : "Updating autopilot") : null;
+  const busyLabel = armer.openAction.busy ? "Opening your XOXNO account" : waitingForId ? "Reading your account" : armer.grantAction.busy ? "Giving access" : armer.rulesAction.busy ? (first ? "Starting autopilot" : "Updating autopilot") : null;
   const stepLabels = React.useMemo(() => ({ rules: first ? "Start autopilot" : "Update rules" }), [first]);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [asking, setAsking] = React.useState(false);
@@ -117,13 +117,15 @@ export default function AutopilotPage() {
   const progress = React.useMemo<SaveStep[] | null>(() => {
     if (!plan) return null;
     const deleting = plan.includes("clear");
+    // A later step running wins: the position-id read can still be settling while access or the rules are signed.
+    const later = armer.grantAction.busy || armer.rulesAction.busy || armer.grantAction.phase === "success" || armer.rulesAction.phase === "success";
     const active: { key: SaveStepKey; detail: string | null } | null = armer.openAction.busy ? { key: "open", detail: phaseDetail(armer.openAction.phase) }
-      : waitingForId ? { key: "open", detail: "Reading your position id" }
       : armer.grantAction.busy ? { key: deleting ? "revoke" : "grant", detail: phaseDetail(armer.grantAction.phase) }
       : armer.rulesAction.busy ? { key: deleting ? "clear" : "rules", detail: phaseDetail(armer.rulesAction.phase) }
+      : waitingForId && !later ? { key: "open", detail: "Reading your position id" }
       : null;
     const done = {
-      open: completed || !needsPosition || armer.openAction.phase === "success",
+      open: completed || !needsPosition || armer.openAction.phase === "success" || (!deleting && later),
       grant: completed || live.access.active || armer.grantAction.phase === "success",
       rules: completed || armer.rulesAction.phase === "success",
       clear: completed || deleteDone.clear,
@@ -289,7 +291,7 @@ export default function AutopilotPage() {
       {/* The composer: the way in before the first rule, and a helper while editing. A running autopilot shows itself instead. */}
       {(editor.editing || live.status === "off") && <Chat mode={editor.editing ? "editing" : "live"} rules={rules} live={chatLive} onAccept={onAccept} onEdit={onEdit} chips={4} />}
       {(editor.editing || live.status === "off") && (
-        <Holdings positions={pf.positions} health={pf.health} pools={pools.pools} fx={{ tryPerUsd: values.live.fx, stale: values.live.fxStale }} xlm={w.xlm} access={live.access} loading={pf.loading || pools.loading} focus={holdingsFocus} collapsed={editor.open === null} />
+        <Holdings positions={pf.positions} health={pf.health} pools={pools.pools} fx={{ tryPerUsd: values.live.fx, stale: values.live.fxStale }} xlm={w.xlm} access={live.access} loading={pf.loading || pools.loading} focus={holdingsFocus} collapsed />
       )}
 
       {editor.editing ? (

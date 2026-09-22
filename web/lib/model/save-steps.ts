@@ -16,7 +16,11 @@ export interface SaveStep {
   detail: string | null;
 }
 
-export const STEP_LABELS: Record<SaveStepKey, string> = { open: "Open position", grant: "Give access", rules: "Save rules", clear: "Remove rules", revoke: "Revoke access" };
+/**
+ * "Open account": the first supply of 1 USDC creates your XOXNO lending account (a position NFT in your wallet),
+ * which every rule acts on. It happens once per wallet.
+ */
+export const STEP_LABELS: Record<SaveStepKey, string> = { open: "Open XOXNO account", grant: "Give access", rules: "Save rules", clear: "Remove rules", revoke: "Revoke access" };
 
 /** The steps a delete needs: the rules go, then the key when there is one. */
 export function planDelete(input: { hasAccess: boolean }): SaveStepKey[] {

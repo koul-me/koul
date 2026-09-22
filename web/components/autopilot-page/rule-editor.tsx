@@ -15,7 +15,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { DUR, SPRING_SOFT, tween } from "@/lib/motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { InlineConfirm, Label, PillButton, Tile, TickSlider } from "@/components/signal";
+import { IconButton, InlineConfirm, Label, Tile, TickSlider } from "@/components/signal";
 import { RuleLine } from "@/components/rules/rule-line";
 import { POOLS, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
 import { ACTION_CHOICES, CONDITION_SUBJECTS, agoShort, cooldownShort, liveLabel, observedLabel } from "@/lib/model/labels";
@@ -249,7 +249,7 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
       <AnimatePresence initial={false}>
       {open && (
         <motion.div key="panel" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={tween(DUR.base)} className="overflow-hidden">
-        <div className="grid gap-5 border-t border-line py-5 md:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)_auto] md:items-start md:gap-8">
+        <div className="grid gap-5 border-t border-line py-5 md:grid-cols-2 md:items-start md:gap-8">
           <div className="grid gap-2">
             <Label>If</Label>
             <div className="grid gap-2">
@@ -275,18 +275,19 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
               </Select>
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-4 md:flex-col md:items-end">
+          {problem && <Label tone="danger" className="md:col-span-2">{problem}</Label>}
+          {/* One footer for the rule itself: on or off, its place in the order, and delete. */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 md:col-span-2">
             <label className="flex min-h-11 cursor-pointer items-center gap-3">
-              <Label>Rule on</Label>
               <Switch checked={rule.enabled} onCheckedChange={() => editor.toggle(rule.id)} aria-label={`Rule ${i + 1} on`} />
+              <Label>{rule.enabled ? "On" : "Off"}</Label>
             </label>
-            <div className="flex gap-2">
-              <PillButton variant="outline" size="md" onClick={() => editor.move(rule.id, -1)} disabled={i === 0} aria-label={`Move rule ${i + 1} up`}><ChevronUp className="size-4" aria-hidden /> Move up</PillButton>
-              <PillButton variant="outline" size="md" onClick={() => editor.move(rule.id, 1)} disabled={i === count - 1} aria-label={`Move rule ${i + 1} down`}><ChevronDown className="size-4" aria-hidden /> Move down</PillButton>
+            <div className="flex items-center gap-2">
+              <IconButton variant="ghost" onClick={() => editor.move(rule.id, -1)} disabled={i === 0} aria-label={`Move rule ${i + 1} up`}><ChevronUp className="size-4" aria-hidden /></IconButton>
+              <IconButton variant="ghost" onClick={() => editor.move(rule.id, 1)} disabled={i === count - 1} aria-label={`Move rule ${i + 1} down`}><ChevronDown className="size-4" aria-hidden /></IconButton>
+              <InlineConfirm confirmLabel="Delete" onConfirm={() => editor.remove(rule.id)}>Delete</InlineConfirm>
             </div>
-            <InlineConfirm confirmLabel="Delete" onConfirm={() => editor.remove(rule.id)}>Delete</InlineConfirm>
           </div>
-          {problem && <Label tone="danger" className="md:col-span-3">{problem}</Label>}
         </div>
         </motion.div>
       )}

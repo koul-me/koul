@@ -137,7 +137,7 @@ export function useArmAutopilot() {
       if (!opts.openWith || opts.openWith.units <= 0n) return { ok: false, step: "account", reason: "This wallet has no XOXNO position yet and nothing to open one with", toasted: false };
       const opened = await openAction.run(() => writer.buildSupply(address, 0n, opts.openWith!.hub, opts.openWith!.units), {
         title: `Position opened with ${fmtUsdc(Number(opts.openWith.units) / 1e7)} USDC`,
-        doing: "Opening your XOXNO position",
+        doing: "Opening your XOXNO lending account",
         description: "XOXNO minted your position; Koul reads its id from the position NFT.",
         invalidatePrefixes: ["portfolio:", "pools"],
       });

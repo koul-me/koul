@@ -19,7 +19,7 @@ export function describeParams(p: AgentParams | null): string {
   if (!p) return "Koul acts for you with a limited key. It can only move USDC between your wallet and XOXNO, never anywhere else, and it stops when access ends.";
   const fns = new Set(p.allowedCalls.filter(([c]) => c === XOXNO.controller).map(([, f]) => f));
   const can: string[] = [];
-  if (fns.has("supply")) can.push("put USDC from your wallet into your XOXNO position");
+  if (fns.has("supply")) can.push("put USDC from your wallet into your XOXNO lending account");
   if (fns.has("withdraw")) can.push("bring USDC from that position back to your wallet");
   if (fns.has("repay")) can.push("repay its debt");
   const ticks = p.allowedCalls.some(([c, f]) => c === KOUL.router && f === "tick");

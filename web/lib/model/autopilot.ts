@@ -449,7 +449,7 @@ export function permissionsFor(ap: Pick<Autopilot, "rules">): { can: string[]; t
   const kinds = new Set(ap.rules.filter((r) => r.enabled).map((r) => r.action.kind));
   const can: string[] = [];
   const technical: string[] = ["router.tick"];
-  if (kinds.has("supply_from_wallet")) { can.push("Put idle USDC from this wallet into your XOXNO position"); technical.push("controller.supply", "usdc.transfer → XOXNO pool only"); }
+  if (kinds.has("supply_from_wallet")) { can.push("Put idle USDC from this wallet into your XOXNO lending account"); technical.push("controller.supply", "usdc.transfer → XOXNO pool only"); }
   if (kinds.has("move_to_best_pool")) { can.push("Move your USDC between the two USDC hubs"); technical.push("controller.withdraw", "controller.supply", "usdc.transfer → XOXNO pool only"); }
   if (kinds.has("repay_from_wallet")) { can.push("Repay your loan with USDC from this wallet"); technical.push("controller.repay", "usdc.transfer → XOXNO pool only"); }
   if (kinds.has("withdraw_to_wallet")) { can.push("Withdraw your USDC from the pools back into this wallet"); technical.push("controller.withdraw"); }

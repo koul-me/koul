@@ -90,8 +90,8 @@ export function SaveBar({ changes, confirmations, blocker, error, ask, saved, sa
           <motion.div key="ask" {...swap}>
             <Tile className="grid gap-5 p-5">
               <p className="text-[15px] text-text md:max-w-[640px]">
-                Koul gets a limited key for {ask.days} days that can only run these rules on your XOXNO position, never move USDC anywhere else, and that you can revoke at any time.
-                {ask.needsPosition ? " Your first save also opens that position with 1 USDC." : ""} {ask.steps.length === 1 ? "One" : ask.steps.length === 2 ? "Two" : "Three"} passkey {ask.steps.length === 1 ? "confirmation" : "confirmations"}, in this order:
+                Koul gets a limited key for {ask.days} days that can only run these rules on your XOXNO lending account, never move USDC anywhere else, and that you can revoke at any time.
+                {ask.needsPosition ? " First, 1 USDC opens your XOXNO lending account, where the rules lend and repay. This happens once." : ""} {ask.steps.length === 1 ? "One" : ask.steps.length === 2 ? "Two" : "Three"} passkey {ask.steps.length === 1 ? "confirmation" : "confirmations"}, in this order:
               </p>
               <Steps labels={ask.steps.map((s) => s.label)} active={0} />
               <div className="flex flex-col-reverse gap-3 md:flex-row md:justify-end">
