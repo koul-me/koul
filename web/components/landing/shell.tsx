@@ -5,7 +5,9 @@
  * and the two passkey buttons that start the real flows. Nothing here talks to the chain.
  */
 import * as React from "react";
+import { motion } from "motion/react";
 import { Label, PillButton } from "@/components/signal";
+import { DUR, tween } from "@/lib/motion";
 import { useWalletOnboarding, type PasskeyPhase } from "@/hooks/use-wallet";
 import { cn } from "@/lib/utils";
 
@@ -47,11 +49,17 @@ export function Section({ id, label, title, lead, children, className, inner }: 
     <section id={id} className={cn("px-4 py-20 md:px-8 md:py-28", className)}>
       <div className={cn("mx-auto w-full max-w-[1280px]", inner)}>
         {(label || title || lead) && (
-          <header className="max-w-[760px]">
+          <motion.header
+            className="max-w-[760px]"
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={tween(DUR.slow)}
+          >
             {label && <Label tone="lime">{label}</Label>}
-            {title && <h2 className="t-title mt-4">{title}</h2>}
+            {title && <h2 className={cn("t-title", label && "mt-4")}>{title}</h2>}
             {lead && <p className="mt-5 text-[17px] text-muted md:text-[19px]">{lead}</p>}
-          </header>
+          </motion.header>
         )}
         {children}
       </div>

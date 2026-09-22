@@ -78,7 +78,7 @@ export function Problem() {
 
   const shown = still || crossed;
   return (
-    <Section label="The problem" title="Markets do not wait for you to wake up.">
+    <Section title="Markets do not wait for you to wake up.">
       <div ref={ref} className="mt-10 grid gap-4 md:grid-cols-2 md:gap-5">
         <Panel title="Without a rule" note="Missed" tone="danger" path={FALLING} progress={drawn} crossed={shown} still={still}>
           <p className={cn("text-[22px] font-bold transition-opacity duration-300 md:text-[26px]", shown ? "opacity-100" : "opacity-0")}>You were asleep.</p>
