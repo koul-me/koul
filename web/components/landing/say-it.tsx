@@ -55,11 +55,12 @@ export function SayIt() {
   const { text, typing, shown } = useTyping(still);
   return (
     <Section title="Say what you want. Koul writes the rule.">
-      <div className="mt-10 grid gap-4 md:gap-5">
-        <Tile className="rounded-[var(--radius-tile)] border-2 border-accent-text p-5 md:p-6">
-          <div className="flex items-center gap-4">
+      <div className="mt-10 grid min-w-0 gap-4 md:gap-5">
+        <Tile className="min-w-0 rounded-[var(--radius-tile)] border-2 border-accent-text p-5 md:p-6">
+          <div className="flex min-w-0 items-center gap-4">
             <Label tone="lime" className="shrink-0">Tell Koul</Label>
-            <p className="min-w-0 flex-1 truncate text-[17px] md:text-[20px]">
+            {/* One line where there is room; on a phone it wraps rather than setting the width of the page. */}
+            <p className="min-w-0 flex-1 text-[17px] md:truncate md:text-[20px]">
               {text}
               <span className={cn("ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[0.15em] bg-accent-text", typing ? "animate-blink" : "opacity-0")} aria-hidden />
             </p>
@@ -73,7 +74,7 @@ export function SayIt() {
               <Label tone={shown ? "lime" : "muted"}>{shown ? "Ready to start" : "Waiting"}</Label>
             </div>
             <RuleChips chips={CHIPS} shown={shown ? CHIPS.length : 0} />
-            <Label tone="muted">Nothing is saved until you start it with your passkey.</Label>
+            <Label tone="muted">Nothing runs until you start it with your passkey.</Label>
           </Tile>
         </motion.div>
       </div>
