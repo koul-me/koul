@@ -9,7 +9,7 @@ import * as React from "react";
 import { useReducedMotion } from "motion/react";
 import { Check } from "lucide-react";
 import { Label, Tile, TileLabel } from "@/components/signal";
-import { StartButtons, Illustrative } from "./shell";
+import { StartButtons } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
 import { Gauge } from "./gauge";
 import { cn } from "@/lib/utils";
@@ -66,8 +66,7 @@ export function Hero() {
     <section className="px-4 pt-6 pb-16 md:px-8 md:pt-10 md:pb-24">
       <div className="mx-auto grid w-full max-w-[1280px] items-center gap-8 md:gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div>
-          <Label tone="lime">Conditional execution · Stellar testnet</Label>
-          <h1 className="t-headline mt-5 max-w-[14ch]">
+          <h1 className="t-headline max-w-[14ch]">
             {HEADLINE.map((w, i) => (
               <span key={`${w}-${i}`} className="animate-rise inline-block" style={{ animationDelay: `${60 + i * 55}ms` }}>
                 {w}
@@ -94,7 +93,6 @@ export function Hero() {
               <span className="text-[16px] font-bold">Repaid 40.00 USDC from your wallet</span>
             </div>
           </div>
-          <Illustrative />
         </Tile>
       </div>
     </section>

@@ -10,7 +10,7 @@ import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScro
 import { ArrowDown, Check } from "lucide-react";
 import { Label, Tile } from "@/components/signal";
 import { DUR, rise, tween } from "@/lib/motion";
-import { Illustrative, Section } from "./shell";
+import { Section } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
 import { cn } from "@/lib/utils";
 
@@ -104,7 +104,6 @@ function Diagram({ step, still }: { step: number; still: boolean }) {
           {step === 0 ? <Write /> : step === 1 ? <OnChain /> : <Runs still={still} />}
         </motion.div>
       </AnimatePresence>
-      <Illustrative className="mt-6" />
     </Tile>
   );
 }
@@ -112,7 +111,7 @@ function Diagram({ step, still }: { step: number; still: boolean }) {
 function StepText({ s, active }: { s: (typeof STEPS)[number]; active: boolean }) {
   return (
     <div className={cn("border-l-2 py-3 pl-5 transition-colors md:py-4", active ? "border-accent-text" : "border-line")}>
-      <Label tone={active ? "lime" : "dim"}>{s.n}</Label>
+      <Label tone={active ? "lime" : "muted"}>{s.n}</Label>
       <h3 className={cn("mt-2 text-[26px] font-bold leading-tight transition-colors md:text-[32px]", active ? "text-text" : "text-muted")}>{s.title}</h3>
       <p className={cn("mt-2 max-w-[46ch] text-[16px] transition-colors md:text-[17px]", active ? "text-muted" : "text-muted")}>{s.line}</p>
     </div>
@@ -128,7 +127,7 @@ export function How() {
 
   if (still) {
     return (
-      <Section label="How it works" title="Three steps, then it is out of your hands.">
+      <Section title="Three steps, then it is out of your hands.">
         <div className="mt-10 grid gap-10">
           {STEPS.map((s, i) => (
             <div key={s.n} className="grid gap-5 md:grid-cols-2 md:items-center md:gap-10">
@@ -146,8 +145,7 @@ export function How() {
       <div ref={ref} className="relative mx-auto w-full max-w-[1280px]" style={{ height: `${STEPS.length * 90}vh` }}>
         <div className="sticky top-0 flex min-h-screen flex-col justify-center py-16">
           <header className="max-w-[760px]">
-            <Label tone="lime">How it works</Label>
-            <h2 className="t-title mt-4">Three steps, then it is out of your hands.</h2>
+            <h2 className="t-title">Three steps, then it is out of your hands.</h2>
           </header>
           <div className="mt-8 grid gap-8 md:mt-12 md:grid-cols-2 md:items-center md:gap-12">
             <div className="grid gap-2">

@@ -68,7 +68,7 @@ export function Gauge({ label, value, level, min, max, held, unit = "", duration
       </div>
       <div className="flex justify-between">
         <Label tone="muted">{min.toFixed(decimals)}{unit}</Label>
-        <Label tone={held ? "lime" : "dim"}>level {level.toFixed(decimals)}{unit}</Label>
+        <Label tone={held ? "lime" : "muted"}>level {level.toFixed(decimals)}{unit}</Label>
         <Label tone="muted">{max.toFixed(decimals)}{unit}</Label>
       </div>
     </div>

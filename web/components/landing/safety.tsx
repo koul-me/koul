@@ -56,7 +56,6 @@ export function Safety() {
   const still = useReducedMotion() ?? false;
   return (
     <Section
-      label="Your money stays yours"
       title="Koul never holds your funds."
       lead="Your USDC stays in your own smart wallet and your own position. Koul acts through a key that lives on your wallet, pinned to a short list of calls, and it expires."
     >

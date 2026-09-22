@@ -8,7 +8,7 @@
 import * as React from "react";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { Label, Tile } from "@/components/signal";
-import { Illustrative, Section } from "./shell";
+import { Section } from "./shell";
 import { cn } from "@/lib/utils";
 
 /** The same reading in both panels up to the crossing; after it, one keeps falling and one is held. */
@@ -60,7 +60,7 @@ function Panel({ title, note, tone, path, progress, crossed, still, children }: 
       </div>
       <div className="flex justify-between">
         <Label tone="muted">00:00</Label>
-        <Label tone={crossed ? "text" : "dim"}>{CROSS_AT} · level crossed</Label>
+        <Label tone={crossed ? "text" : "muted"}>{CROSS_AT} · level crossed</Label>
         <Label tone="muted">06:00</Label>
       </div>
       <div className="min-h-[52px]">{children}</div>
@@ -78,11 +78,7 @@ export function Problem() {
 
   const shown = still || crossed;
   return (
-    <Section
-      label="The problem"
-      title="Markets do not wait for you to wake up."
-      lead="A position needs watching around the clock. You cannot be there, and the moment that matters lasts minutes."
-    >
+    <Section label="The problem" title="Markets do not wait for you to wake up.">
       <div ref={ref} className="mt-10 grid gap-4 md:grid-cols-2 md:gap-5">
         <Panel title="Without a rule" note="Missed" tone="danger" path={FALLING} progress={drawn} crossed={shown} still={still}>
           <p className={cn("text-[22px] font-bold transition-opacity duration-300 md:text-[26px]", shown ? "opacity-100" : "opacity-0")}>You were asleep.</p>
@@ -94,7 +90,6 @@ export function Problem() {
           </div>
         </Panel>
       </div>
-      <Illustrative className="mt-5">Illustrative. An invented reading, no asset, no real prices.</Illustrative>
     </Section>
   );
 }

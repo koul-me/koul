@@ -9,7 +9,7 @@ import { ArrowRight } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { Label, Tile } from "@/components/signal";
 import { tween } from "@/lib/motion";
-import { Illustrative, Section } from "./shell";
+import { Section } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +54,7 @@ export function SayIt() {
   const still = useReducedMotion() ?? false;
   const { text, typing, shown } = useTyping(still);
   return (
-    <Section label="Or just say it" title="Say what you want. Koul writes the rule." lead="The same rule, in a sentence. You see what it would do before anything is saved, and you can change every part of it.">
+    <Section title="Say what you want. Koul writes the rule.">
       <div className="mt-10 grid gap-4 md:gap-5">
         <Tile className="rounded-[var(--radius-tile)] border-2 border-accent-text p-5 md:p-6">
           <div className="flex items-center gap-4">
@@ -70,13 +70,12 @@ export function SayIt() {
           <Tile className="grid gap-4 p-5 md:p-6">
             <div className="flex items-baseline justify-between gap-3">
               <Label>The rule it becomes</Label>
-              <Label tone={shown ? "lime" : "dim"}>{shown ? "Ready to start" : "Waiting"}</Label>
+              <Label tone={shown ? "lime" : "muted"}>{shown ? "Ready to start" : "Waiting"}</Label>
             </div>
             <RuleChips chips={CHIPS} shown={shown ? CHIPS.length : 0} />
             <Label tone="muted">Nothing is saved until you start it with your passkey.</Label>
           </Tile>
         </motion.div>
-        <Illustrative />
       </div>
     </Section>
   );

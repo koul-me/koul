@@ -71,7 +71,8 @@ export function Playground() {
   const still = useReducedMotion() ?? false;
   const [rules, setRules] = React.useState<Rule[]>(startingRules);
   const [world, setWorld] = React.useState<World>(START);
-  const [log, setLog] = React.useState<string[]>([]);
+  /** The last thing a press of Run did; the next press replaces it instead of stacking up. */
+  const [last, setLast] = React.useState<{ id: number; text: string } | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   const w = walk(rules, world);
@@ -93,9 +94,9 @@ export function Playground() {
     if (!runner) return;
     const res = run(runner.action, world);
     setWorld(res.world);
-    setLog((prev) => [res.text, ...prev].slice(0, 3));
+    setLast((prev) => ({ id: (prev?.id ?? 0) + 1, text: res.text }));
   };
-  const reset = () => { setWorld(START); setRules(startingRules()); setLog([]); };
+  const reset = () => { setWorld(START); setRules(startingRules()); setLast(null); };
 
   const total = Math.max(1, world.wallet + world.poolA + world.poolB);
   const verdict = runsIndex === null
@@ -107,8 +108,24 @@ export function Playground() {
       : `Rule ${runsIndex + 1} runs.`;
 
   return (
-    <Section id="build" label="Build a rule" title="Write one. Move the market. Watch it run." lead="A sandbox in your browser, on invented numbers. The same walk the router does on-chain, with nothing at stake.">
-      <div className="mt-10 grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+    <Section id="build" title="Write one. Move the market. Watch it run." lead="A sandbox in your browser, on invented numbers. The same walk the router does on-chain, with nothing at stake.">
+      {/* The market sets the scene, so it spans the top; the rules and what they do to the position sit under it. */}
+      <Tile className="mt-10 grid gap-5 p-5 md:p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <TileLabel>The market</TileLabel>
+          <Label tone="muted">Pool {POOLS.A.hub} pays {rateOf(world, "A").toFixed(2)}% · Pool {POOLS.B.hub} pays {rateOf(world, "B").toFixed(2)}%</Label>
+        </div>
+        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SUBJECTS.map((s) => {
+            const lit = rules.some((r, i) => r.conditions[0]!.kind === s.kind && w.matched.includes(i));
+            const value = s.kind === "health_factor" ? world.health : s.kind === "rate_gap" ? world.gap : s.kind === "fx_price" ? world.price : world.wallet;
+            const set = (v: number) => setWorld((prev) => ({ ...prev, ...(s.kind === "health_factor" ? { health: v } : s.kind === "rate_gap" ? { gap: v } : s.kind === "fx_price" ? { price: v } : { wallet: v }) }));
+            return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} />;
+          })}
+        </div>
+      </Tile>
+
+      <div className="mt-4 grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <div className="grid content-start gap-3">
           <div className="flex items-center justify-between gap-4 px-1">
             <TileLabel>Your rules</TileLabel>
@@ -149,23 +166,7 @@ export function Playground() {
         </div>
 
         <div className="grid content-start gap-4 md:gap-5">
-          <Tile className="grid gap-5 p-5 md:p-6">
-            <div className="flex items-baseline justify-between gap-3">
-              <TileLabel>The market</TileLabel>
-              <Label tone="muted">Drag a slider</Label>
-            </div>
-            <div className="grid gap-4">
-              {SUBJECTS.map((s) => {
-                const lit = rules.some((r, i) => r.conditions[0]!.kind === s.kind && w.matched.includes(i));
-                const value = s.kind === "health_factor" ? world.health : s.kind === "rate_gap" ? world.gap : s.kind === "fx_price" ? world.price : world.wallet;
-                const set = (v: number) => setWorld((prev) => ({ ...prev, ...(s.kind === "health_factor" ? { health: v } : s.kind === "rate_gap" ? { gap: v } : s.kind === "fx_price" ? { price: v } : { wallet: v }) }));
-                return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} />;
-              })}
-            </div>
-            <Label tone="muted">Pool {POOLS.A.hub} pays {rateOf(world, "A").toFixed(2)}% · Pool {POOLS.B.hub} pays {rateOf(world, "B").toFixed(2)}%</Label>
-          </Tile>
-
-          <Tile className="grid gap-4 p-5 md:p-6">
+          <Tile className="grid content-start gap-4 p-5 md:p-6">
             <TileLabel>The position</TileLabel>
             <div className="divide-y divide-line">
               <Bar title="Wallet · idle" value={world.wallet} of={total} />
@@ -181,13 +182,13 @@ export function Playground() {
               <PillButton size="md" onClick={fire} disabled={runsIndex === null}>Run it</PillButton>
               <Label tone="muted">Applies the action to the numbers above</Label>
             </div>
-            <div className="min-h-[24px]">
-              <AnimatePresence initial={false}>
-                {log.map((l, i) => (
-                  <motion.div key={`${l}-${i}`} initial={{ opacity: 0, y: -4 }} animate={{ opacity: i === 0 ? 1 : 0.45, y: 0 }} exit={{ opacity: 0 }} transition={tween()}>
-                    <Label tone={i === 0 ? "lime" : "dim"}>{l}</Label>
+            <div className="min-h-[20px]" aria-live="polite">
+              <AnimatePresence mode="wait" initial={false}>
+                {last && (
+                  <motion.div key={last.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={tween()}>
+                    <Label tone="lime">{last.text}</Label>
                   </motion.div>
-                ))}
+                )}
               </AnimatePresence>
             </div>
             <Illustrative>Illustrative. Invented numbers, nothing on-chain, {BASE_RATE.toFixed(2)}% is a placeholder rate.</Illustrative>

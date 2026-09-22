@@ -102,7 +102,7 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
           <span className="relative">{index + 1}</span>
         </span>
         <span className="mono min-w-0 flex-1 truncate text-muted">{describeAction(rule.action)}</span>
-        <Label tone={runs ? "lime" : skipped ? "dim" : matched ? "text" : "dim"}>{runs ? "Runs" : skipped ? "Nothing to move" : matched ? "Matches" : "Waiting"}</Label>
+        <Label tone={runs ? "lime" : skipped ? "muted" : matched ? "text" : "muted"}>{runs ? "Runs" : skipped ? "Nothing to move" : matched ? "Matches" : "Waiting"}</Label>
         <button type="button" onClick={onRemove} disabled={!canRemove} aria-label={`Remove rule ${index + 1}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text disabled:opacity-30">
           <X className="size-4" aria-hidden />
         </button>
