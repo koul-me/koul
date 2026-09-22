@@ -8,6 +8,7 @@
 import { Hero } from "./hero";
 import { Problem } from "./problem";
 import { How } from "./how";
+import { Playground } from "./playground";
 import { BuiltOn, FinalCta, Footer } from "./close";
 
 export function Landing() {
@@ -21,6 +22,7 @@ export function Landing() {
         <Hero />
         <Problem />
         <How />
+        <Playground />
         <BuiltOn />
         <FinalCta />
       </main>
