@@ -24,7 +24,7 @@ const item = "mono rounded-lg py-2.5 pl-3 pr-9 text-text focus:bg-surface-2";
 
 /** The four subjects the playground offers, with the range their level lives in. */
 export const SUBJECTS: { kind: ConditionKind; label: string; comparator: "gte" | "lte"; min: number; max: number; step: number; unit: string; decimals: number }[] = [
-  { kind: "health_factor", label: "Loan health", comparator: "lte", min: 1, max: 2, step: 0.01, unit: "", decimals: 2 },
+  { kind: "health_factor", label: "Loan health", comparator: "lte", min: 1, max: 4, step: 0.01, unit: "", decimals: 2 },
   { kind: "rate_gap", label: "Rate gap", comparator: "gte", min: 0, max: 3, step: 0.05, unit: "%", decimals: 2 },
   { kind: "fx_price", label: "Price feed", comparator: "gte", min: 45, max: 55, step: 0.01, unit: "", decimals: 2 },
   { kind: "idle_usdc", label: "Idle wallet", comparator: "gte", min: 0, max: 500, step: 5, unit: " USDC", decimals: 0 },

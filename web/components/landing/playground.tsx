@@ -15,13 +15,14 @@ import { Rolling } from "@/components/signal/rolling";
 import { tween } from "@/lib/motion";
 import { fmtUsdc } from "@/lib/format";
 import { makeRule, newId, POOLS, type Rule } from "@/lib/model/autopilot";
-import { amountOf, BASE_RATE, rateOf, run, walk, type World } from "@/lib/landing/engine";
+import { amountOf, collateral, debtForHealth, health, LTV, rateOf, run, walk, type World } from "@/lib/landing/engine";
 import { describeAction } from "@/lib/rules/describe";
 import { Illustrative, Section } from "./shell";
 import { RuleCard, SUBJECTS, conditionFor } from "./playground-rule";
 import { cn } from "@/lib/utils";
 
-const START: World = { health: 1.62, gap: 0.4, price: 48.79, wallet: 120, poolA: 300, poolB: 200, debt: 240 };
+/** 500 supplied against a 240 loan is a health of 1.67, comfortably above the 1.25 the first rule watches for. */
+const START: World = { gap: 0.4, price: 48.79, wallet: 120, poolA: 300, poolB: 200, debt: 240 };
 const MAX_RULES = 3;
 
 const startingRules = (): Rule[] => [
@@ -29,18 +30,21 @@ const startingRules = (): Rule[] => [
   makeRule({ id: newId("pg"), name: "Exit", conditions: [conditionFor("fx_price")], action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600 }),
 ];
 
-function Slider({ label, value, min, max, step, unit, decimals, onChange, lit }: { label: string; value: number; min: number; max: number; step: number; unit: string; decimals: number; onChange: (v: number) => void; lit: boolean }) {
+function Slider({ label, value, min, max, step, unit, decimals, onChange, lit, display }: { label: string; value: number; min: number; max: number; step: number; unit: string; decimals: number; onChange: (v: number) => void; lit: boolean; /** What the readout says, when the true reading is not a plain number in range. */ display?: string }) {
   const id = React.useId();
+  // The reading can sit outside the slider's range (a repaid loan is very healthy); the thumb stops at the end
+  // while the readout keeps telling the truth, which is what the rules are compared against.
+  const thumb = Math.min(max, Math.max(min, Number.isFinite(value) ? value : max));
   return (
     <div className="grid gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <label htmlFor={id} className={cn("label", lit ? "text-accent-text" : "text-muted")}>{label}</label>
-        <span className={cn("mono num", lit ? "text-accent-text" : "text-text")}><Rolling text={`${value.toFixed(decimals)}${unit}`} durationMs={200} /></span>
+        <span className={cn("mono num", lit ? "text-accent-text" : "text-text")}>{display ? display : <Rolling text={`${value.toFixed(decimals)}${unit}`} durationMs={200} />}</span>
       </div>
       <input
         id={id}
         type="range"
-        value={value}
+        value={thumb}
         min={min}
         max={max}
         step={step}
@@ -98,7 +102,8 @@ export function Playground() {
   };
   const reset = () => { setWorld(START); setRules(startingRules()); setLast(null); };
 
-  const total = Math.max(1, world.wallet + world.poolA + world.poolB);
+  const hp = health(world);
+  const total = Math.max(1, world.wallet + collateral(world));
   const verdict = runsIndex === null
     ? w.skipped.length > 0
       ? `Rule ${w.skipped[0]! + 1} matches, but it has nothing to move. The router walks on.`
@@ -118,9 +123,10 @@ export function Playground() {
         <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
           {SUBJECTS.map((s) => {
             const lit = rules.some((r, i) => r.conditions[0]!.kind === s.kind && w.matched.includes(i));
-            const value = s.kind === "health_factor" ? world.health : s.kind === "rate_gap" ? world.gap : s.kind === "fx_price" ? world.price : world.wallet;
-            const set = (v: number) => setWorld((prev) => ({ ...prev, ...(s.kind === "health_factor" ? { health: v } : s.kind === "rate_gap" ? { gap: v } : s.kind === "fx_price" ? { price: v } : { wallet: v }) }));
-            return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} />;
+            const value = s.kind === "health_factor" ? hp : s.kind === "rate_gap" ? world.gap : s.kind === "fx_price" ? world.price : world.wallet;
+            const set = (v: number) => setWorld((prev) => (s.kind === "health_factor" ? { ...prev, debt: debtForHealth(prev, v) } : { ...prev, ...(s.kind === "rate_gap" ? { gap: v } : s.kind === "fx_price" ? { price: v } : { wallet: v }) }));
+            const display = s.kind === "health_factor" ? (world.debt <= 0 ? "NO DEBT" : collateral(world) <= 0 ? "0.00" : undefined) : undefined;
+            return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} display={display} />;
           })}
         </div>
       </Tile>
@@ -191,7 +197,7 @@ export function Playground() {
                 )}
               </AnimatePresence>
             </div>
-            <Illustrative>Illustrative. Invented numbers, nothing on-chain, {BASE_RATE.toFixed(2)}% is a placeholder rate.</Illustrative>
+            <Illustrative>Illustrative. Invented numbers, nothing on-chain. Health here is what is supplied, times {LTV.toFixed(2)}, over the debt.</Illustrative>
           </Tile>
         </div>
       </div>

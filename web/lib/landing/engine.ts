@@ -6,10 +6,12 @@
 import { POOLS, type Action, type Condition, type ConditionKind, type PoolId, type Rule } from "@/lib/model/autopilot";
 import { isPercent } from "@/lib/model/capital";
 
-/** Everything the playground's rules can read, and the mock position they act on. All invented. */
+/**
+ * Everything the playground's rules can read, and the mock position they act on. All invented. Loan health is not
+ * stored: it is what the position says it is, so repaying a loan lifts it and withdrawing collateral lowers it,
+ * the way it would on a real position.
+ */
 export interface World {
-  /** Loan health, liquidation at 1.00. */
-  health: number;
   /** The difference between what the two pools pay, in percent points. Pool B is the better one. */
   gap: number;
   /** A price feed, quoted the way the app quotes USD/TRY. */
@@ -21,18 +23,33 @@ export interface World {
   debt: number;
 }
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const atLeast0 = (n: number) => (n < 0.005 ? 0 : round2(n));
+
 /** What the lower-paying pool pays; the better one pays this plus the gap. */
 export const BASE_RATE = 4;
 /** The router ignores moves under a whole USDC. */
 export const MIN_MOVE = 1;
+/** How much of the collateral counts against the loan. A round placeholder, not any pool's real number. */
+export const LTV = 0.8;
 
 export const rateOf = (w: World, pool: PoolId) => (pool === "A" ? BASE_RATE : BASE_RATE + w.gap);
 export const betterPool = (w: World): PoolId => (w.gap >= 0 ? "B" : "A");
+/** What is supplied, across both pools. */
+export const collateral = (w: World) => w.poolA + w.poolB;
+/** Collateral against debt: infinite with no loan, zero once the collateral is gone. */
+export const health = (w: World) => (w.debt <= 0 ? Infinity : (collateral(w) * LTV) / w.debt);
+/** The debt that would put health at `target`. With no collateral there is no such debt, so it is left alone. */
+export function debtForHealth(w: World, target: number): number {
+  const c = collateral(w);
+  return c <= 0 || target <= 0 ? w.debt : round2((c * LTV) / target);
+}
+
 
 /** The number a condition reads right now. */
 export function reading(kind: ConditionKind, w: World, pool: PoolId = "B"): number {
   switch (kind) {
-    case "health_factor": return w.health;
+    case "health_factor": return health(w);
     case "rate_gap": return Math.abs(w.gap);
     case "fx_price": return w.price;
     case "idle_usdc": return w.wallet;
@@ -65,7 +82,8 @@ export function base(action: Action, w: World): number {
 export function amountOf(action: Action, w: World): number {
   const pot = base(action, w);
   const want = action.amount === "all" ? pot : isPercent(action.amount) ? (pot * action.amount.percent) / 100 : Math.min(action.amount, pot);
-  return Math.max(0, Math.round(Math.min(want, pot) * 100) / 100);
+  // Rounded to the cent, and never past the pot, so no balance can be driven below zero.
+  return Math.max(0, Math.min(round2(want), round2(pot)));
 }
 
 export interface Ran { world: World; moved: number; text: string }
@@ -77,27 +95,28 @@ export function run(action: Action, w: World): Ran {
   switch (action.kind) {
     case "supply_from_wallet": {
       const pool = action.pool ?? "B";
-      next.wallet -= moved;
-      if (pool === "A") next.poolA += moved; else next.poolB += moved;
-      return { world: next, moved, text: `Supplied ${moved.toFixed(2)} USDC to Hub ${POOLS[pool].hub}` };
+      next.wallet = atLeast0(w.wallet - moved);
+      if (pool === "A") next.poolA = atLeast0(w.poolA + moved); else next.poolB = atLeast0(w.poolB + moved);
+      return { world: next, moved, text: `Supplied ${moved.toFixed(2)} USDC to Pool ${POOLS[pool].hub}` };
     }
     case "repay_from_wallet":
-      next.wallet -= moved;
-      next.debt -= moved;
+      next.wallet = atLeast0(w.wallet - moved);
+      next.debt = atLeast0(w.debt - moved);
       return { world: next, moved, text: `Repaid ${moved.toFixed(2)} USDC of the loan` };
     case "withdraw_to_wallet": {
       // Taken from the pools in proportion, the way a withdrawal across hubs lands.
-      const supplied = w.poolA + w.poolB;
+      const supplied = collateral(w);
       const fromA = supplied === 0 ? 0 : (moved * w.poolA) / supplied;
-      next.poolA -= fromA;
-      next.poolB -= moved - fromA;
-      next.wallet += moved;
+      next.poolA = atLeast0(w.poolA - fromA);
+      next.poolB = atLeast0(w.poolB - (moved - fromA));
+      next.wallet = atLeast0(w.wallet + moved);
       return { world: next, moved, text: `Withdrew ${moved.toFixed(2)} USDC to the wallet` };
     }
     case "move_to_best_pool": {
       const to = betterPool(w);
-      if (to === "B") { next.poolA -= moved; next.poolB += moved; } else { next.poolB -= moved; next.poolA += moved; }
-      return { world: next, moved, text: `Moved ${moved.toFixed(2)} USDC to Hub ${POOLS[to].hub}` };
+      if (to === "B") { next.poolA = atLeast0(w.poolA - moved); next.poolB = atLeast0(w.poolB + moved); }
+      else { next.poolB = atLeast0(w.poolB - moved); next.poolA = atLeast0(w.poolA + moved); }
+      return { world: next, moved, text: `Moved ${moved.toFixed(2)} USDC to Pool ${POOLS[to].hub}` };
     }
   }
 }
