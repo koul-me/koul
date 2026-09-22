@@ -56,17 +56,18 @@ export function Gauge({ label, value, level, min, max, below = true, unit = "", 
     <div className="grid gap-2">
       <div className="flex items-baseline justify-between gap-4">
         <Label>{label}</Label>
-        <motion.span className={cn("mono num text-[15px] transition-colors", held ? "text-accent-text" : "text-text")}>{text}</motion.span>
+        <motion.span className={cn("mono num text-[15px]", held ? "text-accent-text" : "text-text")}>{text}</motion.span>
       </div>
       <div ref={track} className="relative h-2">
-        {/* The track clips the bar, so its end stays square under the marker instead of a squashed round cap. */}
+        {/* The track clips the bar, so its end stays square under the marker instead of a squashed round cap. The
+            colour switches in one frame: a fade while the bar moves shows a muddy mix of the two. */}
         <div className="absolute inset-0 overflow-hidden rounded-full bg-surface-2">
-          <motion.div className={cn("h-full w-full origin-left transition-colors", held ? "bg-lime" : "bg-line")} style={{ scaleX: scale }} />
+          <motion.div className={cn("h-full w-full origin-left", held ? "bg-lime" : "bg-muted")} style={{ scaleX: scale }} />
         </div>
         {/* The level: a tick that never moves, so the reading is always read against it. */}
         <span className="absolute inset-y-[-6px] w-0.5 bg-text/70" style={{ left: `${pct(level) * 100}%` }} aria-hidden />
         <motion.span
-          className={cn("pointer-events-none absolute left-0 top-1/2 -ml-[7px] size-3.5 -translate-y-1/2 rounded-full transition-colors", held ? "bg-lime" : "bg-text")}
+          className={cn("pointer-events-none absolute left-0 top-1/2 -ml-[7px] size-3.5 -translate-y-1/2 rounded-full", held ? "bg-lime" : "bg-text")}
           style={{ x }}
           aria-hidden
         />
