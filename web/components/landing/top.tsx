@@ -3,12 +3,11 @@
 /**
  * The landing's own header: the wordmark, a jump to the playground, and the light switch. It sits at the top of
  * the page and takes a ground and a hairline once you scroll past the hero, so it never floats over the text.
- * A thin accent line across the very top follows how far down the page you are.
  */
 import * as React from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
-import { motion, useMotionValueEvent, useScroll } from "motion/react";
+import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
 
 /** True once the page is running in the browser; before that next-themes has not read the stored choice. */
@@ -40,12 +39,10 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 export function TopBar() {
-  const { scrollYProgress, scrollY } = useScroll();
+  const { scrollY } = useScroll();
   const [past, setPast] = React.useState(false);
   useMotionValueEvent(scrollY, "change", (v) => setPast(v > 24));
   return (
-    <>
-      <motion.div style={{ scaleX: scrollYProgress }} className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-accent-text" aria-hidden />
       <header className={cn("sticky top-0 z-40 transition-colors", past && "border-b border-line bg-background")}>
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4 md:px-8 md:py-5">
           <span className="text-[24px] font-extrabold tracking-tight md:text-[28px]">KOUL</span>
@@ -55,6 +52,5 @@ export function TopBar() {
           </div>
         </div>
       </header>
-    </>
   );
 }
