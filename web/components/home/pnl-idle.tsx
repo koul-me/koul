@@ -4,25 +4,27 @@ import * as React from "react";
 import { FitValue, fitValueClass, Label, Loadable, PillButton, Sk, Tile, TileLabel } from "@/components/signal";
 import { useCountUp } from "@/lib/count-up";
 import { fmtUsdc } from "@/lib/format";
-import { MOCK_HISTORY, mockedHistory } from "@/lib/mock";
 import { cn } from "@/lib/utils";
 
-/** All-time PNL: a dash until there is a history source (see docs/internal/ui-feasibility.md), mocked behind the flag. */
-export function PnlTile({ balance, loading }: { balance: number | null; loading: boolean }) {
-  const mocked = MOCK_HISTORY && balance !== null && balance > 0 ? mockedHistory(balance, 30) : null;
-  const pnl = useCountUp(mocked ? mocked.pnl : null);
+/**
+ * PnL: today's balance minus what came in net (lib/model/history), so it is the interest earned less interest paid.
+ * It needs the history to reach the wallet's start; otherwise it says so instead of guessing.
+ */
+export function PnlTile({ pnl, pnlPct, loading }: { pnl: number | null; pnlPct: number | null; loading: boolean }) {
+  const shown = useCountUp(pnl);
   const skeleton = <><Sk className="h-9 w-28 rounded-xl md:h-12 md:w-32" /><Sk className="mt-4 h-3.5 w-24" /></>;
+  const text = shown === null ? "" : `${shown >= 0 ? "+" : "−"}${fmtUsdc(Math.abs(shown))}`;
   return (
-    <Tile className="flex min-h-[196px] flex-col">
+    <Tile className="flex h-full min-h-[196px] flex-col">
       <TileLabel>PNL</TileLabel>
       <Loadable loading={loading} skeleton={skeleton} className="mt-auto">
-        {mocked && pnl !== null ? (
-          <div className={cn(fitValueClass(`${pnl >= 0 ? "+" : "−"}${fmtUsdc(Math.abs(pnl))}`), mocked.pnl >= 0 ? "text-accent-text" : "text-danger")}>{pnl >= 0 ? "+" : "−"}{fmtUsdc(Math.abs(pnl))}</div>
+        {pnl !== null && shown !== null ? (
+          <div className={cn(fitValueClass(text), pnl >= 0 ? "text-accent-text" : "text-danger")}>{text}</div>
         ) : (
           <div className="flex h-9 items-center md:h-12"><span aria-label="No value" className="block h-1.5 w-12 rounded-full bg-dim" /></div>
         )}
         <div className="mt-4">
-          {mocked ? <Label>{mocked.pnlPct >= 0 ? "+" : "−"}{Math.abs(mocked.pnlPct).toFixed(2)}% · all time</Label> : <Label>No history yet</Label>}
+          {pnl === null ? <Label>Older than this history</Label> : <Label>{pnlPct === null ? "All time" : `${pnlPct >= 0 ? "+" : "−"}${Math.abs(pnlPct).toFixed(2)}% · all time`}</Label>}
         </div>
       </Loadable>
     </Tile>
@@ -35,7 +37,7 @@ export function IdleTile({ idle, loading, target, onPutToWork, busy }: { idle: n
   const shown = useCountUp(loading ? null : idle);
   const skeleton = <><Sk className="h-9 w-28 rounded-xl md:h-12 md:w-32" /><Sk className="mt-4 h-11 w-32 rounded-full" /></>;
   return (
-    <Tile className="flex min-h-[196px] flex-col">
+    <Tile className="flex h-full min-h-[196px] flex-col">
       <TileLabel>Idle</TileLabel>
       <Loadable loading={loading || idle === null} skeleton={skeleton} className="mt-auto">
         <FitValue text={fmtUsdc(shown ?? idle ?? 0)} />

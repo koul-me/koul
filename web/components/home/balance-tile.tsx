@@ -29,7 +29,7 @@ export function BalanceTile({ balance, lira, loading, rate }: { balance: number 
   const balanceText = shownBalance === null ? "0,000.00" : fmtUsdc(shownBalance);
   const long = (shownBalance === null ? fmtUsdc(balance ?? 0) : balanceText).length > 9;
   return (
-    <Tile tone="lime" className="group flex min-h-[380px] flex-col p-6 md:p-8">
+    <Tile tone="lime" className="group flex h-full min-h-[380px] flex-col p-6 md:p-8">
       <div className="flex items-center justify-between">
         <span className="text-[16px] font-bold">Balance</span>
         <span className="text-[16px] font-bold">USDC</span>

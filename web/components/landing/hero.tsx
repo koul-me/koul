@@ -86,7 +86,8 @@ export function Hero() {
             <Label tone={held ? "lime" : "muted"}>{phase === "assembling" ? "Writing" : phase === "watching" ? "Watching" : phase === "crossed" ? "Condition met" : "Ran"}</Label>
           </div>
           <RuleChips chips={CHIPS} shown={chips} firing={phase === "fired"} />
-          <Gauge label="Loan health" value={value} level={LEVEL} min={1} max={2} durationMs={still ? 0 : 1800} />
+          {/* Each pass starts healthy at once and only the fall is animated: high, then through the level. */}
+          <Gauge label="Loan health" value={value} level={LEVEL} min={1} max={2} durationMs={still || phase === "assembling" ? 0 : 1800} />
           <div className="min-h-[44px]">
             <div className={cn("flex items-center gap-3 transition-opacity duration-300", phase === "fired" ? "opacity-100" : "opacity-0")} aria-live="polite">
               <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-lime text-on-lime"><Check className="size-4" aria-hidden /></span>

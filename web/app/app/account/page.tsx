@@ -56,7 +56,8 @@ export default function AccountPage() {
 
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] md:gap-5">
-      <div className="grid gap-4 md:gap-5">
+      {/* Both columns end on the same line: the right tile stretches, the Assets tile takes any slack on the left. */}
+      <div className="grid gap-4 md:grid-rows-[auto_1fr] md:gap-5">
         <Tile className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <TileLabel>Your wallet</TileLabel>
@@ -83,7 +84,7 @@ export default function AccountPage() {
           </Loadable>
         </Tile>
       </div>
-      <Tile className="flex flex-col gap-2 md:self-start">
+      <Tile className="flex flex-col gap-2">
         <TileLabel>Sign in</TileLabel>
         <div className="mt-2 divide-y divide-line">
           <KeyValue label="Method" value="PASSKEY" />
@@ -93,7 +94,7 @@ export default function AccountPage() {
             <Switch checked={light} onCheckedChange={(v) => switchTheme(v ? "light" : "dark")} aria-label="Light theme" disabled={!mounted} className={cn(!mounted && "[&_*]:!transition-none")} />
           </label>
         </div>
-        <div className="mt-4 grid gap-3">
+        <div className="mt-4 grid gap-3 md:mt-auto">
           <PillButton variant="ghost" size="lg" full onClick={() => void fund()} disabled={funding} aria-busy={funding}>{funding ? "Asking friendbot" : "Get test XLM"}</PillButton>
           <PillButton variant="outline" size="lg" full onClick={() => void w.disconnect()}>Disconnect</PillButton>
         </div>

@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * "Put to work" moves the idle USDC into the hub paying most, with one passkey. The confirmation is a small dark
- * dialog on desktop and a sheet on phones, both from one component.
+ * "Put to work" moves some or all of the idle USDC into the hub paying most, with one passkey: slide the share,
+ * see the amount. The confirmation is a small dark dialog on desktop and a sheet on phones, both from one component.
  */
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
-import { IconButton, KeyValue, Label, PillButton } from "@/components/signal";
+import { IconButton, KeyValue, Label, PillButton, TickSlider } from "@/components/signal";
 import { usePositionActions } from "@/hooks/use-position-actions";
 import { fmtPct, fmtUsdc } from "@/lib/format";
 import type { Pool } from "@/lib/data/types";
@@ -16,9 +16,13 @@ import { cn } from "@/lib/utils";
 export function PutToWorkDialog({ open, onOpenChange, idle, pool }: { open: boolean; onOpenChange: (o: boolean) => void; idle: number; pool: Pool | null }) {
   const actions = usePositionActions();
   const busy = actions.action.busy;
+  const [share, setShare] = React.useState(100);
+  // Whole cents, and the router's 1 USDC minimum: a share that comes to less than that cannot go.
+  const amount = Math.floor(idle * share) / 100;
+  const tooSmall = amount < 1;
   const confirm = async () => {
-    if (!pool) return;
-    const res = await actions.supply(pool.id, Math.floor(idle * 100) / 100);
+    if (!pool || tooSmall) return;
+    const res = await actions.supply(pool.id, amount);
     if (res) onOpenChange(false);
   };
   return (
@@ -36,12 +40,22 @@ export function PutToWorkDialog({ open, onOpenChange, idle, pool }: { open: bool
             <DialogPrimitive.Title className="text-[24px] font-bold leading-tight">Put to work</DialogPrimitive.Title>
             <DialogPrimitive.Close render={<IconButton aria-label="Close" disabled={busy} />}><X className="size-5" /></DialogPrimitive.Close>
           </div>
-          <DialogPrimitive.Description className="text-muted">Your idle USDC goes into the hub that pays most right now. It stays yours, in your own XOXNO position.</DialogPrimitive.Description>
+          <DialogPrimitive.Description className="text-muted">Your idle USDC goes into the hub that pays most right now. It stays yours, in your own XOXNO lending account.</DialogPrimitive.Description>
+          <TickSlider
+            value={share}
+            min={0}
+            max={100}
+            step={5}
+            label="How much of your idle USDC to put to work"
+            format={(v) => ({ main: fmtUsdc(Math.floor(idle * v) / 100), unit: `USDC · ${v}%` })}
+            onCommit={setShare}
+          />
           <div className="rounded-[var(--radius-group)] bg-surface-2 px-4">
-            <KeyValue label="Amount" value={`${fmtUsdc(idle)} USDC`} />
+            <KeyValue label="Stays idle" value={`${fmtUsdc(Math.max(0, idle - amount))} USDC`} />
             <KeyValue label="To" value={pool ? `Hub ${pool.hub} · ${fmtPct(pool.supplyApy)}` : "—"} />
           </div>
-          <PillButton size="lg" full onClick={() => void confirm()} disabled={busy || !pool} aria-busy={busy}>
+          {tooSmall && <Label tone="danger">At least 1 USDC</Label>}
+          <PillButton size="lg" full onClick={() => void confirm()} disabled={busy || !pool || tooSmall} aria-busy={busy}>
             {actions.action.phase === "prompt" ? "Confirm with your passkey" : actions.action.phase === "signed" || actions.action.phase === "submitting" ? "Sending to Stellar" : "Put to work"}
           </PillButton>
           <Label className="text-center">One passkey confirmation</Label>
