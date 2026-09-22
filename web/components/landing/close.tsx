@@ -1,30 +1,35 @@
 "use client";
 
 /** What Koul is built on, the last call to action, and the footer. Plain names, no logos, nothing claimed. */
-import { Label, Tile } from "@/components/signal";
+import { motion } from "motion/react";
+import { Label } from "@/components/signal";
+import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
 
-const BUILT_ON = [
-  { name: "Stellar", line: "Fast, cheap settlement" },
-  { name: "Soroban", line: "The rules run as a smart contract" },
-  { name: "XOXNO", line: "The lending pools your position sits in" },
-  { name: "Passkeys", line: "Face or fingerprint, no seed phrase" },
-  { name: "OpenZeppelin smart accounts", line: "The wallet that holds your funds" },
-];
+/** The names, large, with a dot between them. Fewer words than a tile each, and it reads as one thought. */
+const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin accounts"];
 
 export function BuiltOn() {
   return (
-    <Section label="Built on" title="Standing on work that already exists.">
-      <ul className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {BUILT_ON.map((b) => (
-          <li key={b.name}>
-            <Tile className="h-full p-6">
-              <div className="text-[20px] font-bold">{b.name}</div>
-              <div className="mt-1 text-[15px] text-muted">{b.line}</div>
-            </Tile>
-          </li>
+    <Section title="Built on Stellar today.">
+      {/* The names arrive one after another, so the band reads as a list being written, not a slide. */}
+      <motion.div
+        className="mt-10 flex flex-wrap items-baseline gap-x-5 gap-y-2 md:gap-x-7"
+        variants={staggerParent}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, amount: 0.4 }}
+      >
+        {BUILT_ON.map((name, i) => (
+          <motion.span key={name} variants={staggerChild} className="flex items-baseline gap-5 md:gap-7">
+            <span className="text-[30px] font-extrabold leading-tight tracking-tight md:text-[44px]">{name}</span>
+            {i < BUILT_ON.length - 1 && <span className="text-[30px] font-extrabold text-accent-text md:text-[44px]" aria-hidden>·</span>}
+          </motion.span>
         ))}
-      </ul>
+      </motion.div>
+      <p className="mt-8 max-w-[48ch] text-[17px] text-muted md:text-[19px]">
+        A rule is just a condition and an action. Nothing about that belongs to one lender, or one chain. More of both is where this goes next.
+      </p>
     </Section>
   );
 }

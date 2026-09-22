@@ -58,10 +58,8 @@ function Panel({ title, note, tone, path, progress, crossed, still, children }: 
           aria-hidden
         />
       </div>
-      <div className="flex justify-between">
-        <Label tone="muted">00:00</Label>
+      <div className="flex justify-center">
         <Label tone={crossed ? "text" : "muted"}>{CROSS_AT} · level crossed</Label>
-        <Label tone="muted">06:00</Label>
       </div>
       <div className="min-h-[52px]">{children}</div>
     </Tile>

@@ -13,18 +13,18 @@ import { Section } from "./shell";
 import { cn } from "@/lib/utils";
 
 const CAN = [
-  "Run your rules on the router",
-  "Move USDC between your wallet and your own position",
-  "Repay your own loan",
-  "Send USDC to the lending pool, and nowhere else",
+  "Run your rules",
+  "Move USDC between your wallet and your position",
+  "Repay your loan",
+  "Send USDC to the pool, nowhere else",
 ];
 
 const NEVER = [
-  "Send your money to any other address",
-  "Withdraw anywhere but your own wallet",
+  "Send your money anywhere else",
+  "Withdraw to another wallet",
   "Touch anyone else's position",
-  "Cash out to a bank: that needs your passkey",
-  "Work after it expires, or after you revoke it",
+  "Cash out to a bank",
+  "Work once you revoke it",
 ];
 
 function Never({ text, i, still }: { text: string; i: number; still: boolean }) {
@@ -55,10 +55,7 @@ function Never({ text, i, still }: { text: string; i: number; still: boolean }) 
 export function Safety() {
   const still = useReducedMotion() ?? false;
   return (
-    <Section
-      title="Koul never holds your funds."
-      lead="Your USDC stays in your own smart wallet and your own position. Koul acts through a key that lives on your wallet, pinned to a short list of calls, and it expires."
-    >
+    <Section title="Koul never holds your funds." lead="It acts through a key on your own wallet, pinned to a few calls, that expires.">
       <div className="mt-10 grid gap-4 md:gap-5 lg:grid-cols-2">
         <Tile className="grid content-start gap-4 border-2 border-accent-text p-6 md:p-8">
           <div className="flex items-baseline justify-between gap-3">
@@ -73,10 +70,6 @@ export function Safety() {
               </li>
             ))}
           </ul>
-          <div className="mt-2 grid gap-2 rounded-[var(--radius-group)] bg-surface-2 p-4">
-            <Label>The fence</Label>
-            <p className="text-[15px] text-muted">A policy contract on your wallet checks every call the key makes, and refuses anything not on that list. It also caps how often the key may be used.</p>
-          </div>
         </Tile>
 
         <Tile className="grid content-start gap-4 p-6 md:p-8">
@@ -87,12 +80,11 @@ export function Safety() {
           <ul className={cn("divide-y divide-line")}>
             {NEVER.map((n, i) => <Never key={n} text={n} i={i} still={still} />)}
           </ul>
-          <div className="mt-2 grid gap-2 rounded-[var(--radius-group)] bg-surface-2 p-4">
-            <Label tone="lime">Ends when you say</Label>
-            <p className="text-[15px] text-muted">The key carries an expiry date. Stop it sooner with one passkey confirmation, and it stops working immediately. Your rules stay where they are.</p>
-          </div>
         </Tile>
       </div>
+      <p className="mt-6 max-w-[64ch] text-[16px] text-muted md:text-[17px]">
+        A policy contract on your wallet checks every call and refuses the rest. One passkey ends the key for good.
+      </p>
     </Section>
   );
 }

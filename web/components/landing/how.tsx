@@ -15,9 +15,9 @@ import { RuleChips, type Chip } from "./rule-row";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
-  { n: "01", title: "Write a rule", line: "A condition, a level, an action. In plain words, or by telling Koul what you want." },
-  { n: "02", title: "It lives on-chain", line: "Your rules are stored in the router contract, in the order you put them." },
-  { n: "03", title: "It runs itself", line: "A check arrives, the router reads live data, the first matching rule runs, and your wallet executes it." },
+  { n: "01", title: "Write a rule", line: "A condition, a level, an action." },
+  { n: "02", title: "It lives on-chain", line: "Stored in the router contract, in your order." },
+  { n: "03", title: "It runs itself", line: "A check arrives. The first matching rule runs." },
 ];
 
 const RULE: Chip[] = [
@@ -34,11 +34,10 @@ const STORED = [
 ];
 
 const RUN = [
-  "A check arrives, every few minutes",
+  "A check arrives",
   "The router reads live data",
-  "Rule 1 matches first, and only it runs",
-  "Your wallet executes the call",
-  "It shows up in your activity",
+  "Rule 1 matches first",
+  "Your wallet executes it",
 ];
 
 function Write() {
@@ -68,7 +67,7 @@ function OnChain() {
           ))}
         </div>
       </div>
-      <Label tone="lime">Top to bottom · the first rule that matches runs</Label>
+      <Label tone="lime">First match runs</Label>
     </div>
   );
 }

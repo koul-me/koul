@@ -106,14 +106,14 @@ export function Playground() {
   const total = Math.max(1, world.wallet + collateral(world));
   const verdict = runsIndex === null
     ? w.skipped.length > 0
-      ? `Rule ${w.skipped[0]! + 1} matches, but it has nothing to move. The router walks on.`
+      ? `Rule ${w.skipped[0]! + 1} has nothing to move. The router walks on.`
       : "No rule matches. Move a slider."
     : w.matched.length > 1
-      ? `Rules ${w.matched.map((i) => i + 1).join(" and ")} match. Only rule ${runsIndex + 1} runs: the router stops at the first one.`
+      ? `Rules ${w.matched.map((i) => i + 1).join(" and ")} match. Only rule ${runsIndex + 1} runs.`
       : `Rule ${runsIndex + 1} runs.`;
 
   return (
-    <Section id="build" title="Write one. Move the market. Watch it run." lead="A sandbox in your browser, on invented numbers. The same walk the router does on-chain, with nothing at stake.">
+    <Section id="build" title="Write one. Move the market. Watch it run." lead="Invented numbers, in your browser. The walk is the router's own.">
       {/* The market sets the scene, so it spans the top; the rules and what they do to the position sit under it. */}
       <Tile className="mt-10 grid gap-5 p-5 md:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -135,7 +135,7 @@ export function Playground() {
         <div className="grid content-start gap-3">
           <div className="flex items-center justify-between gap-4 px-1">
             <TileLabel>Your rules</TileLabel>
-            <Label tone="muted">Top to bottom · first match runs</Label>
+            <Label tone="muted">First match runs</Label>
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
@@ -167,7 +167,7 @@ export function Playground() {
               <Plus className="size-4" aria-hidden /> Add rule
             </PillButton>
             <PillButton variant="ghost" size="md" onClick={reset}><RotateCcw className="size-4" aria-hidden /> Reset</PillButton>
-            <Label tone="muted" className="inline-flex min-h-11 items-center">{rules.length} of {MAX_RULES} here · up to 32 in the app</Label>
+            <Label tone="muted" className="inline-flex min-h-11 items-center">{rules.length} of {MAX_RULES} · up to 32 in the app</Label>
           </div>
         </div>
 
@@ -186,7 +186,6 @@ export function Playground() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <PillButton size="md" onClick={fire} disabled={runsIndex === null}>Run it</PillButton>
-              <Label tone="muted">Applies the action to the numbers above</Label>
             </div>
             <div className="min-h-[20px]" aria-live="polite">
               <AnimatePresence mode="wait" initial={false}>
@@ -197,7 +196,7 @@ export function Playground() {
                 )}
               </AnimatePresence>
             </div>
-            <Illustrative>Illustrative. Invented numbers, nothing on-chain. Health here is what is supplied, times {LTV.toFixed(2)}, over the debt.</Illustrative>
+            <Illustrative>Invented numbers · health is supplied × {LTV.toFixed(2)} ÷ debt</Illustrative>
           </Tile>
         </div>
       </div>
