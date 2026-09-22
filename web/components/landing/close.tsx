@@ -46,7 +46,7 @@ export function Footer() {
         <span className="text-[22px] font-extrabold tracking-tight">KOUL</span>
         <div className="grid gap-1 sm:text-right">
           <Label>Stellar testnet. Not financial advice.</Label>
-          <Label tone="dim">Built at the Rise In x Stellar Pro Hackathon, Istanbul</Label>
+          <Label tone="muted">Built at the Rise In x Stellar Pro Hackathon, Istanbul</Label>
         </div>
       </div>
     </footer>

@@ -61,5 +61,5 @@ export function Section({ id, label, title, lead, children, className, inner }: 
 
 /** "Illustrative · not live data": every mocked number on this page carries one. */
 export function Illustrative({ children = "Illustrative, not live data", className }: { children?: React.ReactNode; className?: string }) {
-  return <Label tone="dim" className={cn("block", className)}>{children}</Label>;
+  return <Label tone="muted" className={cn("block", className)}>{children}</Label>;
 }

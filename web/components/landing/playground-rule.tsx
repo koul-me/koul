@@ -148,7 +148,7 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
         </div>
       </div>
 
-      {c.kind === "rate_gap" && <Label tone="dim">The rate gap and the move go together: the router only pairs these two.</Label>}
+      {c.kind === "rate_gap" && <Label tone="muted">The rate gap and the move go together: the router only pairs these two.</Label>}
     </Tile>
   );
 }

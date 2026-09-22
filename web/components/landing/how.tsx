@@ -86,10 +86,10 @@ function Runs({ still }: { still: boolean }) {
       <Label>One pass</Label>
       {RUN.map((r, i) => (
         <div key={r} className="flex items-center gap-3">
-          <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors", i < shown ? "bg-lime text-on-lime" : "bg-surface-2 text-dim")}>
+          <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors", i < shown ? "bg-lime text-on-lime" : "bg-surface-2 text-muted")}>
             {i < shown ? <Check className="size-3.5" aria-hidden /> : <span className="mono text-[11px]">{i + 1}</span>}
           </span>
-          <span className={cn("text-[16px] transition-colors", i < shown ? "text-text" : "text-dim")}>{r}</span>
+          <span className={cn("text-[16px] transition-colors", i < shown ? "text-text" : "text-muted")}>{r}</span>
         </div>
       ))}
     </div>
@@ -113,8 +113,8 @@ function StepText({ s, active }: { s: (typeof STEPS)[number]; active: boolean })
   return (
     <div className={cn("border-l-2 py-3 pl-5 transition-colors md:py-4", active ? "border-accent-text" : "border-line")}>
       <Label tone={active ? "lime" : "dim"}>{s.n}</Label>
-      <h3 className={cn("mt-2 text-[26px] font-bold leading-tight transition-colors md:text-[32px]", active ? "text-text" : "text-dim")}>{s.title}</h3>
-      <p className={cn("mt-2 max-w-[46ch] text-[16px] transition-colors md:text-[17px]", active ? "text-muted" : "text-dim")}>{s.line}</p>
+      <h3 className={cn("mt-2 text-[26px] font-bold leading-tight transition-colors md:text-[32px]", active ? "text-text" : "text-muted")}>{s.title}</h3>
+      <p className={cn("mt-2 max-w-[46ch] text-[16px] transition-colors md:text-[17px]", active ? "text-muted" : "text-muted")}>{s.line}</p>
     </div>
   );
 }
@@ -152,7 +152,7 @@ export function How() {
           <div className="mt-8 grid gap-8 md:mt-12 md:grid-cols-2 md:items-center md:gap-12">
             <div className="grid gap-2">
               {STEPS.map((s, i) => <StepText key={s.n} s={s} active={i === step} />)}
-              <Label tone="dim" className="mt-2 flex items-center gap-2"><ArrowDown className="size-3.5" aria-hidden /> Keep scrolling</Label>
+              <Label tone="muted" className="mt-2 flex items-center gap-2"><ArrowDown className="size-3.5" aria-hidden /> Keep scrolling</Label>
             </div>
             <Diagram step={step} still={false} />
           </div>

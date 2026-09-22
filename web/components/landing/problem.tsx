@@ -59,9 +59,9 @@ function Panel({ title, note, tone, path, progress, crossed, still, children }: 
         />
       </div>
       <div className="flex justify-between">
-        <Label tone="dim">00:00</Label>
+        <Label tone="muted">00:00</Label>
         <Label tone={crossed ? "text" : "dim"}>{CROSS_AT} · level crossed</Label>
-        <Label tone="dim">06:00</Label>
+        <Label tone="muted">06:00</Label>
       </div>
       <div className="min-h-[52px]">{children}</div>
     </Tile>

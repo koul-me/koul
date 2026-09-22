@@ -66,14 +66,14 @@ export function SayIt() {
             <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-lime text-on-lime" aria-hidden><ArrowRight className="size-4" /></span>
           </div>
         </Tile>
-        <motion.div animate={{ opacity: shown ? 1 : 0.15 }} initial={false} transition={tween()}>
+        <motion.div animate={{ opacity: shown ? 1 : 0.55 }} initial={false} transition={tween()}>
           <Tile className="grid gap-4 p-5 md:p-6">
             <div className="flex items-baseline justify-between gap-3">
               <Label>The rule it becomes</Label>
               <Label tone={shown ? "lime" : "dim"}>{shown ? "Ready to start" : "Waiting"}</Label>
             </div>
             <RuleChips chips={CHIPS} shown={shown ? CHIPS.length : 0} />
-            <Label tone="dim">Nothing is saved until you start it with your passkey.</Label>
+            <Label tone="muted">Nothing is saved until you start it with your passkey.</Label>
           </Tile>
         </motion.div>
         <Illustrative />

@@ -36,7 +36,7 @@ function Never({ text, i, still }: { text: string; i: number; still: boolean }) 
       viewport={{ once: true, amount: 0.6 }}
       transition={tween(DUR.base)}
     >
-      <span className="mono shrink-0 text-dim" aria-hidden>0{i + 1}</span>
+      <span className="mono shrink-0 text-muted" aria-hidden>0{i + 1}</span>
       <span className="relative text-[16px] text-muted md:text-[17px]">
         {text}
         <motion.span
@@ -83,7 +83,7 @@ export function Safety() {
         <Tile className="grid content-start gap-4 p-6 md:p-8">
           <div className="flex items-baseline justify-between gap-3">
             <TileLabel>It can never</TileLabel>
-            <Label tone="dim">Refused by the contract</Label>
+            <Label tone="muted">Refused by the contract</Label>
           </div>
           <ul className={cn("divide-y divide-line")}>
             {NEVER.map((n, i) => <Never key={n} text={n} i={i} still={still} />)}

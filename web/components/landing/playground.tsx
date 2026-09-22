@@ -112,7 +112,7 @@ export function Playground() {
         <div className="grid content-start gap-3">
           <div className="flex items-center justify-between gap-4 px-1">
             <TileLabel>Your rules</TileLabel>
-            <Label tone="dim">Top to bottom · first match runs</Label>
+            <Label tone="muted">Top to bottom · first match runs</Label>
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
@@ -144,7 +144,7 @@ export function Playground() {
               <Plus className="size-4" aria-hidden /> Add rule
             </PillButton>
             <PillButton variant="ghost" size="md" onClick={reset}><RotateCcw className="size-4" aria-hidden /> Reset</PillButton>
-            <Label tone="dim" className="inline-flex min-h-11 items-center">{rules.length} of {MAX_RULES} here · up to 32 in the app</Label>
+            <Label tone="muted" className="inline-flex min-h-11 items-center">{rules.length} of {MAX_RULES} here · up to 32 in the app</Label>
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export function Playground() {
           <Tile className="grid gap-5 p-5 md:p-6">
             <div className="flex items-baseline justify-between gap-3">
               <TileLabel>The market</TileLabel>
-              <Label tone="dim">Drag a slider</Label>
+              <Label tone="muted">Drag a slider</Label>
             </div>
             <div className="grid gap-4">
               {SUBJECTS.map((s) => {
@@ -162,7 +162,7 @@ export function Playground() {
                 return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} />;
               })}
             </div>
-            <Label tone="dim">Pool {POOLS.A.hub} pays {rateOf(world, "A").toFixed(2)}% · Pool {POOLS.B.hub} pays {rateOf(world, "B").toFixed(2)}%</Label>
+            <Label tone="muted">Pool {POOLS.A.hub} pays {rateOf(world, "A").toFixed(2)}% · Pool {POOLS.B.hub} pays {rateOf(world, "B").toFixed(2)}%</Label>
           </Tile>
 
           <Tile className="grid gap-4 p-5 md:p-6">
@@ -179,7 +179,7 @@ export function Playground() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <PillButton size="md" onClick={fire} disabled={runsIndex === null}>Run it</PillButton>
-              <Label tone="dim">Applies the action to the numbers above</Label>
+              <Label tone="muted">Applies the action to the numbers above</Label>
             </div>
             <div className="min-h-[24px]">
               <AnimatePresence initial={false}>
