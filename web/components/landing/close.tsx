@@ -6,12 +6,8 @@ import { ArrowUpRight } from "lucide-react";
 import { Label } from "@/components/signal";
 import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
-import { MARKS } from "./marks";
 
-/**
- * What Koul stands on: the mark where the owner publishes one, the name beside it either way. Soroban's branding
- * folded into Stellar's and XOXNO's mark is not published as a file we could use, so those two stand as names.
- */
+/** What Koul stands on. Names, set large; no logos until the marks are ours to use. */
 const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin"];
 
 export function BuiltOn() {
@@ -24,15 +20,11 @@ export function BuiltOn() {
         whileInView="show"
         viewport={{ once: true, amount: 0.4 }}
       >
-        {BUILT_ON.map((name) => {
-          const Mark = MARKS[name];
-          return (
-            <motion.span key={name} variants={staggerChild} className="flex items-center gap-3">
-              {Mark && <Mark className="size-7 shrink-0 md:size-9" />}
-              <span className="text-[26px] font-extrabold leading-none tracking-tight md:text-[38px]">{name}</span>
-            </motion.span>
-          );
-        })}
+        {BUILT_ON.map((name) => (
+          <motion.span key={name} variants={staggerChild} className="text-[26px] font-extrabold leading-none tracking-tight md:text-[38px]">
+            {name}
+          </motion.span>
+        ))}
         <motion.span variants={staggerChild} className="label inline-flex items-center rounded-full border border-dashed border-line px-4 py-2 text-muted">
           More DeFi protocols soon
         </motion.span>
