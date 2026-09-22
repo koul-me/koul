@@ -21,7 +21,7 @@ const RULE: Chip[] = [
   { key: "action", text: "Repay debt", tone: "action" },
 ];
 
-const RUN = ["Check arrives", "Router reads live data", "Rule 1 matches", "Wallet executes"];
+const RUN = ["Check prices", "Rule 1 matches", "Repay from your wallet"];
 
 const TYPE_MS = 45;
 const HOLD_MS = 900;
@@ -120,15 +120,15 @@ function Runs({ still }: { still: boolean }) {
 }
 
 const STEPS = [
-  { n: "01", title: "Say it", line: "Plain words become a rule." },
-  { n: "02", title: "Store it", line: "The rule lives on-chain, next to your wallet." },
-  { n: "03", title: "Forget it", line: "Checks run all day. The first match fires." },
+  { n: "1", title: "Write a rule" },
+  { n: "2", title: "Save it on-chain" },
+  { n: "3", title: "It runs by itself" },
 ] as const;
 
 export function How() {
   const still = useReducedMotion() ?? false;
   return (
-    <Section id="how" label="How it works" title="Three steps. Then it runs without you.">
+    <Section id="how" title="How it works">
       <div className="mt-10 grid min-w-0 gap-4 md:gap-5 lg:grid-cols-3">
         {STEPS.map((s, i) => (
           <motion.div
@@ -143,7 +143,6 @@ export function How() {
               <div>
                 <Label tone="lime">{s.n}</Label>
                 <h3 className="mt-2 text-[26px] font-extrabold leading-tight tracking-tight">{s.title}</h3>
-                <p className="mt-1 text-[16px] text-muted">{s.line}</p>
               </div>
               <div className="mt-auto min-w-0">
                 {i === 0 ? <SayIt still={still} /> : i === 1 ? <OnChain /> : <Runs still={still} />}

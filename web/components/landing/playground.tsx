@@ -15,7 +15,7 @@ import { Rolling } from "@/components/signal/rolling";
 import { tween } from "@/lib/motion";
 import { fmtUsdc } from "@/lib/format";
 import { makeRule, newId, POOLS, type Rule } from "@/lib/model/autopilot";
-import { amountOf, collateral, debtForHealth, health, LTV, rateOf, run, walk, type World } from "@/lib/landing/engine";
+import { amountOf, collateral, debtForHealth, health, rateOf, run, walk, type World } from "@/lib/landing/engine";
 import { describeAction } from "@/lib/rules/describe";
 import { Illustrative, Section } from "./shell";
 import { RuleCard, SUBJECTS, conditionFor } from "./playground-rule";
@@ -113,7 +113,7 @@ export function Playground() {
       : `Rule ${runsIndex + 1} runs.`;
 
   return (
-    <Section id="build" label="Try it" title="Move the market. Watch a rule fire." lead="Drag a slider, then press Run. Nothing here touches the chain.">
+    <Section id="build" title="Try it" lead="Drag a slider until a rule lights up.">
       {/* The market sets the scene, so it spans the top; the rules and what they do to the position sit under it. */}
       <Tile className="mt-10 grid gap-5 p-5 md:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -167,7 +167,6 @@ export function Playground() {
               <Plus className="size-4" aria-hidden /> Add rule
             </PillButton>
             <PillButton variant="ghost" size="md" onClick={reset}><RotateCcw className="size-4" aria-hidden /> Reset</PillButton>
-            <Label tone="muted" className="inline-flex min-h-11 items-center">{rules.length} of {MAX_RULES} · up to 32 in the app</Label>
           </div>
         </div>
 
@@ -196,7 +195,7 @@ export function Playground() {
                 )}
               </AnimatePresence>
             </div>
-            <Illustrative>Invented numbers · health is supplied × {LTV.toFixed(2)} ÷ debt</Illustrative>
+            <Illustrative>Sample numbers</Illustrative>
           </Tile>
         </div>
       </div>

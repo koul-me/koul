@@ -11,11 +11,10 @@ import { DUR, tween } from "@/lib/motion";
 import { Section } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
 
-const CASES: { icon: LucideIcon; title: string; line: string; chips: Chip[] }[] = [
+const CASES: { icon: LucideIcon; title: string; chips: Chip[] }[] = [
   {
     icon: ShieldCheck,
     title: "Protect a loan",
-    line: "Repay before liquidation, even at 3 AM.",
     chips: [
       { key: "s", text: "health", tone: "mono" },
       { key: "l", text: "< 1.25", tone: "accent" },
@@ -24,8 +23,7 @@ const CASES: { icon: LucideIcon; title: string; line: string; chips: Chip[] }[] 
   },
   {
     icon: ArrowRightLeft,
-    title: "Earn the better rate",
-    line: "Move to the pool that pays more.",
+    title: "Chase the better rate",
     chips: [
       { key: "s", text: "rate gap", tone: "mono" },
       { key: "l", text: "> 1%", tone: "accent" },
@@ -35,7 +33,6 @@ const CASES: { icon: LucideIcon; title: string; line: string; chips: Chip[] }[] 
   {
     icon: LogOut,
     title: "Exit on a price",
-    line: "Pull back to your wallet when a price hits.",
     chips: [
       { key: "s", text: "USD/TRY", tone: "mono" },
       { key: "l", text: "> 50", tone: "accent" },
@@ -47,7 +44,7 @@ const CASES: { icon: LucideIcon; title: string; line: string; chips: Chip[] }[] 
 export function UseCases() {
   const still = useReducedMotion() ?? false;
   return (
-    <Section label="What it does" title="Rules for the moves you would make anyway.">
+    <Section title="What you can automate">
       <div className="mt-10 grid min-w-0 gap-4 md:grid-cols-3 md:gap-5">
         {CASES.map((c, i) => (
           <motion.div
@@ -59,14 +56,11 @@ export function UseCases() {
             transition={{ ...tween(DUR.slow), delay: i * 0.08 }}
           >
             <Tile className="flex h-full min-w-0 flex-col gap-5 p-6 md:p-7">
-              <div className="flex items-start gap-4 md:flex-col">
+              <div className="flex items-center gap-4 md:flex-col md:items-start">
                 <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-accent-text">
                   <c.icon className="size-5" aria-hidden />
                 </span>
-                <div className="min-w-0">
-                  <h3 className="text-[22px] font-extrabold leading-tight tracking-tight">{c.title}</h3>
-                  <p className="mt-1 text-[16px] text-muted">{c.line}</p>
-                </div>
+                <h3 className="min-w-0 text-[22px] font-extrabold leading-tight tracking-tight md:mt-0">{c.title}</h3>
               </div>
               <RuleChips chips={c.chips} size="sm" className="mt-auto" />
             </Tile>

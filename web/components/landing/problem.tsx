@@ -59,9 +59,6 @@ function Panel({ title, note, tone, path, crossed, still, children }: {
           aria-hidden
         />
       </div>
-      <div className="flex justify-center">
-        <Label tone={crossed ? "text" : "muted"}>{CROSS_AT} · level crossed</Label>
-      </div>
       <div className="min-h-[52px]">{children}</div>
     </Tile>
   );
@@ -72,7 +69,7 @@ export function Problem() {
   const [entered, setEntered] = React.useState(false);
   const shown = still || entered;
   return (
-    <Section label="Why" title="Markets move while you sleep.">
+    <Section title="Markets move at 3 AM.">
       <motion.div
         className="mt-10 grid gap-4 md:grid-cols-2 md:gap-5"
         onViewportEnter={() => setEntered(true)}
@@ -83,8 +80,7 @@ export function Problem() {
         </Panel>
         <Panel title="With Koul" note={`Ran at ${CROSS_AT}`} tone="lime" path={HELD} crossed={shown} still={still}>
           <div className={cn("grid gap-1 transition-opacity delay-700 duration-300", shown ? "opacity-100" : "opacity-0")}>
-            <p className="text-[22px] font-bold md:text-[26px]">Koul was awake.</p>
-            <Label tone="lime">Rule ran · position safe</Label>
+            <p className="text-[22px] font-bold md:text-[26px]">Koul repaid the loan.</p>
           </div>
         </Panel>
       </motion.div>

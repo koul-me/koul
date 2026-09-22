@@ -12,7 +12,7 @@ const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin"];
 
 export function BuiltOn() {
   return (
-    <Section title="Built on Stellar today.">
+    <Section title="Built on Stellar">
       <motion.div
         className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4 md:gap-x-9"
         variants={staggerParent}
@@ -25,9 +25,6 @@ export function BuiltOn() {
             {name}
           </motion.span>
         ))}
-        <motion.span variants={staggerChild} className="label inline-flex items-center rounded-full border border-dashed border-line px-4 py-2 text-muted">
-          More DeFi protocols soon
-        </motion.span>
       </motion.div>
     </Section>
   );
@@ -36,7 +33,7 @@ export function BuiltOn() {
 export function FinalCta() {
   return (
     <Section inner="rounded-[var(--radius-tile)] bg-lime px-6 py-14 text-on-lime md:px-12 md:py-20">
-      <h2 className="t-headline max-w-[14ch]">Set the rules once. Koul does the rest.</h2>
+      <h2 className="t-headline max-w-[14ch]">Start with one rule.</h2>
       <StartButtons tone="onLime" className="mt-8" />
     </Section>
   );

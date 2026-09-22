@@ -75,7 +75,7 @@ export function Hero() {
             ))}
           </h1>
           <p className="mt-6 max-w-[46ch] text-[19px] text-muted md:text-[22px]">
-            Rules that watch your DeFi position and act for you. Your funds never leave your wallet.
+            Automate your DeFi position from your own wallet.
           </p>
           <StartButtons className="mt-8" />
         </div>
