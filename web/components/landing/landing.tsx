@@ -7,6 +7,7 @@
  */
 import { Hero } from "./hero";
 import { Problem } from "./problem";
+import { How } from "./how";
 import { BuiltOn, FinalCta, Footer } from "./close";
 
 export function Landing() {
@@ -19,6 +20,7 @@ export function Landing() {
       <main>
         <Hero />
         <Problem />
+        <How />
         <BuiltOn />
         <FinalCta />
       </main>
