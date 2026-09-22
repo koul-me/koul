@@ -41,7 +41,7 @@ export function WithdrawCrypto({ method, onMethod }: { method: Method; onMethod:
 
   if (sent) {
     return (
-      <FlowFrame title={`${fmtUsdc(sent.amount)} USDC sent`} action={<PillButton size="lg" full onClick={() => router.push("/")}>Done</PillButton>}>
+      <FlowFrame title={`${fmtUsdc(sent.amount)} USDC sent`} action={<PillButton size="lg" full onClick={() => router.push("/app")}>Done</PillButton>}>
         <Tile className="grid gap-5">
           <div className="divide-y divide-line">
             <KeyValue label="To" value={`${sent.to.slice(0, 6)}…${sent.to.slice(-6)}`} />

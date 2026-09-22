@@ -51,7 +51,7 @@ export default function ActivityPage() {
             <EmptyState
               title="Nothing yet"
               line={nothingAtAll ? "Deposits, withdrawals and autopilot moves show up here" : filter === "auto" ? "Autopilot moves show up here" : "Your deposits, withdrawals and saves show up here"}
-              action={nothingAtAll ? <PillButton size="lg" href="/deposit">Deposit</PillButton> : undefined}
+              action={nothingAtAll ? <PillButton size="lg" href="/app/deposit">Deposit</PillButton> : undefined}
               className="min-h-[400px]"
             />
           ) : (

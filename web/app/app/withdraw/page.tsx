@@ -10,7 +10,7 @@ function WithdrawInner() {
   const router = useRouter();
   const params = useSearchParams();
   const method: Method = params.get("m") === "crypto" ? "crypto" : "bank";
-  const setMethod = (m: Method) => router.replace(m === "bank" ? "/withdraw" : "/withdraw?m=crypto");
+  const setMethod = (m: Method) => router.replace(m === "bank" ? "/app/withdraw" : "/app/withdraw?m=crypto");
   return method === "bank" ? <WithdrawBank method={method} onMethod={setMethod} /> : <WithdrawCrypto method={method} onMethod={setMethod} />;
 }
 

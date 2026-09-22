@@ -19,7 +19,7 @@ describe("encodeRules / decodeRules", () => {
   it("is URL-safe", () => {
     const token = encodeRules(rules);
     expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(shareLink("https://koul.app", rules)).toBe(`https://koul.app/autopilot?load=${token}`);
+    expect(shareLink("https://koul.app", rules)).toBe(`https://koul.app/app/autopilot?load=${token}`);
   });
   it("rejects garbage and foreign shapes", () => {
     expect(decodeRules("not a token")).toBeNull();

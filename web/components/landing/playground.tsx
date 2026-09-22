@@ -25,9 +25,10 @@ import { cn } from "@/lib/utils";
 const START: World = { gap: 0.4, price: 48.79, wallet: 120, poolA: 300, poolB: 200, debt: 240 };
 const MAX_RULES = 3;
 
+/** Fixed ids for the two starting rules, so the server render and the browser agree; added rules get fresh ones. */
 const startingRules = (): Rule[] => [
-  makeRule({ id: newId("pg"), name: "Stay safe", conditions: [conditionFor("health_factor")], action: { kind: "repay_from_wallet", amount: "all" }, cooldownSec: 600 }),
-  makeRule({ id: newId("pg"), name: "Exit", conditions: [conditionFor("fx_price")], action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600 }),
+  makeRule({ id: "pg-start-1", name: "Stay safe", conditions: [conditionFor("health_factor")], action: { kind: "repay_from_wallet", amount: "all" }, cooldownSec: 600 }),
+  makeRule({ id: "pg-start-2", name: "Exit", conditions: [conditionFor("fx_price")], action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600 }),
 ];
 
 function Slider({ label, value, min, max, step, unit, decimals, onChange, lit, display }: { label: string; value: number; min: number; max: number; step: number; unit: string; decimals: number; onChange: (v: number) => void; lit: boolean; /** What the readout says, when the true reading is not a plain number in range. */ display?: string }) {
@@ -77,6 +78,8 @@ export function Playground() {
   const [world, setWorld] = React.useState<World>(START);
   /** The last thing a press of Run did; the next press replaces it instead of stacking up. */
   const [last, setLast] = React.useState<{ id: number; text: string } | null>(null);
+  // A stable id, so the drag library's accessibility ids match between the server render and the browser.
+  const dndId = React.useId();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   const w = walk(rules, world);
@@ -137,7 +140,7 @@ export function Playground() {
             <TileLabel>Your rules</TileLabel>
             <Label tone="muted">First match runs</Label>
           </div>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
               <div className="grid gap-3">
                 {rules.map((r, i) => (

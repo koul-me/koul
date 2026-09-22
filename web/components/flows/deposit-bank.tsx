@@ -83,7 +83,7 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
     return (
       <FlowFrame
         title={t.status === "done" ? `${fmtUsdc(t.amountUsdc)} USDC arrived` : `Send ${fmtLiraWhole(t.amountTry)}`}
-        action={<PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push("/"); }}>Done</PillButton>}
+        action={<PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push("/app"); }}>Done</PillButton>}
       >
         <Tile className="grid gap-5 [&>*]:min-w-0">
           <Steps labels={STEP_LABELS} active={stepIndex} failed={t.status === "failed"} />

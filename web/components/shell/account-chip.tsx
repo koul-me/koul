@@ -12,7 +12,7 @@ export function AccountChip({ className }: { className?: string }) {
   const short = `${w.address.slice(0, 4)}…${w.address.slice(-4)}`;
   return (
     <Link
-      href="/account"
+      href="/app/account"
       aria-label={`Account ${w.address}`}
       className={cn("mono inline-flex h-11 items-center rounded-full bg-surface px-5 text-text transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)}
     >

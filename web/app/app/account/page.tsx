@@ -64,8 +64,8 @@ export default function AccountPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 md:flex">
-            <PillButton variant="outline" size="lg" href="/withdraw" disabled={pf.loaded && supplied + pf.positions.idleUsdc - debt <= 0}>Withdraw</PillButton>
-            <PillButton size="lg" href="/deposit">Deposit</PillButton>
+            <PillButton variant="outline" size="lg" href="/app/withdraw" disabled={pf.loaded && supplied + pf.positions.idleUsdc - debt <= 0}>Withdraw</PillButton>
+            <PillButton size="lg" href="/app/deposit">Deposit</PillButton>
           </div>
         </Tile>
         {DEMO_ON && <DemoSection />}

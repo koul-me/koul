@@ -10,7 +10,7 @@ function DepositInner() {
   const router = useRouter();
   const params = useSearchParams();
   const method: Method = params.get("m") === "crypto" ? "crypto" : "bank";
-  const setMethod = (m: Method) => router.replace(m === "bank" ? "/deposit" : "/deposit?m=crypto");
+  const setMethod = (m: Method) => router.replace(m === "bank" ? "/app/deposit" : "/app/deposit?m=crypto");
   return method === "bank" ? <DepositBank method={method} onMethod={setMethod} /> : <DepositCrypto method={method} onMethod={setMethod} />;
 }
 

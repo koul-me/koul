@@ -9,7 +9,7 @@ import { TABS } from "./nav";
 
 export function Wordmark({ className }: { className?: string }) {
   return (
-    <Link href="/" aria-label="Koul home" className={cn("inline-flex h-11 items-center text-[20px] font-extrabold tracking-[-0.04em] text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)}>
+    <Link href="/app" aria-label="Koul home" className={cn("inline-flex h-11 items-center text-[20px] font-extrabold tracking-[-0.04em] text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)}>
       KOUL
     </Link>
   );

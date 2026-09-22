@@ -46,8 +46,8 @@ export function BalanceTile({ balance, lira, loading, rate }: { balance: number 
         </div>
       </div>
       <div className="flex gap-3">
-        <PillButton variant="onLime" size="lg" href="/deposit">Deposit</PillButton>
-        <PillButton variant="onLimeOutline" size="lg" href="/withdraw" disabled={!canWithdraw}>Withdraw</PillButton>
+        <PillButton variant="onLime" size="lg" href="/app/deposit">Deposit</PillButton>
+        <PillButton variant="onLimeOutline" size="lg" href="/app/withdraw" disabled={!canWithdraw}>Withdraw</PillButton>
       </div>
     </Tile>
   );

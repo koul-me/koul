@@ -15,6 +15,10 @@ Deployed, all from this repo on `master`, every push redeploys:
 - Keeper: `.github/workflows/keeper.yml`, every five minutes and on demand, with `KEEPER_SECRET` and `AGENT_SECRET`
   as GitHub repository secrets. `loadEnv` falls back to the process environment, so no `.env` file is needed there.
 
+2026-09-22 (routes): the landing is its own page at `/` and the app lives under `/app` (`/app/autopilot`, `/app/account`,
+...). `web/app/app/layout.tsx` wraps the app in `AppShell`; the root layout only has providers. Old paths redirect in
+`web/next.config.ts`, so shared `/autopilot?load=` links still open. Landing buttons create or connect, then go to `/app`.
+
 2026-09-22 (router cap): `MAX_RULES` raised from 8 to 32 and the router upgraded in place (wasm `608bca58...`); one
 autopilot per wallet with up to 32 contract rules. The SDK schema, chat schema and the page mirror it. The Autopilot
 page now shows the running rule with its live readings instead of the composer, a tap on a rule opens it in the

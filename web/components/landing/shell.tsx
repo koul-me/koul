@@ -5,10 +5,11 @@
  * and the two passkey buttons that start the real flows. Nothing here talks to the chain.
  */
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { Label, PillButton } from "@/components/signal";
 import { DUR, tween } from "@/lib/motion";
-import { useWalletOnboarding, type PasskeyPhase } from "@/hooks/use-wallet";
+import { useWallet, useWalletOnboarding, type PasskeyPhase } from "@/hooks/use-wallet";
 import { cn } from "@/lib/utils";
 
 const BUSY: Partial<Record<PasskeyPhase, string>> = {
@@ -18,19 +19,32 @@ const BUSY: Partial<Record<PasskeyPhase, string>> = {
   submitting: "Almost there",
 };
 
-/** Create wallet and I have a wallet: the same two passkey actions the app has always used. */
+/**
+ * Create wallet and I have a wallet: the same two passkey actions the app has always used, and on success the app
+ * at /app. With a wallet already connected there is nothing to create, so the one button opens the app.
+ */
 export function StartButtons({ tone = "dark", className }: { tone?: "dark" | "onLime"; className?: string }) {
+  const w = useWallet();
   const ob = useWalletOnboarding();
+  const router = useRouter();
+  const start = async (which: "create" | "connect") => { if (await ob.run(which)) router.push("/app"); };
+  if (w.isConnected) {
+    return (
+      <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-center", className)}>
+        <PillButton variant={tone === "onLime" ? "onLime" : "lime"} size="lg" href="/app">Open app</PillButton>
+      </div>
+    );
+  }
   const busy = ob.phase === "prompt" || ob.phase === "deploying" || ob.phase === "funding" || ob.phase === "submitting";
   const creating = busy && ob.mode === "create";
   const connecting = busy && ob.mode === "connect";
   return (
     <div className={cn("grid gap-3", className)}>
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <PillButton variant={tone === "onLime" ? "onLime" : "lime"} size="lg" disabled={busy} aria-busy={creating} onClick={() => void ob.run("create")}>
+        <PillButton variant={tone === "onLime" ? "onLime" : "lime"} size="lg" disabled={busy} aria-busy={creating} onClick={() => void start("create")}>
           {creating ? BUSY[ob.phase] : "Create wallet"}
         </PillButton>
-        <PillButton variant={tone === "onLime" ? "onLimeOutline" : "outline"} size="lg" disabled={busy} aria-busy={connecting} onClick={() => void ob.run("connect")}>
+        <PillButton variant={tone === "onLime" ? "onLimeOutline" : "outline"} size="lg" disabled={busy} aria-busy={connecting} onClick={() => void start("connect")}>
           {connecting ? BUSY[ob.phase] : "I have a wallet"}
         </PillButton>
         <Label tone={tone === "onLime" ? "onLime" : "muted"} className="sm:ml-2">Passkey · no seed phrase</Label>

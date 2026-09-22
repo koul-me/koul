@@ -3,8 +3,8 @@
 /**
  * The frame around every screen. Desktop: one top row with the wordmark, the four tabs and the account chip.
  * Phone: wordmark and chip on top, a rounded tab bar at the bottom. Deposit and Withdraw drop the tab bar (and
- * the top bar on phones) and pin their own primary button. Not connected: the landing page at "/", the Welcome
- * screen on any other route.
+ * the top bar on phones) and pin their own primary button. Not connected: the Welcome screen. The landing page
+ * is its own route at "/" and does not use this frame.
  */
 import * as React from "react";
 import { usePathname } from "next/navigation";
@@ -18,7 +18,6 @@ import { BottomTabs } from "./bottom-tabs";
 import { ThemeColor } from "./theme-color";
 import { isFlowRoute } from "./nav";
 import { Welcome } from "@/components/welcome/welcome";
-import { Landing } from "@/components/landing/landing";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -40,9 +39,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // No wallet: the landing page at the root, the short welcome on any deeper route so a deep link still connects.
+  // No wallet: the short welcome on every app route, so a deep link still connects.
   if (!w.isConnected) {
-    if (pathname === "/") return <><ThemeColor /><Landing /></>;
     return (
       <Frame>
         <TopBar connected={false} />

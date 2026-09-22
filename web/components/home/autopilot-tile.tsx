@@ -32,7 +32,7 @@ export function AutopilotTile({ ap, now }: { ap: AutopilotLiveState; now: number
           <Label className="mt-3 block">No rules yet</Label>
         </div>
         <p className="text-[22px] font-bold leading-tight md:text-[26px]">Set the rules once.<br />Koul does the rest.</p>
-        <PillButton href="/autopilot" size="lg" className="w-full md:w-auto">Set up autopilot</PillButton>
+        <PillButton href="/app/autopilot" size="lg" className="w-full md:w-auto">Set up autopilot</PillButton>
       </Tile>
     );
   }
@@ -40,7 +40,7 @@ export function AutopilotTile({ ap, now }: { ap: AutopilotLiveState; now: number
   const more = ap.rules.length - SHOWN;
   const paused = ap.status === "paused";
   return (
-    <Link href="/autopilot" className="block animate-fade-in rounded-[var(--radius-tile)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text" aria-label="Autopilot">
+    <Link href="/app/autopilot" className="block animate-fade-in rounded-[var(--radius-tile)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text" aria-label="Autopilot">
       <Tile className="grid gap-6 transition-colors hover:bg-surface-2/60 md:grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)]">
         <div>
           <TileLabel>Autopilot</TileLabel>

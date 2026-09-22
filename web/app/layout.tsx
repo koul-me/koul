@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { AppShell } from "@/components/shell/app-shell";
 import { cn } from "@/lib/utils";
 
 /** One face for everything that reads; the mono carries numbers, conditions, labels and addresses. */
@@ -43,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={cn(grotesk.variable, jetbrains.variable)} suppressHydrationWarning>
       <body>
         <Providers>
-          <AppShell>{children}</AppShell>
+          {children}
         </Providers>
       </body>
     </html>
