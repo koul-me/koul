@@ -2,8 +2,8 @@
 
 /**
  * How it works, in three steps held on screen while you scroll: you write a rule, the rule lives in the router
- * contract, and a check makes it run itself. Each step draws its own diagram. With reduced motion on, the three
- * steps simply stack.
+ * contract, and a check makes it run itself. Each step draws its own diagram. Holding them only works where the
+ * three fit on one screen, so on a phone, and with reduced motion on, the steps simply stack instead.
  */
 import * as React from "react";
 import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScroll } from "motion/react";
@@ -56,12 +56,12 @@ function Write() {
 
 function OnChain() {
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 gap-4">
       <Label>Router contract · your rule set</Label>
-      <div className="rounded-[var(--radius-group)] border border-accent-text p-4">
-        <div className="divide-y divide-line">
+      <div className="min-w-0 rounded-[var(--radius-group)] border border-accent-text p-4">
+        <div className="min-w-0 divide-y divide-line">
           {STORED.map((r, i) => (
-            <motion.div key={r.i} {...rise(6)} transition={tween(DUR.base)} style={{ transitionDelay: `${i * 40}ms` }} className="flex items-center gap-3 py-3">
+            <motion.div key={r.i} {...rise(6)} transition={tween(DUR.base)} style={{ transitionDelay: `${i * 40}ms` }} className="flex min-w-0 items-center gap-3 py-3">
               <span className="mono inline-flex size-6 shrink-0 items-center justify-center rounded-full text-accent-text">{r.i}</span>
               <span className="mono min-w-0 truncate text-text">{r.text}</span>
             </motion.div>
@@ -98,9 +98,9 @@ function Runs({ still }: { still: boolean }) {
 
 function Diagram({ step, still }: { step: number; still: boolean }) {
   return (
-    <Tile className="flex min-h-[380px] flex-col justify-center p-6 md:min-h-[420px] md:p-8">
+    <Tile className="flex min-h-[380px] min-w-0 flex-col justify-center p-6 md:min-h-[420px] md:p-8">
       <AnimatePresence mode="wait" initial={false}>
-        <motion.div key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={tween(DUR.fast)}>
+        <motion.div className="min-w-0" key={step} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={tween(DUR.fast)}>
           {step === 0 ? <Write /> : step === 1 ? <OnChain /> : <Runs still={still} />}
         </motion.div>
       </AnimatePresence>
@@ -118,19 +118,33 @@ function StepText({ s, active }: { s: (typeof STEPS)[number]; active: boolean })
   );
 }
 
+/** True on screens wide enough to hold the pinned layout. False on the server, so a phone never renders it. */
+function useWide(): boolean {
+  return React.useSyncExternalStore(
+    (cb) => {
+      const mql = window.matchMedia("(min-width: 1024px) and (min-height: 700px)");
+      mql.addEventListener("change", cb);
+      return () => mql.removeEventListener("change", cb);
+    },
+    () => window.matchMedia("(min-width: 1024px) and (min-height: 700px)").matches,
+    () => false,
+  );
+}
+
 export function How() {
   const still = useReducedMotion() ?? false;
+  const wide = useWide();
   const ref = React.useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const [step, setStep] = React.useState(0);
   useMotionValueEvent(scrollYProgress, "change", (v) => setStep(Math.max(0, Math.min(STEPS.length - 1, Math.floor(v * STEPS.length)))));
 
-  if (still) {
+  if (still || !wide) {
     return (
       <Section title="Three steps, then it is out of your hands.">
-        <div className="mt-10 grid gap-10">
+        <div className="mt-10 grid min-w-0 gap-10">
           {STEPS.map((s, i) => (
-            <div key={s.n} className="grid gap-5 md:grid-cols-2 md:items-center md:gap-10">
+            <div key={s.n} className="grid min-w-0 gap-5 md:grid-cols-2 md:items-center md:gap-10">
               <StepText s={s} active />
               <Diagram step={i} still />
             </div>
@@ -147,7 +161,7 @@ export function How() {
           <header className="max-w-[760px]">
             <h2 className="t-title">Three steps, then it is out of your hands.</h2>
           </header>
-          <div className="mt-8 grid gap-8 md:mt-12 md:grid-cols-2 md:items-center md:gap-12">
+          <div className="mt-8 grid min-w-0 gap-8 md:mt-12 md:grid-cols-2 md:items-center md:gap-12">
             <div className="grid gap-2">
               {STEPS.map((s, i) => <StepText key={s.n} s={s} active={i === step} />)}
               <Label tone="muted" className="mt-2 flex items-center gap-2"><ArrowDown className="size-3.5" aria-hidden /> Keep scrolling</Label>
