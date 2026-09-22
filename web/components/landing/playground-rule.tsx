@@ -101,21 +101,24 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
           {runs && <motion.span layoutId={still ? undefined : "playground-marker"} className="absolute inset-0 rounded-full bg-lime" transition={SPRING_SOFT} aria-hidden />}
           <span className="relative">{index + 1}</span>
         </span>
-        <span className="mono min-w-0 flex-1 truncate text-muted">{describeAction(rule.action)}</span>
-        <Label tone={runs ? "lime" : skipped ? "muted" : matched ? "text" : "muted"}>{runs ? "Runs" : skipped ? "Nothing to move" : matched ? "Matches" : "Waiting"}</Label>
+        <span className="mono hidden min-w-0 flex-1 truncate text-muted sm:block">{describeAction(rule.action)}</span>
+        <Label tone={runs ? "lime" : skipped ? "muted" : matched ? "text" : "muted"} className="ml-auto shrink-0 sm:ml-0">{runs ? "Runs" : skipped ? "Nothing" : matched ? "Matches" : "Waiting"}</Label>
         <button type="button" onClick={onRemove} disabled={!canRemove} aria-label={`Remove rule ${index + 1}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text disabled:opacity-30">
           <X className="size-4" aria-hidden />
         </button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+      <div className="grid gap-x-3 gap-y-2 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-y-3">
         <Label className="sm:w-8">If</Label>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={c.kind} onValueChange={(v) => v && setKind(v as ConditionKind)} items={SUBJECTS.map((x) => ({ value: x.kind, label: x.label }))}>
             <SelectTrigger className={pill} aria-label={`Rule ${index + 1}: what to watch`}><SelectValue /></SelectTrigger>
             <SelectContent className={popup}>{SUBJECTS.map((x) => <SelectItem key={x.kind} value={x.kind} className={item}>{x.label}</SelectItem>)}</SelectContent>
           </Select>
-          <span className="mono text-muted">{c.comparator === "gte" ? "at or above" : "at or below"}</span>
+          <span className="mono shrink-0 text-muted">
+            <span className="sm:hidden">{c.comparator === "gte" ? "\u2265" : "\u2264"}</span>
+            <span className="hidden sm:inline">{c.comparator === "gte" ? "at or above" : "at or below"}</span>
+          </span>
           <label htmlFor={levelId} className="sr-only">{`Rule ${index + 1}: the level`}</label>
           <input
             id={levelId}
@@ -125,11 +128,11 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
             max={s.max}
             step={s.step}
             onChange={(e) => { const n = Number(e.target.value); if (Number.isFinite(n)) setLevel(n); }}
-            className="mono num h-10 w-[7.5rem] rounded-full bg-surface-2 px-4 text-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text"
+            className="mono num h-10 w-24 rounded-full bg-surface-2 px-4 text-text outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text sm:w-[7.5rem]"
           />
         </div>
 
-        <Label className="sm:w-8">Then</Label>
+        <Label className="mt-2 sm:mt-0 sm:w-8">Then</Label>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={rule.action.kind} onValueChange={(v) => v && setAction(v as Action["kind"])} items={ACTIONS.map((a) => ({ value: a.kind, label: a.label }))}>
             <SelectTrigger className={pill} aria-label={`Rule ${index + 1}: what to do`}><SelectValue /></SelectTrigger>
