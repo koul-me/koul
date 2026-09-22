@@ -10,6 +10,7 @@ import { AnimatePresence, motion, useMotionValueEvent, useReducedMotion, useScro
 import { ArrowDown, Check } from "lucide-react";
 import { Label, Tile } from "@/components/signal";
 import { DUR, rise, tween } from "@/lib/motion";
+import { useMedia } from "@/lib/landing/use-media";
 import { Section } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
 import { cn } from "@/lib/utils";
@@ -117,22 +118,10 @@ function StepText({ s, active }: { s: (typeof STEPS)[number]; active: boolean })
   );
 }
 
-/** True on screens wide enough to hold the pinned layout. False on the server, so a phone never renders it. */
-function useWide(): boolean {
-  return React.useSyncExternalStore(
-    (cb) => {
-      const mql = window.matchMedia("(min-width: 1024px) and (min-height: 700px)");
-      mql.addEventListener("change", cb);
-      return () => mql.removeEventListener("change", cb);
-    },
-    () => window.matchMedia("(min-width: 1024px) and (min-height: 700px)").matches,
-    () => false,
-  );
-}
-
 export function How() {
   const still = useReducedMotion() ?? false;
-  const wide = useWide();
+  // Holding the steps only works where all three fit on one screen.
+  const wide = useMedia("(min-width: 1024px) and (min-height: 700px)");
   const ref = React.useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const [step, setStep] = React.useState(0);

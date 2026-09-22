@@ -6,7 +6,8 @@
  * no real prices, and it says so.
  */
 import * as React from "react";
-import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
+import { useMedia } from "@/lib/landing/use-media";
 import { Label, Tile } from "@/components/signal";
 import { Section } from "./shell";
 import { cn } from "@/lib/utils";
@@ -19,12 +20,15 @@ const LEVEL_Y = 90;
 const CROSS_X = 184 / 320;
 const CROSS_AT = "03:12";
 
-function Panel({ title, note, tone, path, progress, crossed, still, children }: {
+function Panel({ title, note, tone, path, progress, scrollDriven, crossed, still, children }: {
   title: string;
   note: string;
   tone: "danger" | "lime";
   path: string;
-  progress: ReturnType<typeof useTransform<number, number>>;
+  /** Drives the line while scrolling, on screens tall enough for it to read. */
+  progress: MotionValue<number>;
+  /** False on a phone: the line draws once, when the panel arrives. */
+  scrollDriven: boolean;
   crossed: boolean;
   still: boolean;
   children?: React.ReactNode;
@@ -45,8 +49,10 @@ function Panel({ title, note, tone, path, progress, crossed, still, children }: 
             strokeLinecap="round"
             className={cn(tone === "lime" ? "text-accent-text" : "text-danger")}
             stroke="currentColor"
-            style={still ? undefined : { pathLength: progress }}
-            initial={still ? undefined : { pathLength: 0 }}
+            style={scrollDriven ? { pathLength: progress } : undefined}
+            initial={scrollDriven ? { pathLength: 0 } : false}
+            animate={scrollDriven ? undefined : { pathLength: still || crossed ? 1 : 0 }}
+            transition={{ duration: still ? 0 : 1.1, ease: "easeInOut" }}
           />
         </svg>
         <span className="absolute top-0 h-full w-px bg-line" style={{ left: `${CROSS_X * 100}%` }} aria-hidden />
@@ -55,6 +61,7 @@ function Panel({ title, note, tone, path, progress, crossed, still, children }: 
           style={{ left: `${CROSS_X * 100}%`, top: `${(LEVEL_Y / 150) * 100}%` }}
           animate={{ opacity: crossed ? 1 : 0, scale: crossed ? 1 : 0.4 }}
           initial={false}
+          transition={{ delay: scrollDriven || still ? 0 : 0.8 }}
           aria-hidden
         />
       </div>
@@ -68,26 +75,36 @@ function Panel({ title, note, tone, path, progress, crossed, still, children }: 
 
 export function Problem() {
   const still = useReducedMotion() ?? false;
+  // Tying the drawing to the scroll only reads where the two panels sit side by side. On a phone they stack and
+  // the range never lines up with what is on screen, so there the line draws once, as the panel arrives.
+  const wide = useMedia("(min-width: 768px)");
+  const scrollDriven = wide && !still;
   const ref = React.useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start 0.85", "end 0.55"] });
   const drawn = useTransform(scrollYProgress, [0, 0.9], [0, 1]);
-  const [crossed, setCrossed] = React.useState(false);
-  useMotionValueEvent(drawn, "change", (v) => setCrossed(v > CROSS_X));
+  const [scrolledPast, setScrolledPast] = React.useState(false);
+  useMotionValueEvent(drawn, "change", (v) => setScrolledPast(v > CROSS_X));
+  const [entered, setEntered] = React.useState(false);
 
-  const shown = still || crossed;
+  const shown = still || (scrollDriven ? scrolledPast : entered);
   return (
     <Section title="Markets do not wait for you to wake up.">
-      <div ref={ref} className="mt-10 grid gap-4 md:grid-cols-2 md:gap-5">
-        <Panel title="Without a rule" note="Missed" tone="danger" path={FALLING} progress={drawn} crossed={shown} still={still}>
+      <motion.div
+        ref={ref}
+        className="mt-10 grid gap-4 md:grid-cols-2 md:gap-5"
+        onViewportEnter={() => setEntered(true)}
+        viewport={{ once: true, amount: 0.3 }}
+      >
+        <Panel title="Without a rule" note="Missed" tone="danger" path={FALLING} progress={drawn} scrollDriven={scrollDriven} crossed={shown} still={still}>
           <p className={cn("text-[22px] font-bold transition-opacity duration-300 md:text-[26px]", shown ? "opacity-100" : "opacity-0")}>You were asleep.</p>
         </Panel>
-        <Panel title="With a rule" note="Ran at 03:12" tone="lime" path={HELD} progress={drawn} crossed={shown} still={still}>
+        <Panel title="With a rule" note="Ran at 03:12" tone="lime" path={HELD} progress={drawn} scrollDriven={scrollDriven} crossed={shown} still={still}>
           <div className={cn("grid gap-1 transition-opacity duration-300", shown ? "opacity-100" : "opacity-0")}>
             <p className="text-[22px] font-bold md:text-[26px]">Koul was.</p>
             <Label tone="lime">Condition met · action ran · position safe</Label>
           </div>
         </Panel>
-      </div>
+      </motion.div>
     </Section>
   );
 }
