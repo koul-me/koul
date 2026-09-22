@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * Deposit by bank: an amount in lira, a quote at the oracle rate, then the transfer the anchor opened: IBAN,
- * reference and amount to copy, and the waiting state that turns into "arrived". A transfer left running is picked
- * up again from local storage.
+ * Deposit by bank: the USDC you want, the lira that costs at the oracle rate, then the transfer the anchor opened:
+ * IBAN, reference and amount to copy. One primary button carries you through: Continue, then "I've sent it", and
+ * once the USDC lands the page returns to Home by itself with the balance already fresh. A transfer left running
+ * is picked up again from local storage (and by the app's watcher if you leave this page).
  */
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -57,9 +58,10 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
   const fx = useFx();
   const runner = useTransferRunner();
   const [amount, setAmount] = React.useState("");
-  const lira = parseAmount(amount);
+  const usdc = parseAmount(amount);
   const rate = fx.loading || fx.fx.tryPerUsd <= 0 ? null : fx.fx.tryPerUsd;
-  const usdc = rate && lira ? lira / rate : null;
+  // The bank leg is in lira, rounded to the kuruş; the USDC shown is what that buys at the oracle rate.
+  const lira = rate && usdc ? Math.round(usdc * rate * 100) / 100 : 0;
 
   // A deposit left running comes back on its own.
   const resumed = React.useRef(false);
@@ -72,6 +74,13 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
   const t = runner.transfer;
   // The anchor answers the IBAN with the transfer; a row still empty after 15 s is an error, not a wait.
   const detailsLate = useTimedOut(!!t && t.direction === "in" && t.status === "running" && !t.instructions, DETAILS_TIMEOUT_MS);
+  // Arrived: back to Home on its own after a beat, where the balance has already been read again.
+  const doneAt = t && t.direction === "in" && t.status === "done" ? t.id : null;
+  React.useEffect(() => {
+    if (!doneAt) return;
+    const id = setTimeout(() => { runner.reset(); router.push(appHref("/")); }, 1600);
+    return () => clearTimeout(id);
+  }, [doneAt, runner, router, appHref]);
   if (t && t.direction === "in") {
     const active = t.steps.findIndex((s) => s.state === "active");
     const stepIndex = t.status === "done" ? STEP_LABELS.length : t.status === "failed" ? Math.max(0, active) : Math.max(1, active);
@@ -82,10 +91,19 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
     const noReference = t.instructions !== null && !reference;
     const waiting = t.status === "running" && active === 1;
     const converting = t.status === "running" && active >= 2;
+    const home = () => { if (t.status !== "running") runner.reset(); router.push(appHref("/")); };
+    // One button, whatever the moment: send it, wait for it, or start over.
+    const action = waiting
+      ? <PillButton size="lg" full onClick={() => void runner.simulateBank()} disabled={runner.busy} aria-busy={runner.busy}>{runner.busy ? "Checking" : "I've sent it"}</PillButton>
+      : t.status === "failed"
+        ? <PillButton variant="outline" size="lg" full onClick={() => runner.reset()}>Start again</PillButton>
+        : t.status === "done"
+          ? <PillButton size="lg" full onClick={home}>Go to Home</PillButton>
+          : <PillButton variant="outline" size="lg" full onClick={home}>Wait on Home</PillButton>;
     return (
       <FlowFrame
-        title={t.status === "done" ? `${fmtUsdc(t.amountUsdc)} USDC arrived` : `Send ${fmtLiraWhole(t.amountTry)}`}
-        action={<PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push(appHref("/")); }}>Done</PillButton>}
+        title={t.status === "done" ? `${fmtUsdc(t.amountUsdc)} USDC arrived` : waiting ? `Send ${fmtLiraWhole(t.amountTry)}` : `${fmtUsdc(t.amountUsdc)} USDC on its way`}
+        action={action}
       >
         <Tile className="grid gap-5 [&>*]:min-w-0">
           <Steps labels={STEP_LABELS} active={stepIndex} failed={t.status === "failed"} />
@@ -110,11 +128,8 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
             {converting && <Label tone="lime" className="animate-blink">Lira received · converting to USDC</Label>}
             {t.status === "done" && <Label tone="lime">Arrived · {fmtUsdc(t.amountUsdc)} USDC in your wallet</Label>}
             {t.status === "failed" && <Label tone="danger">{t.steps[active]?.detail ?? "The transfer stopped"}</Label>}
-            {waiting && <p className="text-[15px] text-muted">You can leave this page. The deposit shows up in Activity when it lands.</p>}
+            {waiting && <p className="text-[15px] text-muted">Testnet: &ldquo;I&rsquo;ve sent it&rdquo; tells the sandbox bank you paid. You can also leave; Home updates when it lands.</p>}
           </div>
-          {waiting && (
-            <PillButton variant="ghost" onClick={() => void runner.simulateBank()} disabled={runner.busy} aria-busy={runner.busy}>{runner.busy ? "Telling the sandbox" : "Sandbox · pretend I sent the lira"}</PillButton>
-          )}
         </Tile>
       </FlowFrame>
     );
@@ -126,12 +141,12 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
       title="Deposit"
       method={method}
       onMethod={onMethod}
-      action={<PillButton size="lg" full disabled={!canContinue} aria-busy={runner.busy} onClick={() => void runner.start("in", { amountTry: lira, amountUsdc: usdc ?? 0, rate: rate ?? 0 })}>{runner.busy ? "Opening the transfer" : "Continue"}</PillButton>}
+      action={<PillButton size="lg" full disabled={!canContinue} aria-busy={runner.busy} onClick={() => void runner.start("in", { amountTry: lira, amountUsdc: usdc, rate: rate ?? 0 })}>{runner.busy ? "Getting bank details" : "Continue"}</PillButton>}
     >
       <Tile className="grid gap-5">
-        <AmountInput value={amount} onChange={setAmount} unit="TRY" autoFocus />
+        <AmountInput value={amount} onChange={setAmount} unit="USDC" label="You get" autoFocus />
         <div className="divide-y divide-line">
-          <KeyValue label="You get" value={usdc === null ? (lira ? <Sk className="h-4 w-24" /> : "—") : `≈ ${fmtUsdc(usdc)} USDC`} />
+          <KeyValue label="You send" value={!usdc ? "—" : rate === null ? <Sk className="h-4 w-24" /> : fmtLira(lira)} />
           <KeyValue label="Rate" value={rate === null ? <Sk className="h-4 w-16" /> : fmtFx(rate)} />
           <KeyValue label="Anchor fee" value="—" tone="muted" />
           <KeyValue label="Network fee" value="FREE" />

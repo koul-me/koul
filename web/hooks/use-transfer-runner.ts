@@ -120,6 +120,16 @@ function applyStages(t: Transfer, f: FundsPublic, signedIndex: number | null): T
   };
 }
 
+/**
+ * Money moved outside the wallet: read the balance and the activity again now, and once more a few seconds later,
+ * since the RPC can trail the ledger by a moment.
+ */
+function refreshAfterFunds() {
+  const again = () => { invalidate("portfolio:"); invalidate("events:"); };
+  again();
+  setTimeout(again, 4000);
+}
+
 export function useTransferRunner() {
   const { address, kit } = usePasskeyWallet();
   const approveAction = usePasskeyAction();
@@ -139,7 +149,7 @@ export function useTransferRunner() {
       const f = await call<FundsPublic>(`/api/funds/${id}`, { headers: stateHeader(t.serverState) });
       const next = applyStages(t, f, null);
       setTransfer(next);
-      if (next.status === "done") invalidate("portfolio:");
+      if (next.status === "done") refreshAfterFunds();
       if (next.status === "running") timer.current = setTimeout(() => void poll(id), POLL_MS);
     } catch (err) {
       setTransfer((prev) => prev && prev.transferId === id ? failAt(prev, err) : prev);

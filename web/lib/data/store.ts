@@ -17,6 +17,8 @@ interface Entry<T> {
   snap: Snapshot<T>;
   inflight: Promise<void> | null;
   listeners: Set<() => void>;
+  /** The last reader for this key, so an invalidation can read it again while someone is looking. */
+  fetcher?: () => Promise<T>;
 }
 
 const entries = new Map<string, Entry<unknown>>();
@@ -40,6 +42,7 @@ function set<T>(e: Entry<T>, patch: Partial<Snapshot<T>>) {
 
 export async function refreshKey<T>(key: string, fetcher: () => Promise<T>): Promise<void> {
   const e = entry<T>(key);
+  e.fetcher = fetcher;
   if (e.inflight) return e.inflight;
   set(e, { loading: true });
   e.inflight = fetcher()
@@ -49,9 +52,16 @@ export async function refreshKey<T>(key: string, fetcher: () => Promise<T>): Pro
   return e.inflight;
 }
 
-/** Drop cached data for every key with this prefix so the next subscriber refetches. */
+/**
+ * Mark every key with this prefix stale. A key some screen is showing right now is read again at once, so a
+ * change made outside the wallet (a bank deposit landing) shows without waiting for the next poll.
+ */
 export function invalidate(prefix: string) {
-  for (const [k, e] of entries) if (k.startsWith(prefix)) set(e, { updatedAt: 0 });
+  for (const [k, e] of entries) {
+    if (!k.startsWith(prefix)) continue;
+    set(e, { updatedAt: 0 });
+    if (e.listeners.size > 0 && e.fetcher) void refreshKey(k, e.fetcher);
+  }
 }
 
 /** Push a value into the cache directly (optimistic updates, local stores). */
