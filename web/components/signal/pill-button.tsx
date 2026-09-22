@@ -18,8 +18,8 @@ export type PillSize = "sm" | "md" | "lg";
 const variants: Record<PillVariant, string> = {
   /** The primary action anywhere on a dark surface. */
   lime: "bg-lime text-on-lime hover:brightness-95 active:brightness-90",
-  /** The primary action on a lime tile: ink on lime. */
-  onLime: "bg-on-lime text-accent-text hover:opacity-90 active:opacity-80",
+  /** The primary action on a lime tile: lime on ink. Not `accent-text`, which is a deep green in the light theme. */
+  onLime: "bg-on-lime text-lime hover:opacity-90 active:opacity-80",
   onLimeOutline: "border border-on-lime text-on-lime hover:bg-on-lime/10 active:bg-on-lime/20",
   outline: "border border-line text-text hover:bg-surface-2 active:bg-surface-2 active:brightness-110",
   ghost: "bg-surface-2 text-text hover:brightness-110 active:brightness-125",
