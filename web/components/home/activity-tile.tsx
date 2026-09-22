@@ -5,12 +5,14 @@ import { EmptyState, Loadable, Row, RowList, SkRows, Tile, TileLabel } from "@/c
 import type { ActivityRow } from "@/hooks/use-activity";
 import { agoShort } from "@/lib/model/labels";
 import { cn } from "@/lib/utils";
+import { useAppHref } from "@/lib/app-base";
 
 /** The three most recent moves. The tile links to Activity. */
 export function ActivityTile({ rows, loading, now, className }: { rows: ActivityRow[]; loading: boolean; now: number; className?: string }) {
+  const appHref = useAppHref();
   const recent = rows.slice(0, 3);
   return (
-    <Link href="/app/activity" className={cn("block rounded-[var(--radius-tile)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)} aria-label="Activity">
+    <Link href={appHref("/activity")} className={cn("block rounded-[var(--radius-tile)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)} aria-label="Activity">
       <Tile className="h-full transition-colors hover:bg-surface-2/60">
         <TileLabel>Activity</TileLabel>
         <Loadable loading={loading} skeleton={<SkRows rows={3} />} className="mt-2">

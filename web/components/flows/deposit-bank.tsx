@@ -15,6 +15,7 @@ import type { Transfer } from "@/lib/data/types";
 import { AmountInput, parseAmount } from "./amount-input";
 import { FlowFrame, type Method } from "./flow-frame";
 import { Steps } from "./steps";
+import { useAppHref } from "@/lib/app-base";
 
 const STEP_LABELS = ["Verified", "Send", "Convert", "Arrives"];
 /** How long a details row may stay a skeleton before the page says the anchor has not answered. */
@@ -51,6 +52,7 @@ function DetailsMissing({ label }: { label: string }) {
 }
 
 export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
+  const appHref = useAppHref();
   const router = useRouter();
   const fx = useFx();
   const runner = useTransferRunner();
@@ -83,7 +85,7 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
     return (
       <FlowFrame
         title={t.status === "done" ? `${fmtUsdc(t.amountUsdc)} USDC arrived` : `Send ${fmtLiraWhole(t.amountTry)}`}
-        action={<PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push("/app"); }}>Done</PillButton>}
+        action={<PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push(appHref("/")); }}>Done</PillButton>}
       >
         <Tile className="grid gap-5 [&>*]:min-w-0">
           <Steps labels={STEP_LABELS} active={stepIndex} failed={t.status === "failed"} />

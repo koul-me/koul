@@ -12,6 +12,7 @@ import { RuleLine } from "@/components/rules/rule-line";
 import { addToLibrary, library, MAX_NAME, shareLink, type LibraryEntry } from "@/lib/model/library";
 import type { Rule } from "@/lib/model/autopilot";
 import { whenLabel } from "@/lib/model/labels";
+import { useAppOrigin } from "@/lib/app-base";
 
 export function useLibrary() {
   const [entries, setEntries] = library.use();
@@ -24,9 +25,9 @@ export function useLibrary() {
   return { entries, save, remove };
 }
 
-/** Copy a share link for these rules; says so in a toast. */
-export async function copyShareLink(rules: Rule[], name?: string): Promise<void> {
-  const url = shareLink(window.location.origin, rules, name);
+/** Copy a share link for these rules; says so in a toast. `appRoot` is where the app lives (useAppOrigin). */
+export async function copyShareLink(appRoot: string, rules: Rule[], name?: string): Promise<void> {
+  const url = shareLink(appRoot, rules, name);
   try {
     await navigator.clipboard.writeText(url);
     toast("Link copied", { description: "Anyone who opens it gets these rules as a draft on their own wallet." });
@@ -70,6 +71,7 @@ export function SaveToLibrary({ rules, defaultName, onDone, onCancel }: { rules:
 }
 
 export function Library({ onUse, now }: { onUse: (entry: LibraryEntry) => void; now: number }) {
+  const appOrigin = useAppOrigin();
   const lib = useLibrary();
   if (lib.entries.length === 0) return null;
   return (
@@ -91,7 +93,7 @@ export function Library({ onUse, now }: { onUse: (entry: LibraryEntry) => void; 
             </div>
             <div className="mt-auto flex flex-wrap gap-2">
               <PillButton size="md" onClick={() => onUse(e)}>Use</PillButton>
-              <PillButton variant="outline" size="md" onClick={() => void copyShareLink(e.rules, e.name)}>Link</PillButton>
+              <PillButton variant="outline" size="md" onClick={() => void copyShareLink(appOrigin(), e.rules, e.name)}>Link</PillButton>
               <PillButton variant="ghost" size="md" onClick={() => { lib.remove(e.id); toast("Removed from your library", { description: e.name }); }}>Remove</PillButton>
             </div>
           </Tile>

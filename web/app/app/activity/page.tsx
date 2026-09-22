@@ -12,6 +12,7 @@ import { explorerTx } from "@/lib/koul";
 import { fmtUsdc } from "@/lib/format";
 import { dayLabel, whenLabel } from "@/lib/model/labels";
 import { cn } from "@/lib/utils";
+import { useAppHref } from "@/lib/app-base";
 
 type Filter = "all" | "auto" | "you";
 const FILTERS: { value: Filter; label: string }[] = [{ value: "all", label: "All" }, { value: "auto", label: "Autopilot" }, { value: "you", label: "You" }];
@@ -32,6 +33,7 @@ function useMinute(): number {
 }
 
 export default function ActivityPage() {
+  const appHref = useAppHref();
   const activity = useActivity();
   const now = useMinute();
   const [filter, setFilter] = React.useState<Filter>("all");
@@ -51,7 +53,7 @@ export default function ActivityPage() {
             <EmptyState
               title="Nothing yet"
               line={nothingAtAll ? "Deposits, withdrawals and autopilot moves show up here" : filter === "auto" ? "Autopilot moves show up here" : "Your deposits, withdrawals and saves show up here"}
-              action={nothingAtAll ? <PillButton size="lg" href="/app/deposit">Deposit</PillButton> : undefined}
+              action={nothingAtAll ? <PillButton size="lg" href={appHref("/deposit")}>Deposit</PillButton> : undefined}
               className="min-h-[400px]"
             />
           ) : (

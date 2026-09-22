@@ -14,11 +14,13 @@ import { fmtFx, fmtLira, fmtUsdc } from "@/lib/format";
 import { AmountInput, parseAmount } from "./amount-input";
 import { FlowFrame, type Method } from "./flow-frame";
 import { Steps } from "./steps";
+import { useAppHref } from "@/lib/app-base";
 
 const STEP_LABELS = ["Quoted", "Approve", "Paying", "Done"];
 const IBAN = /^TR\d{24}$/;
 
 export function WithdrawBank({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
+  const appHref = useAppHref();
   const router = useRouter();
   const fx = useFx();
   const pf = usePortfolio();
@@ -53,7 +55,7 @@ export function WithdrawBank({ method, onMethod }: { method: Method; onMethod: (
         title={t.status === "done" ? `${fmtLira(t.amountTry)} sent` : `Withdraw ${fmtUsdc(t.amountUsdc)} USDC`}
         action={approving
           ? <PillButton size="lg" full onClick={() => void runner.approve()} disabled={runner.approveAction.busy || !t.unsignedTransfer} aria-busy={runner.approveAction.busy}>{approveLabel}</PillButton>
-          : <PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push("/app"); }}>Done</PillButton>}
+          : <PillButton variant={t.status === "done" ? "lime" : "outline"} size="lg" full onClick={() => { if (t.status !== "running") runner.reset(); router.push(appHref("/")); }}>Done</PillButton>}
       >
         <Tile className="grid gap-5">
           <Steps labels={STEP_LABELS} active={stepIndex} failed={t.status === "failed"} />

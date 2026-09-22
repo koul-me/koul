@@ -34,6 +34,7 @@ import { RuleEditor, pairingProblem, ruleTemplate } from "@/components/autopilot
 import { SaveBar, type AccessAsk } from "@/components/autopilot-page/save-bar";
 import { Templates } from "@/components/autopilot-page/templates";
 import { useEditor } from "@/components/autopilot-page/use-editor";
+import { useAppOrigin } from "@/lib/app-base";
 
 const ACCESS_DAYS = 30;
 const OPEN_WITH_USDC = 1_0000000n;
@@ -49,6 +50,7 @@ function useMinute(): number {
 }
 
 export default function AutopilotPage() {
+  const appOrigin = useAppOrigin();
   const w = useWallet();
   const live = useAutopilotLive();
   const pf = usePortfolio();
@@ -317,7 +319,7 @@ export default function AutopilotPage() {
               {live.status === "paused" && live.access.loaded && <PillButton size="md" onClick={() => setAsking(true)} disabled={busy || asking}>Start autopilot</PillButton>}
               {live.status === "live" && <PillButton variant="outline" size="md" onClick={() => void pause()} disabled={busy} aria-busy={armer.grantAction.busy}>{armer.grantAction.busy && plan === null ? "Passkey" : "Stop"}</PillButton>}
               <PillButton variant="outline" size="md" onClick={() => setSavingToLibrary((v) => !v)} disabled={busy}>Save to library</PillButton>
-              <PillButton variant="outline" size="md" onClick={() => void copyShareLink(saved)} disabled={busy}>Link</PillButton>
+              <PillButton variant="outline" size="md" onClick={() => void copyShareLink(appOrigin(), saved)} disabled={busy}>Link</PillButton>
               <PillButton variant="ghost" size="md" onClick={() => setConfirmDelete(true)} disabled={busy || confirmDelete}>Delete</PillButton>
             </>
           } />

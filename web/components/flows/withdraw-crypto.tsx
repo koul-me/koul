@@ -14,10 +14,12 @@ import { explorerTx, WRITE_CONFIG } from "@/lib/koul";
 import { fmtUsdc } from "@/lib/format";
 import { AmountInput, parseAmount } from "./amount-input";
 import { FlowFrame, type Method } from "./flow-frame";
+import { useAppHref } from "@/lib/app-base";
 
 const writer = new KoulWriter(WRITE_CONFIG);
 
 export function WithdrawCrypto({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
+  const appHref = useAppHref();
   const router = useRouter();
   const w = useWallet();
   const pf = usePortfolio();
@@ -41,7 +43,7 @@ export function WithdrawCrypto({ method, onMethod }: { method: Method; onMethod:
 
   if (sent) {
     return (
-      <FlowFrame title={`${fmtUsdc(sent.amount)} USDC sent`} action={<PillButton size="lg" full onClick={() => router.push("/app")}>Done</PillButton>}>
+      <FlowFrame title={`${fmtUsdc(sent.amount)} USDC sent`} action={<PillButton size="lg" full onClick={() => router.push(appHref("/"))}>Done</PillButton>}>
         <Tile className="grid gap-5">
           <div className="divide-y divide-line">
             <KeyValue label="To" value={`${sent.to.slice(0, 6)}…${sent.to.slice(-6)}`} />

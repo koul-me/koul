@@ -5,6 +5,7 @@ import { Label, PillButton, Tile } from "@/components/signal";
 import { useCountUp } from "@/lib/count-up";
 import { fmtFx, fmtLira, fmtRelative, fmtUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useAppHref } from "@/lib/app-base";
 
 /**
  * The lime tile: total USDC (wallet plus XOXNO, minus debt), the lira equivalent, Deposit and Withdraw. While
@@ -12,6 +13,7 @@ import { cn } from "@/lib/utils";
  * the real figures then count up over 700 ms in tabular digits so nothing shifts.
  */
 export function BalanceTile({ balance, lira, loading, rate }: { balance: number | null; lira: number | null; loading: boolean; /** The USD/TRY the lira line used and when the oracle published it. */ rate?: { tryPerUsd: number; at: number } | null }) {
+  const appHref = useAppHref();
   const [showRate, setShowRate] = React.useState(false);
   const rateLine = rate ? `at ${fmtFx(rate.tryPerUsd)}, ${fmtRelative(rate.at)}` : null;
   const canWithdraw = (balance ?? 0) > 0;
@@ -46,8 +48,8 @@ export function BalanceTile({ balance, lira, loading, rate }: { balance: number 
         </div>
       </div>
       <div className="flex gap-3">
-        <PillButton variant="onLime" size="lg" href="/app/deposit">Deposit</PillButton>
-        <PillButton variant="onLimeOutline" size="lg" href="/app/withdraw" disabled={!canWithdraw}>Withdraw</PillButton>
+        <PillButton variant="onLime" size="lg" href={appHref("/deposit")}>Deposit</PillButton>
+        <PillButton variant="onLimeOutline" size="lg" href={appHref("/withdraw")} disabled={!canWithdraw}>Withdraw</PillButton>
       </div>
     </Tile>
   );

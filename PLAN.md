@@ -15,9 +15,13 @@ Deployed, all from this repo on `master`, every push redeploys:
 - Keeper: `.github/workflows/keeper.yml`, every five minutes and on demand, with `KEEPER_SECRET` and `AGENT_SECRET`
   as GitHub repository secrets. `loadEnv` falls back to the process environment, so no `.env` file is needed there.
 
-2026-09-22 (routes): the landing is its own page at `/` and the app lives under `/app` (`/app/autopilot`, `/app/account`,
-...). `web/app/app/layout.tsx` wraps the app in `AppShell`; the root layout only has providers. Old paths redirect in
-`web/next.config.ts`, so shared `/autopilot?load=` links still open. Landing buttons create or connect, then go to `/app`.
+2026-09-22 (hosts): the landing is https://koul.me and the app is https://app.koul.me (added to Vercel project `koul`,
+DNS on Vercel). One project serves both: `web/proxy.ts` with the rules in `web/lib/app-host.ts` (tested). On app.koul.me
+bare paths render the `web/app/app/*` routes (`/autopilot`); on koul.me any app path, including shared
+`/autopilot?load=` links, 308s to app.koul.me; localhost and *.vercel.app keep the app under `/app`. Links go through
+`useAppHref` (`web/lib/app-base.tsx`), whose base the app layout reads from the host. The passkey rpId is pinned to
+`koul.me` on koul.me hosts, so wallets made on koul.me still open on app.koul.me. The landing has no wallet actions:
+Open app and Try it first.
 
 2026-09-22 (router cap): `MAX_RULES` raised from 8 to 32 and the router upgraded in place (wasm `608bca58...`); one
 autopilot per wallet with up to 32 contract rules. The SDK schema, chat schema and the page mirror it. The Autopilot

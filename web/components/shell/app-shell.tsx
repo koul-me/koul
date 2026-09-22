@@ -7,10 +7,10 @@
  * is its own route at "/" and does not use this frame.
  */
 import * as React from "react";
-import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
 import { rise } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { useAppPathname } from "@/lib/app-base";
 import { useWallet } from "@/hooks/use-wallet";
 import { Sk } from "@/components/signal";
 import { TopBar } from "./top-bar";
@@ -20,7 +20,7 @@ import { isFlowRoute } from "./nav";
 import { Welcome } from "@/components/welcome/welcome";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const w = useWallet();
   const flow = isFlowRoute(pathname);
 

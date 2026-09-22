@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAppHref, useAppPathname } from "@/lib/app-base";
 import { Label } from "@/components/signal";
 import { AccountChip } from "./account-chip";
 import { TABS } from "./nav";
 
 export function Wordmark({ className }: { className?: string }) {
+  const appHref = useAppHref();
   return (
-    <Link href="/app" aria-label="Koul home" className={cn("inline-flex h-11 items-center text-[20px] font-extrabold tracking-[-0.04em] text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)}>
+    <Link href={appHref("/")} aria-label="Koul home" className={cn("inline-flex h-11 items-center text-[20px] font-extrabold tracking-[-0.04em] text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)}>
       KOUL
     </Link>
   );
@@ -20,7 +21,8 @@ export function Wordmark({ className }: { className?: string }) {
  * `connected=false` is the Welcome variant: wordmark and the network label, nothing else.
  */
 export function TopBar({ connected, className }: { connected: boolean; className?: string }) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
+  const appHref = useAppHref();
   return (
     <header className={cn("flex h-[88px] items-center justify-between gap-6", className)}>
       <div className="flex min-w-0 items-center gap-6">
@@ -34,7 +36,7 @@ export function TopBar({ connected, className }: { connected: boolean; className
                 return (
                   <Link
                     key={t.href}
-                    href={t.href}
+                    href={appHref(t.href)}
                     aria-current={on ? "page" : undefined}
                     className={cn("t-tab rounded-md py-1 transition-colors duration-[240ms] ease-out focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-text", on ? "text-text" : "text-dim hover:text-muted active:text-text")}
                   >

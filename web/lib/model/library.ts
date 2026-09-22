@@ -81,7 +81,7 @@ export function decodeRules(token: string): { name: string | null; rules: Rule[]
 
 /** The share link for a set: the Autopilot page with the token in `load`. */
 export function shareLink(origin: string, rules: Rule[], name?: string): string {
-  return `${origin}/app/autopilot?load=${encodeRules(rules, name)}`;
+  return `${origin}/autopilot?load=${encodeRules(rules, name)}`;
 }
 
 /** A name that is not taken yet: "Lira shield", then "Lira shield 2", and so on. */

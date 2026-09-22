@@ -7,10 +7,19 @@ import { PasskeyWalletProvider, SEMBOL_TESTNET_ARTIFACTS, type SembolConfig } fr
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 
+/**
+ * Passkeys belong to a domain. The app moved from koul.me to app.koul.me, so on any koul.me host the passkey is
+ * pinned to koul.me itself: wallets made on koul.me keep working on app.koul.me, and new ones work on both. Other
+ * hosts (localhost, *.vercel.app) keep the default, their own domain.
+ */
+const host = typeof window === "undefined" ? "" : window.location.hostname;
+const rpId = host === "koul.me" || host.endsWith(".koul.me") ? "koul.me" : undefined;
+
 const config: SembolConfig = {
   ...SEMBOL_TESTNET_ARTIFACTS,
   appName: "Koul",
   webAuthnHints: ["client-device", "hybrid"],
+  ...(rpId ? { rpId } : {}),
 };
 
 /** Dark is the default; the light theme is a class on <html>, toggled on the Account page. */

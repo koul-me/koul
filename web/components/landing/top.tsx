@@ -5,11 +5,11 @@
  * the page and takes a ground and a hairline once you scroll past the hero, so it never floats over the text.
  */
 import * as React from "react";
-import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
+import { APP_PATH } from "./shell";
 
 /** True once the page is running in the browser; before that next-themes has not read the stored choice. */
 function useMounted() {
@@ -59,7 +59,7 @@ export function TopBar() {
                 <a key={n.href} href={n.href} className="label inline-flex h-11 items-center rounded-full px-4 text-muted transition-colors hover:text-text">{n.label}</a>
               ))}
             </nav>
-            <Link href="/app" className="label inline-flex h-11 items-center rounded-full bg-lime px-4 text-on-lime transition-[filter] hover:brightness-105">Open app</Link>
+            <a href={APP_PATH} className="label inline-flex h-11 items-center rounded-full bg-lime px-4 text-on-lime transition-[filter] hover:brightness-105">Open app</a>
             <ThemeToggle />
           </div>
         </div>

@@ -2,57 +2,34 @@
 
 /**
  * The frame the landing page shares: a full-bleed section with a centred column inside, the small section label,
- * and the two passkey buttons that start the real flows. Nothing here talks to the chain.
+ * and the way into the app. Nothing here talks to the chain or the wallet.
  */
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { Label, PillButton } from "@/components/signal";
+import { Label } from "@/components/signal";
 import { DUR, tween } from "@/lib/motion";
-import { useWallet, useWalletOnboarding, type PasskeyPhase } from "@/hooks/use-wallet";
 import { cn } from "@/lib/utils";
 
-const BUSY: Partial<Record<PasskeyPhase, string>> = {
-  prompt: "Confirm with your passkey",
-  deploying: "Creating your wallet",
-  funding: "Adding test XLM",
-  submitting: "Almost there",
-};
-
 /**
- * Create wallet and I have a wallet: the same two passkey actions the app has always used, and on success the app
- * at /app. With a wallet already connected there is nothing to create, so the one button opens the app.
+ * The app lives on its own host (app.koul.me). "/app" gets there from any host: the proxy sends koul.me to
+ * app.koul.me and serves it in place elsewhere. A plain anchor, because the jump can cross origins.
  */
+export const APP_PATH = "/app";
+
+const pill = "inline-flex h-14 items-center justify-center rounded-full px-7 text-[17px] font-bold whitespace-nowrap transition-[filter,opacity,background-color] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text";
+const TONES = {
+  dark: { main: "bg-lime text-on-lime hover:brightness-95", second: "border border-line text-text hover:bg-surface-2", note: "muted" },
+  onLime: { main: "bg-on-lime text-lime hover:opacity-90", second: "border border-on-lime text-on-lime hover:bg-on-lime/10", note: "onLime" },
+} as const;
+
+/** Open app, and a second way in for anyone not ready: the playground on this page. No wallet steps here. */
 export function StartButtons({ tone = "dark", className }: { tone?: "dark" | "onLime"; className?: string }) {
-  const w = useWallet();
-  const ob = useWalletOnboarding();
-  const router = useRouter();
-  const start = async (which: "create" | "connect") => { if (await ob.run(which)) router.push("/app"); };
-  if (w.isConnected) {
-    return (
-      <div className={cn("flex flex-col gap-3 sm:flex-row sm:items-center", className)}>
-        <PillButton variant={tone === "onLime" ? "onLime" : "lime"} size="lg" href="/app">Open app</PillButton>
-      </div>
-    );
-  }
-  const busy = ob.phase === "prompt" || ob.phase === "deploying" || ob.phase === "funding" || ob.phase === "submitting";
-  const creating = busy && ob.mode === "create";
-  const connecting = busy && ob.mode === "connect";
+  const t = TONES[tone];
   return (
-    <div className={cn("grid gap-3", className)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <PillButton variant={tone === "onLime" ? "onLime" : "lime"} size="lg" disabled={busy} aria-busy={creating} onClick={() => void start("create")}>
-          {creating ? BUSY[ob.phase] : "Create wallet"}
-        </PillButton>
-        <PillButton variant={tone === "onLime" ? "onLimeOutline" : "outline"} size="lg" disabled={busy} aria-busy={connecting} onClick={() => void start("connect")}>
-          {connecting ? BUSY[ob.phase] : "I have a wallet"}
-        </PillButton>
-        <Label tone={tone === "onLime" ? "onLime" : "muted"} className="sm:ml-2">Passkey · no seed phrase</Label>
-      </div>
-      <p role="status" aria-live="polite" className={cn("label min-h-5", tone === "onLime" ? "text-on-lime" : "text-muted")}>
-        {ob.phase === "cancelled" && "Nothing was signed. Try again when you are ready."}
-        {ob.phase === "error" && (ob.error?.code === "wallet_not_found" || /no wallet found/i.test(ob.error?.message ?? "") ? "No wallet for this passkey on this site. Wallets belong to the site that created them." : ob.error?.userMessage || ob.error?.message || "That did not work. Try again.")}
-      </p>
+    <div className={cn("flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center", className)}>
+      <a href={APP_PATH} className={cn(pill, t.main)}>Open app</a>
+      <a href="#build" className={cn(pill, t.second)}>Try it first</a>
+      <Label tone={t.note} className="sm:ml-2">Stellar testnet</Label>
     </div>
   );
 }

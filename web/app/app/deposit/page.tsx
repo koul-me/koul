@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { DepositBank } from "@/components/flows/deposit-bank";
 import { DepositCrypto } from "@/components/flows/deposit-crypto";
 import type { Method } from "@/components/flows/flow-frame";
+import { useAppHref } from "@/lib/app-base";
 
 function DepositInner() {
+  const appHref = useAppHref();
   const router = useRouter();
   const params = useSearchParams();
   const method: Method = params.get("m") === "crypto" ? "crypto" : "bank";
-  const setMethod = (m: Method) => router.replace(m === "bank" ? "/app/deposit" : "/app/deposit?m=crypto");
+  const setMethod = (m: Method) => router.replace(appHref(m === "bank" ? "/deposit" : "/deposit?m=crypto"));
   return method === "bank" ? <DepositBank method={method} onMethod={setMethod} /> : <DepositCrypto method={method} onMethod={setMethod} />;
 }
 

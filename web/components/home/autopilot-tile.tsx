@@ -7,11 +7,13 @@ import { RuleLine } from "@/components/rules/rule-line";
 import type { AutopilotLiveState } from "@/hooks/use-autopilot-live";
 import { agoShort, observedLabel } from "@/lib/model/labels";
 import { cn } from "@/lib/utils";
+import { useAppHref } from "@/lib/app-base";
 
 const SHOWN = 4;
 
 /** Read-only. Watching with the first four rules, or the dashed Off tile. The whole tile leads to Autopilot. */
 export function AutopilotTile({ ap, now }: { ap: AutopilotLiveState; now: number }) {
+  const appHref = useAppHref();
   const loading = ap.loading && ap.status === "off";
   const showSkeleton = useDelayed(loading);
   if (loading) {
@@ -32,7 +34,7 @@ export function AutopilotTile({ ap, now }: { ap: AutopilotLiveState; now: number
           <Label className="mt-3 block">No rules yet</Label>
         </div>
         <p className="text-[22px] font-bold leading-tight md:text-[26px]">Set the rules once.<br />Koul does the rest.</p>
-        <PillButton href="/app/autopilot" size="lg" className="w-full md:w-auto">Set up autopilot</PillButton>
+        <PillButton href={appHref("/autopilot")} size="lg" className="w-full md:w-auto">Set up autopilot</PillButton>
       </Tile>
     );
   }
@@ -40,7 +42,7 @@ export function AutopilotTile({ ap, now }: { ap: AutopilotLiveState; now: number
   const more = ap.rules.length - SHOWN;
   const paused = ap.status === "paused";
   return (
-    <Link href="/app/autopilot" className="block animate-fade-in rounded-[var(--radius-tile)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text" aria-label="Autopilot">
+    <Link href={appHref("/autopilot")} className="block animate-fade-in rounded-[var(--radius-tile)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text" aria-label="Autopilot">
       <Tile className="grid gap-6 transition-colors hover:bg-surface-2/60 md:grid-cols-[minmax(0,1fr)_minmax(0,2.4fr)]">
         <div>
           <TileLabel>Autopilot</TileLabel>
