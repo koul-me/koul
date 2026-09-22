@@ -2,43 +2,37 @@
 
 /** What Koul is built on, the last call to action, and the footer. Plain names, no logos, nothing claimed. */
 import { motion } from "motion/react";
+import { ArrowUpRight } from "lucide-react";
 import { Label } from "@/components/signal";
 import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
+import { MARKS } from "./marks";
 
 /**
- * What Koul stands on. The names carry their own mark once the files are there: drop an SVG into
- * `web/public/logos/` and give the entry a `logo`. Until then the name is the mark, set large.
+ * What Koul stands on: the mark where the owner publishes one, the name beside it either way. Soroban's branding
+ * folded into Stellar's and XOXNO's mark is not published as a file we could use, so those two stand as names.
  */
-const BUILT_ON: { name: string; logo?: string }[] = [
-  { name: "Stellar" },
-  { name: "Soroban" },
-  { name: "XOXNO" },
-  { name: "Passkeys" },
-  { name: "OpenZeppelin" },
-];
+const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin"];
 
 export function BuiltOn() {
   return (
     <Section title="Built on Stellar today.">
       <motion.div
-        className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-4 md:gap-x-8"
+        className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4 md:gap-x-9"
         variants={staggerParent}
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.4 }}
       >
-        {BUILT_ON.map((b) => (
-          <motion.span key={b.name} variants={staggerChild} className="flex items-center">
-            {b.logo ? (
-              // Brand marks are drawn files, not code: a plain tag keeps them exactly as supplied.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={b.logo} alt={b.name} className="h-7 w-auto md:h-9" />
-            ) : (
-              <span className="text-[30px] font-extrabold leading-none tracking-tight md:text-[44px]">{b.name}</span>
-            )}
-          </motion.span>
-        ))}
+        {BUILT_ON.map((name) => {
+          const Mark = MARKS[name];
+          return (
+            <motion.span key={name} variants={staggerChild} className="flex items-center gap-3">
+              {Mark && <Mark className="size-7 shrink-0 md:size-9" />}
+              <span className="text-[26px] font-extrabold leading-none tracking-tight md:text-[38px]">{name}</span>
+            </motion.span>
+          );
+        })}
         <motion.span variants={staggerChild} className="label inline-flex items-center rounded-full border border-dashed border-line px-4 py-2 text-muted">
           More DeFi protocols soon
         </motion.span>
@@ -60,11 +54,19 @@ export function FinalCta() {
 export function Footer() {
   return (
     <footer className="px-4 pb-16 md:px-8">
-      <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-3 border-t border-line pt-8 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center justify-between gap-4 border-t border-line pt-8">
         <span className="text-[22px] font-extrabold tracking-tight">KOUL</span>
-        <div className="grid gap-1 sm:text-right">
-          <Label>Stellar testnet. Not financial advice.</Label>
-          <Label tone="muted">Built at the Rise In x Stellar Pro Hackathon, Istanbul</Label>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Label>Stellar testnet</Label>
+          <a
+            href="https://github.com/koul-me"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="label inline-flex min-h-11 items-center gap-2 rounded-full text-muted transition-colors hover:text-text"
+          >
+            github.com/koul-me
+            <ArrowUpRight className="size-3.5" aria-hidden />
+          </a>
         </div>
       </div>
     </footer>
