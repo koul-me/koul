@@ -6,30 +6,43 @@ import { Label } from "@/components/signal";
 import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
 
-/** The names, large, with a dot between them. Fewer words than a tile each, and it reads as one thought. */
-const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin accounts"];
+/**
+ * What Koul stands on. The names carry their own mark once the files are there: drop an SVG into
+ * `web/public/logos/` and give the entry a `logo`. Until then the name is the mark, set large.
+ */
+const BUILT_ON: { name: string; logo?: string }[] = [
+  { name: "Stellar" },
+  { name: "Soroban" },
+  { name: "XOXNO" },
+  { name: "Passkeys" },
+  { name: "OpenZeppelin" },
+];
 
 export function BuiltOn() {
   return (
     <Section title="Built on Stellar today.">
-      {/* The names arrive one after another, so the band reads as a list being written, not a slide. */}
       <motion.div
-        className="mt-10 flex flex-wrap items-baseline gap-x-5 gap-y-2 md:gap-x-7"
+        className="mt-10 flex flex-wrap items-center gap-x-5 gap-y-4 md:gap-x-8"
         variants={staggerParent}
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.4 }}
       >
-        {BUILT_ON.map((name, i) => (
-          <motion.span key={name} variants={staggerChild} className="flex items-baseline gap-5 md:gap-7">
-            <span className="text-[30px] font-extrabold leading-tight tracking-tight md:text-[44px]">{name}</span>
-            {i < BUILT_ON.length - 1 && <span className="text-[30px] font-extrabold text-accent-text md:text-[44px]" aria-hidden>·</span>}
+        {BUILT_ON.map((b) => (
+          <motion.span key={b.name} variants={staggerChild} className="flex items-center">
+            {b.logo ? (
+              // Brand marks are drawn files, not code: a plain tag keeps them exactly as supplied.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={b.logo} alt={b.name} className="h-7 w-auto md:h-9" />
+            ) : (
+              <span className="text-[30px] font-extrabold leading-none tracking-tight md:text-[44px]">{b.name}</span>
+            )}
           </motion.span>
         ))}
+        <motion.span variants={staggerChild} className="label inline-flex items-center rounded-full border border-dashed border-line px-4 py-2 text-muted">
+          More DeFi protocols soon
+        </motion.span>
       </motion.div>
-      <p className="mt-8 max-w-[48ch] text-[17px] text-muted md:text-[19px]">
-        A rule is just a condition and an action. Nothing about that belongs to one lender, or one chain. More of both is where this goes next.
-      </p>
     </Section>
   );
 }
