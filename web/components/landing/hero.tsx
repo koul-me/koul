@@ -35,8 +35,8 @@ const BEATS: { at: number; phase: Phase; chips: number }[] = [
   { at: 640, phase: "assembling", chips: 3 },
   { at: 960, phase: "assembling", chips: 4 },
   { at: 1500, phase: "watching", chips: 4 },
-  { at: 3300, phase: "crossed", chips: 4 },
-  { at: 3900, phase: "fired", chips: 4 },
+  { at: 2900, phase: "crossed", chips: 4 },
+  { at: 3500, phase: "fired", chips: 4 },
 ];
 const PERIOD = 7600;
 
@@ -86,7 +86,7 @@ export function Hero() {
             <Label tone={held ? "lime" : "muted"}>{phase === "assembling" ? "Writing" : phase === "watching" ? "Watching" : phase === "crossed" ? "Condition met" : "Ran"}</Label>
           </div>
           <RuleChips chips={CHIPS} shown={chips} firing={phase === "fired"} />
-          <Gauge label="Loan health" value={value} level={LEVEL} min={1} max={2} held={held} durationMs={still ? 0 : 1800} />
+          <Gauge label="Loan health" value={value} level={LEVEL} min={1} max={2} durationMs={still ? 0 : 1800} />
           <div className="min-h-[44px]">
             <div className={cn("flex items-center gap-3 transition-opacity duration-300", phase === "fired" ? "opacity-100" : "opacity-0")} aria-live="polite">
               <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-lime text-on-lime"><Check className="size-4" aria-hidden /></span>

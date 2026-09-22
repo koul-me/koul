@@ -16,7 +16,13 @@ const POINTS: { icon: LucideIcon; title: string }[] = [
   { icon: Fingerprint, title: "Revoke it with a passkey" },
 ];
 
-const NEVER = ["Send your funds elsewhere", "Cash out to a bank"];
+const NEVER = [
+  "Send your money anywhere else",
+  "Withdraw to another wallet",
+  "Touch anyone else's position",
+  "Cash out to a bank",
+  "Work after you revoke it",
+];
 
 export function Safety() {
   const still = useReducedMotion() ?? false;
