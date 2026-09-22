@@ -16,6 +16,7 @@ import { AutopilotTile } from "@/components/home/autopilot-tile";
 import { PositionsTile } from "@/components/home/positions-tile";
 import { ActivityTile } from "@/components/home/activity-tile";
 import { PutToWorkDialog } from "@/components/home/put-to-work";
+import { PullToRefresh } from "@/components/signal";
 
 /** A clock that ticks once a minute, for the "2H ago" labels; the number lives in state so renders stay pure. */
 function useMinute(): number {
@@ -47,7 +48,9 @@ export default function HomePage() {
 
   // The tiles arrive one after another, 40 ms apart, each fading in with a 12 px rise.
   const tile = { variants: staggerChild, className: "min-w-0" };
+  const refreshAll = () => Promise.all([pf.refresh(), fx.refresh(), pools.refresh(), ap.refresh(), activity.refresh()]);
   return (
+    <PullToRefresh onRefresh={refreshAll}>
     <motion.div variants={staggerParent} initial="hidden" animate="show" className="grid gap-4 md:gap-5">
       <div className="grid gap-4 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:gap-5">
         <motion.div {...tile}><BalanceTile balance={balance} lira={lira} loading={!loaded} rate={fx.fx.tryPerUsd > 0 ? { tryPerUsd: fx.fx.tryPerUsd, at: fx.fx.timestamp * 1000 } : null} /></motion.div>
@@ -66,5 +69,6 @@ export default function HomePage() {
       </div>
       <PutToWorkDialog open={putOpen} onOpenChange={setPutOpen} idle={idle ?? 0} pool={target} />
     </motion.div>
+    </PullToRefresh>
   );
 }

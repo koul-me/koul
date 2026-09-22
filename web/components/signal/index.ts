@@ -10,4 +10,7 @@ export { FitValue, fitValueClass } from "./fit-value";
 export { Loadable, useDelayed } from "./loadable";
 export { Rolling } from "./rolling";
 export { CopyAction, CopyRow } from "./copy";
+export { TickSlider } from "./tick-slider";
+export { InlineConfirm } from "./inline-confirm";
+export { PullToRefresh } from "./pull-refresh";
 export type { StatusKind } from "./status";

@@ -35,8 +35,9 @@ export function Segmented<T extends string>({ options, value, onChange, label, c
   );
 }
 
-/** The small text selector on the chart tile: 7D · 30D · ALL. */
+/** The small text selector on the chart tile: 7D · 30D · ALL, with a soft pill under the chosen one. */
 export function TextSegmented<T extends string>({ options, value, onChange, label, className }: { options: SegmentedOption<T>[]; value: T; onChange: (v: T) => void; label: string; className?: string }) {
+  const id = React.useId();
   return (
     <div role="radiogroup" aria-label={label} className={cn("flex items-center gap-1", className)}>
       {options.map((o) => {
@@ -48,9 +49,11 @@ export function TextSegmented<T extends string>({ options, value, onChange, labe
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.value)}
-            className={cn("label min-h-11 min-w-11 rounded-full px-2 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", on ? "text-text font-medium" : "text-muted hover:text-text active:text-text")}
+            className={cn("label relative min-h-11 min-w-11 rounded-full px-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", on ? "text-text font-medium" : "text-muted hover:text-text active:text-text")}
           >
-            {o.label}
+            {/* The selection is a soft pill that slides to the new option. */}
+            {on && <motion.span layoutId={`${id}-pill`} transition={SPRING} className="absolute inset-x-0 inset-y-1.5 rounded-full bg-surface-2" aria-hidden />}
+            <span className="relative">{o.label}</span>
           </button>
         );
       })}

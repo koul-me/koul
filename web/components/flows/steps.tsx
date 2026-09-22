@@ -1,7 +1,11 @@
 "use client";
 
-/** The progress of a bank transfer: four named dots on desktop, a four-segment bar and "STEP 2 OF 4 · SEND" on phones. */
+/**
+ * Named steps: dots on desktop, a segmented bar and "STEP 2 OF 4 · SEND" on phones. A finished step ticks: its dot
+ * becomes a check and its name is struck through, the way a list item gets done.
+ */
 import { motion } from "motion/react";
+import { Check } from "lucide-react";
 import { Label } from "@/components/signal";
 import { tween } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -16,8 +20,13 @@ export function Steps({ labels, active, failed }: { labels: string[]; active: nu
           const now = i === current && active < labels.length;
           return (
             <li key={l} className="flex items-center gap-2">
-              <motion.span aria-hidden layout className={cn("inline-block size-3 rounded-full", done ? "bg-accent-text" : now ? (failed ? "border-2 border-danger" : "border-2 border-accent-text") : "border-2 border-dim")} initial={false} animate={{ scale: done ? [1, 1.3, 1] : 1 }} transition={tween()} />
-              <Label tone={done || now ? "text" : "muted"}>{l}</Label>
+              <motion.span aria-hidden layout className={cn("inline-flex size-4 items-center justify-center rounded-full", done ? "bg-lime text-on-lime" : now ? (failed ? "border-2 border-danger" : "border-2 border-accent-text") : "border-2 border-dim")} initial={false} animate={{ scale: done ? [1, 1.25, 1] : 1 }} transition={tween()}>
+                {done && <Check className="size-3" strokeWidth={3} />}
+              </motion.span>
+              <span className="relative">
+                <Label tone={done ? "muted" : now ? "text" : "muted"}>{l}</Label>
+                {done && <motion.span aria-hidden className="absolute inset-x-0 top-1/2 h-px origin-left bg-muted" initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={tween()} />}
+              </span>
             </li>
           );
         })}

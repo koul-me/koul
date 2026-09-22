@@ -7,6 +7,13 @@ import { fmtFx, fmtLira, fmtRelative, fmtUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAppHref } from "@/lib/app-base";
 
+/** "1,234.56" with the cents quieter than the dollars, so the eye lands on the part that matters. */
+function Cents({ text }: { text: string }) {
+  const dot = text.lastIndexOf(".");
+  if (dot < 0) return <>{text}</>;
+  return <>{text.slice(0, dot)}<span className="opacity-45">{text.slice(dot)}</span></>;
+}
+
 /**
  * The lime tile: total USDC (wallet plus XOXNO, minus debt), the lira equivalent, Deposit and Withdraw. While
  * loading the layout stays exactly as it will be, with `0,000.00` and `₺00,000.00` in ink at 22% pulsing slowly;
@@ -34,7 +41,7 @@ export function BalanceTile({ balance, lira, loading, rate }: { balance: number 
           aria-live="polite"
           aria-label={shownBalance === null ? "Balance loading" : `${fmtUsdc(balance ?? 0)} USDC`}
         >
-          {balanceText}
+          <Cents text={balanceText} />
         </div>
         <div className="mt-3 min-h-5">
           {shownLira === null ? (

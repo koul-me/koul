@@ -14,12 +14,25 @@ function Line({ points }: { points: HistoryPoint[] }) {
   const min = Math.min(...vs);
   const max = Math.max(...vs);
   const span = max - min || 1;
-  const d = points.map((p, i) => `${(i / (points.length - 1)) * w},${h - ((p.v - min) / span) * (h - 6) - 3}`).join(" ");
+  const y = (v: number) => h - ((v - min) / span) * (h - 6) - 3;
+  const d = points.map((p, i) => `${(i / (points.length - 1)) * w},${y(p.v)}`).join(" ");
+  const endTop = (y(points[points.length - 1]!.v) / h) * 100;
   return (
+    <div className="relative w-full">
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-24 w-full" role="img" aria-label="Balance over time">
       {/* The line draws itself from left to right in 700 ms when the series lands. */}
       <motion.polyline points={d} fill="none" stroke="var(--accent-text)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: "easeOut" }} />
     </svg>
+      {/* Today: a ring on the end of the line, placed in HTML so the stretched drawing does not squash it. */}
+      <motion.span
+        className="absolute right-0 size-3 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-accent-text bg-surface"
+        style={{ top: `${endTop}%` }}
+        initial={{ opacity: 0, scale: 0.4 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.65, duration: 0.25 }}
+        aria-hidden
+      />
+    </div>
   );
 }
 

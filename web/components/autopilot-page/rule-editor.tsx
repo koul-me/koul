@@ -15,7 +15,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { DUR, SPRING_SOFT, tween } from "@/lib/motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Label, PillButton, Tile } from "@/components/signal";
+import { InlineConfirm, Label, PillButton, Tile, TickSlider } from "@/components/signal";
 import { RuleLine } from "@/components/rules/rule-line";
 import { POOLS, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
 import { ACTION_CHOICES, CONDITION_SUBJECTS, agoShort, cooldownShort, liveLabel, observedLabel } from "@/lib/model/labels";
@@ -96,7 +96,6 @@ function amountContext(kind: Action["kind"], live: LiveValues): { all: string; h
 }
 
 const AMOUNT_MODES = [{ value: "all", label: "Everything" }, { value: "share", label: "A share" }, { value: "fixed", label: "An amount" }];
-const SHARES = [75, 50, 25, 10].map((p) => ({ value: String(p), label: `${p}%` }));
 
 function ActionPickers({ action, live, onChange }: { action: Action; live: LiveValues; onChange: (next: Action) => void }) {
   const fixed = isFixed(action.amount);
@@ -130,18 +129,7 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
         <SelectTrigger className={pill} aria-label="How much"><SelectValue /></SelectTrigger>
         <SelectContent className={popup}>{AMOUNT_MODES.map((m) => <SelectItem key={m.value} value={m.value} className={item}>{m.label}</SelectItem>)}</SelectContent>
       </Select>
-      {share !== null && (
-        <Select value={String(share)} onValueChange={(v) => v && onChange({ ...action, amount: { percent: Number(v) } })} items={SHARES.some((s) => s.value === String(share)) ? SHARES : [{ value: String(share), label: `${share}%` }, ...SHARES]}>
-          <SelectTrigger className={pill} aria-label="Which share"><SelectValue /></SelectTrigger>
-          <SelectContent className={popup}>{(SHARES.some((s) => s.value === String(share)) ? SHARES : [{ value: String(share), label: `${share}%` }, ...SHARES]).map((s) => <SelectItem key={s.value} value={s.value} className={item}>{s.label}</SelectItem>)}</SelectContent>
-        </Select>
-      )}
-      {fixed && ctx.have !== null && (
-        <div className="flex flex-wrap gap-1" role="group" aria-label="Presets">
-          {[25, 50, 100].map((p) => <button key={p} type="button" onClick={() => { setText(String(p)); onChange({ ...action, amount: p }); }} className="label min-h-9 rounded-full bg-surface-2 px-3 text-muted hover:text-text">{p}</button>)}
-          <button type="button" disabled={ctx.have < MIN_AMOUNT_USDC} onClick={() => { const n = Math.floor(ctx.have! * 100) / 100; setText(String(n)); onChange({ ...action, amount: n }); }} className="label min-h-9 rounded-full bg-surface-2 px-3 text-muted hover:text-text disabled:opacity-40">Max</button>
-        </div>
-      )}
+
       {fixed && (
         <label className="mono flex h-11 items-center gap-2 rounded-full bg-surface-2 px-4 text-text focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-text">
           <input
@@ -157,6 +145,32 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
           />
           <span className="text-muted">USDC</span>
         </label>
+      )}
+      {share !== null && (
+        <TickSlider
+          className="basis-full md:max-w-[360px]"
+          size="sm"
+          value={share}
+          min={5}
+          max={95}
+          step={5}
+          label="Which share"
+          format={(v) => ({ main: String(v), unit: "%" })}
+          onCommit={(v) => onChange({ ...action, amount: { percent: v } })}
+        />
+      )}
+      {fixed && ctx.have !== null && ctx.have >= MIN_AMOUNT_USDC && (
+        <TickSlider
+          className="basis-full md:max-w-[360px]"
+          size="sm"
+          value={Math.min(Math.max(action.amount as number, MIN_AMOUNT_USDC), Math.floor(ctx.have))}
+          min={MIN_AMOUNT_USDC}
+          max={Math.max(MIN_AMOUNT_USDC + 1, Math.floor(ctx.have))}
+          step={1}
+          label="Amount in USDC, up to what you hold"
+          format={(v) => ({ main: v.toLocaleString("en-US"), unit: "USDC" })}
+          onCommit={(v) => { setText(String(v)); onChange({ ...action, amount: v }); }}
+        />
       )}
       {have !== null && !fixed && (
         <span className="label min-h-11 inline-flex items-center px-3 text-muted">{share !== null ? `${share}% of ${ctx.all} · ${have} USDC now` : `Everything = ${ctx.all} · ${have} USDC now`}</span>
@@ -270,7 +284,7 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
               <PillButton variant="outline" size="md" onClick={() => editor.move(rule.id, -1)} disabled={i === 0} aria-label={`Move rule ${i + 1} up`}><ChevronUp className="size-4" aria-hidden /> Move up</PillButton>
               <PillButton variant="outline" size="md" onClick={() => editor.move(rule.id, 1)} disabled={i === count - 1} aria-label={`Move rule ${i + 1} down`}><ChevronDown className="size-4" aria-hidden /> Move down</PillButton>
             </div>
-            <PillButton variant="outline" size="md" onClick={() => editor.remove(rule.id)}>Delete</PillButton>
+            <InlineConfirm confirmLabel="Delete" onConfirm={() => editor.remove(rule.id)}>Delete</InlineConfirm>
           </div>
           {problem && <Label tone="danger" className="md:col-span-3">{problem}</Label>}
         </div>

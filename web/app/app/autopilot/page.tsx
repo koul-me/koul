@@ -19,7 +19,7 @@ import { invalidate } from "@/lib/data/store";
 import { newId, toCoreAutopilot, type Autopilot } from "@/lib/model/autopilot";
 import { phaseDetail, planDelete, planSteps, saveSteps, type SaveStep, type SaveStepKey } from "@/lib/model/save-steps";
 import { decodeRules, type LibraryEntry } from "@/lib/model/library";
-import { Label, PillButton, Sk, StatusPill, Tile, type StatusKind } from "@/components/signal";
+import { InlineConfirm, Label, PillButton, Sk, StatusPill, Tile, type StatusKind } from "@/components/signal";
 import { AccessChip } from "@/components/autopilot-page/access";
 import { Chat } from "@/components/autopilot-page/chat";
 import type { ChatDraft } from "@/lib/chat/reducer";
@@ -317,7 +317,7 @@ export default function AutopilotPage() {
           <Running ap={live} now={now} actions={
             <>
               {live.status === "paused" && live.access.loaded && <PillButton size="md" onClick={() => setAsking(true)} disabled={busy || asking}>Start autopilot</PillButton>}
-              {live.status === "live" && <PillButton variant="outline" size="md" onClick={() => void pause()} disabled={busy} aria-busy={armer.grantAction.busy}>{armer.grantAction.busy && plan === null ? "Passkey" : "Stop"}</PillButton>}
+              {live.status === "live" && <InlineConfirm confirmLabel="Stop" onConfirm={() => void pause()} disabled={busy} busy={armer.grantAction.busy && plan === null ? "Passkey" : undefined}>Stop</InlineConfirm>}
               <PillButton variant="outline" size="md" onClick={() => setSavingToLibrary((v) => !v)} disabled={busy}>Save to library</PillButton>
               <PillButton variant="outline" size="md" onClick={() => void copyShareLink(appOrigin(), saved)} disabled={busy}>Link</PillButton>
               <PillButton variant="ghost" size="md" onClick={() => setConfirmDelete(true)} disabled={busy || confirmDelete}>Delete</PillButton>

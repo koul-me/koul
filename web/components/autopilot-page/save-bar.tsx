@@ -7,7 +7,7 @@
  * its reason on screen until the next attempt; after a success it turns accent with a drawn check for a moment.
  */
 import { AnimatePresence, motion } from "motion/react";
-import { Label, PillButton, Tile } from "@/components/signal";
+import { InlineConfirm, Label, PillButton, Tile } from "@/components/signal";
 import { Steps } from "@/components/flows/steps";
 import { SPRING_SOFT, tween } from "@/lib/motion";
 import { activeIndex, type SaveStep } from "@/lib/model/save-steps";
@@ -117,7 +117,7 @@ export function SaveBar({ changes, confirmations, blocker, error, ask, saved, sa
             <Tile className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between md:p-5">
               <Label tone={blocker || error ? "danger" : "muted"} className="text-center md:text-left" role={error ? "alert" : undefined}>{line}</Label>
               <div className="flex flex-col-reverse gap-3 md:flex-row">
-                {onStop && <PillButton variant="ghost" size="lg" onClick={onStop} disabled={busy}>Stop autopilot</PillButton>}
+                {onStop && <InlineConfirm pill="lg" tone="ghost" confirmLabel="Stop" onConfirm={onStop} disabled={busy}>Stop autopilot</InlineConfirm>}
                 <PillButton variant="outline" size="lg" onClick={onDiscard} disabled={busy}>Discard</PillButton>
                 <PillButton size="lg" onClick={onSave} disabled={busy || !!blocker || changes === 0} aria-busy={busy}>{busy ? busyLabel ?? "Working" : error ? "Try again" : `${verb} autopilot`}</PillButton>
               </div>

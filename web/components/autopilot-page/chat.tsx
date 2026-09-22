@@ -9,7 +9,7 @@
 import * as React from "react";
 import { ArrowRight, Square } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { DUR, rise, tween } from "@/lib/motion";
+import { DUR, rise, SPRING, tween } from "@/lib/motion";
 import { Chip, IconButton, Label, PillButton } from "@/components/signal";
 import { RuleLine } from "@/components/rules/rule-line";
 import { askKoul } from "@/lib/chat/client";
@@ -18,6 +18,9 @@ import type { LiveContext } from "@/lib/chat/schema";
 import type { Rule } from "@/lib/model/autopilot";
 import { cooldownShort } from "@/lib/model/labels";
 import { cn } from "@/lib/utils";
+
+/** The send and stop buttons pop in and out rather than sitting there disabled. */
+const pop = { initial: { opacity: 0, scale: 0.6 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.6 }, transition: SPRING } as const;
 
 export const SUGGESTIONS: { label: string; text: string }[] = [
   { label: "Exit if the lira drops", text: "Exit if the lira drops" },
@@ -135,11 +138,14 @@ export function Chat({ mode, rules, live, onAccept, onEdit, chips = SUGGESTIONS.
         // One line like an input (Shift+Enter still breaks a line); a long sentence scrolls sideways instead of wrapping.
         className="no-scrollbar min-w-0 flex-1 resize-none overflow-x-auto overflow-y-hidden whitespace-pre bg-transparent py-2 text-[16px] font-medium leading-6 text-text outline-none placeholder:text-muted disabled:opacity-60 md:text-[17px]"
       />
-      {sending ? (
-        <IconButton type="button" variant="white" size="md" aria-label="Stop" onClick={stop} className="size-12"><Square className="size-4 fill-current" /></IconButton>
-      ) : (
-        <IconButton type="button" variant="lime" size="md" aria-label="Send" onClick={() => send()} disabled={!canSend(s)} className={variant === "large" ? "size-12" : ""}><ArrowRight className="size-5" /></IconButton>
-      )}
+      {/* Send appears once there is something to send, and Stop while Koul is working; an empty field is just a field. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {sending ? (
+          <motion.span key="stop" {...pop}><IconButton type="button" variant="white" size="md" aria-label="Stop" onClick={stop} className="size-12"><Square className="size-4 fill-current" /></IconButton></motion.span>
+        ) : canSend(s) ? (
+          <motion.span key="send" {...pop}><IconButton type="button" variant="lime" size="md" aria-label="Send" onClick={() => send()} className={variant === "large" ? "size-12" : ""}><ArrowRight className="size-5" /></IconButton></motion.span>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 
