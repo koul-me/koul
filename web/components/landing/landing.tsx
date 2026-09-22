@@ -6,6 +6,7 @@
  * the chain, and every number on the page is an example.
  */
 import { Hero } from "./hero";
+import { Problem } from "./problem";
 import { BuiltOn, FinalCta, Footer } from "./close";
 
 export function Landing() {
@@ -17,6 +18,7 @@ export function Landing() {
       </header>
       <main>
         <Hero />
+        <Problem />
         <BuiltOn />
         <FinalCta />
       </main>
