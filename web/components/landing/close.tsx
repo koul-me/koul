@@ -6,6 +6,7 @@ import { ArrowUpRight } from "lucide-react";
 import { Label } from "@/components/signal";
 import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
+import { KoulMark } from "@/components/brand/koul-mark";
 
 /** What Koul stands on. Names, set large; no logos until the marks are ours to use. */
 const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin"];
@@ -43,7 +44,7 @@ export function Footer() {
   return (
     <footer className="px-4 pb-16 md:px-8">
       <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center justify-between gap-4 border-t border-line pt-8">
-        <span className="text-[22px] font-extrabold tracking-tight">KOUL</span>
+        <span className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</span>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Label>Stellar testnet</Label>
           <a

@@ -6,11 +6,13 @@ import { useAppHref, useAppPathname } from "@/lib/app-base";
 import { Label } from "@/components/signal";
 import { AccountChip } from "./account-chip";
 import { TABS } from "./nav";
+import { KoulMark } from "@/components/brand/koul-mark";
 
 export function Wordmark({ className }: { className?: string }) {
   const appHref = useAppHref();
   return (
     <Link href={appHref("/")} aria-label="Koul home" className={cn("inline-flex h-11 items-center text-[20px] font-extrabold tracking-[-0.04em] text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text", className)}>
+      <KoulMark className="mr-2 size-6" />
       KOUL
     </Link>
   );

@@ -79,7 +79,7 @@ export default function AccountPage() {
               <Row title="USDC" sub="In XOXNO · earning" value={fmtUsdc(supplied)} />
               {debt > 0 && <Row title="USDC" sub="In XOXNO · debt" value={`−${fmtUsdc(debt)}`} />}
               <Row title="USDC" sub="In wallet · idle" value={fmtUsdc(pf.positions.idleUsdc)} />
-              <Row title="XLM" sub="In wallet · testnet" value={fmtUsdc(w.xlm ?? pf.positions.idleXlm)} />
+              <Row title="XLM" sub="In wallet · testnet" value={fmtUsdc(pf.positions.idleXlm)} />
             </RowList>
           </Loadable>
         </Tile>

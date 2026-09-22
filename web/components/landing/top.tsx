@@ -10,6 +10,7 @@ import { Moon, Sun } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
 import { APP_PATH } from "./shell";
+import { KoulMark } from "@/components/brand/koul-mark";
 
 /** True once the page is running in the browser; before that next-themes has not read the stored choice. */
 function useMounted() {
@@ -52,7 +53,7 @@ export function TopBar() {
   return (
       <header className={cn("sticky top-0 z-40 transition-colors", past && "border-b border-line bg-background")}>
         <div className="mx-auto flex w-full max-w-[1280px] items-center justify-between px-4 py-4 md:px-8 md:py-5">
-          <span className="text-[24px] font-extrabold tracking-tight md:text-[28px]">KOUL</span>
+          <span className="inline-flex items-center gap-2 text-[24px] font-extrabold tracking-tight md:text-[28px]"><KoulMark className="size-7 md:size-8" />KOUL</span>
           <div className="flex items-center gap-2">
             <nav aria-label="Sections" className="hidden items-center md:flex">
               {NAV.map((n) => (

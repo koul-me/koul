@@ -291,7 +291,7 @@ export default function AutopilotPage() {
       {/* The composer: the way in before the first rule, and a helper while editing. A running autopilot shows itself instead. */}
       {(editor.editing || live.status === "off") && <Chat mode={editor.editing ? "editing" : "live"} rules={rules} live={chatLive} onAccept={onAccept} onEdit={onEdit} chips={4} />}
       {(editor.editing || live.status === "off") && (
-        <Holdings positions={pf.positions} health={pf.health} pools={pools.pools} fx={{ tryPerUsd: values.live.fx, stale: values.live.fxStale }} xlm={w.xlm} access={live.access} loading={pf.loading || pools.loading} focus={holdingsFocus} collapsed />
+        <Holdings positions={pf.positions} health={pf.health} pools={pools.pools} fx={{ tryPerUsd: values.live.fx, stale: values.live.fxStale }} xlm={pf.loaded ? pf.positions.idleXlm : null} access={live.access} loading={pf.loading || pools.loading} focus={holdingsFocus} collapsed />
       )}
 
       {editor.editing ? (

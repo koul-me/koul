@@ -10,7 +10,14 @@ export default function OpengraphImage() {
     (
       <div style={{ height: "100%", width: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#000000", color: "#ffffff", padding: 72, fontFamily: "system-ui, sans-serif" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: -1 }}>KOUL</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, fontSize: 40, fontWeight: 800, letterSpacing: -1 }}>
+            <svg width="52" height="52" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="21" fill="none" stroke="#ffffff" strokeWidth="10" />
+              <circle cx="46.8" cy="17.2" r="12.5" fill="#000000" />
+              <circle cx="46.8" cy="17.2" r="10" fill="#c8f23a" />
+            </svg>
+            KOUL
+          </div>
           <div style={{ fontSize: 22, letterSpacing: 2, color: "#c8f23a" }}>CONDITIONAL EXECUTION</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
