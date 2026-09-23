@@ -77,7 +77,7 @@ export function Hero() {
           <p className="mt-6 max-w-[46ch] text-[19px] text-muted md:text-[22px]">
             Automate your DeFi position from your own wallet.
           </p>
-          <StartButtons className="mt-8" />
+          <StartButtons from="hero" className="mt-8" />
         </div>
 
         <Tile className="grid gap-6 p-6 md:p-8">

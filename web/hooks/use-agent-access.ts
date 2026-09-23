@@ -69,12 +69,12 @@ export function useAgentAccess() {
   const grant = useCallback(async (days: number, autopilot: CoreAutopilot) => {
     if (!kit) return null;
     const pub = Keypair.fromPublicKey(KOUL.agentPublicKey).rawPublicKey();
-    return action.run(() => writer.buildGrantAgent(kit, autopilot, pub, days, AGENT_RULE_NAME, RATE_LIMIT.calls, RATE_LIMIT.windowLedgers), { title: "Access given", doing: "Giving Koul access", description: `Koul's key works for ${days} day${days === 1 ? "" : "s"}.`, invalidatePrefixes: ["agent:", "params:"] });
+    return action.run(() => writer.buildGrantAgent(kit, autopilot, pub, days, AGENT_RULE_NAME, RATE_LIMIT.calls, RATE_LIMIT.windowLedgers), { title: "Access given", doing: "Giving Koul access", description: `Koul's key works for ${days} day${days === 1 ? "" : "s"}.`, invalidatePrefixes: ["agent:", "params:"], event: "access_granted" });
   }, [kit, action]);
 
   const revoke = useCallback(async (ruleId: number) => {
     if (!kit) return null;
-    return action.run(() => writer.buildRevokeAgent(kit, ruleId), { title: "Access revoked", doing: "Revoking Koul's access", description: "Koul's key stopped working immediately.", invalidatePrefixes: ["agent:", "params:"] });
+    return action.run(() => writer.buildRevokeAgent(kit, ruleId), { title: "Access revoked", doing: "Revoking Koul's access", description: "Koul's key stopped working immediately.", invalidatePrefixes: ["agent:", "params:"], event: "access_revoked" });
   }, [kit, action]);
 
   /** One passkey: push the key's expiry `days` from now. */

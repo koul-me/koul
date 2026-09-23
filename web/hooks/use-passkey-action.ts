@@ -7,6 +7,7 @@ import type { AssembledTransaction, SmartAccountKit, TransactionSuccess } from "
 import { explorerTx, KOUL } from "@/lib/koul";
 import { invalidate } from "@/lib/data/store";
 import { shortHash } from "@/lib/format";
+import { track, type KoulEvent } from "@/lib/analytics";
 
 export type ActionPhase = "idle" | "building" | "prompt" | "signed" | "submitting" | "success" | "cancelled" | "error";
 
@@ -89,7 +90,7 @@ export function usePasskeyAction() {
    * `title` is the fact the success toast states once the transaction is confirmed ("Rules saved"); `doing` is
    * what the loading toasts say meanwhile ("Saving your rules"). The two are never swapped.
    */
-  const run = useCallback(async <T,>(build: () => Promise<AssembledTransaction<T>>, opts: { title: string; doing: string; description?: string; invalidatePrefixes?: string[]; quiet?: boolean }): Promise<TransactionSuccess | null> => {
+  const run = useCallback(async <T,>(build: () => Promise<AssembledTransaction<T>>, opts: { title: string; doing: string; description?: string; invalidatePrefixes?: string[]; quiet?: boolean; event?: KoulEvent }): Promise<TransactionSuccess | null> => {
     if (!kit) { toast.error("Wallet not ready"); return null; }
     if (!acquireCeremony()) {
       toast("One at a time", { description: "A passkey prompt is already open. Finish or dismiss it first." });
@@ -115,6 +116,7 @@ export function usePasskeyAction() {
       setHash(res.hash);
       failure.current = null;
       setPhase("success");
+      if (opts.event) track(opts.event);
       toast.dismiss(toastId);
       if (!opts.quiet) toastTx(opts.title, res.hash, opts.description);
       for (const p of opts.invalidatePrefixes ?? []) invalidate(p);

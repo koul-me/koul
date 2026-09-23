@@ -12,6 +12,7 @@ import { DEPOSIT_STEPS, WITHDRAW_STEPS, type StepDef } from "@/lib/data/steps";
 import type { Transfer, TransferStep } from "@/lib/data/types";
 import { KOUL, SIM_SOURCE, XOXNO } from "@/lib/koul";
 import { invalidate } from "@/lib/data/store";
+import { track } from "@/lib/analytics";
 import { usePasskeyAction } from "./use-passkey-action";
 
 /** What the funds routes return, see `FundsPublic` in @koul/core/funds. */
@@ -149,7 +150,7 @@ export function useTransferRunner() {
       const f = await call<FundsPublic>(`/api/funds/${id}`, { headers: stateHeader(t.serverState) });
       const next = applyStages(t, f, null);
       setTransfer(next);
-      if (next.status === "done") refreshAfterFunds();
+      if (next.status === "done") { refreshAfterFunds(); track(next.direction === "in" ? "bank_deposit_completed" : "bank_withdraw_completed"); }
       if (next.status === "running") timer.current = setTimeout(() => void poll(id), POLL_MS);
     } catch (err) {
       setTransfer((prev) => prev && prev.transferId === id ? failAt(prev, err) : prev);
@@ -184,6 +185,7 @@ export function useTransferRunner() {
         : await call<FundsPublic>("/api/funds/withdraw", { method: "POST", body: JSON.stringify({ wallet: address, amountUsdc: input.amountUsdc.toFixed(7), iban: (input.iban ?? "").replace(/\s/g, "").toUpperCase(), customer }) });
       const next = applyStages(t, f, null);
       setTransfer(next);
+      track(direction === "in" ? "bank_deposit_started" : "bank_withdraw_started");
       if (next.status === "running" && !(direction === "out" && f.status === "awaiting_passkey")) timer.current = setTimeout(() => void poll(f.transferId), POLL_MS);
     } catch (err) {
       setTransfer(failAt(t, err));

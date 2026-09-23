@@ -7,6 +7,7 @@
 import * as React from "react";
 import { motion } from "motion/react";
 import { Label } from "@/components/signal";
+import { track } from "@/lib/analytics";
 import { DUR, tween } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -23,11 +24,11 @@ const TONES = {
 } as const;
 
 /** One way in: the app. No wallet steps on the landing. */
-export function StartButtons({ tone = "dark", className }: { tone?: "dark" | "onLime"; className?: string }) {
+export function StartButtons({ tone = "dark", from, className }: { tone?: "dark" | "onLime"; from: string; className?: string }) {
   const t = TONES[tone];
   return (
     <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-3", className)}>
-      <a href={APP_PATH} className={cn(pill, t.main)}>Open app</a>
+      <a href={APP_PATH} onClick={() => track("open_app", { from })} className={cn(pill, t.main)}>Open app</a>
       <Label tone={t.note}>Stellar testnet</Label>
     </div>
   );

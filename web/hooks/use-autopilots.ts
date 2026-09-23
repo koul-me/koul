@@ -161,7 +161,7 @@ export function useArmAutopilot() {
     // these rules already, in which case only the key was missing.
     const stored = chain.list.find((c) => c.id === chainId)?.autopilot;
     const unchanged = stored !== undefined && JSON.stringify(stored) === JSON.stringify(core);
-    const res = unchanged ? { hash: null } : await write.run(() => writer.buildSetAutopilot(address, chainId, core), { title: existing === null ? "Autopilot started" : "Autopilot updated", doing: existing === null ? "Starting your autopilot" : "Updating your autopilot", description: `${core.rules.length} ${core.rules.length === 1 ? "rule" : "rules"} live.`, invalidatePrefixes: ["autopilots:", "portfolio:"] });
+    const res = unchanged ? { hash: null } : await write.run(() => writer.buildSetAutopilot(address, chainId, core), { title: existing === null ? "Autopilot started" : "Autopilot updated", doing: existing === null ? "Starting your autopilot" : "Updating your autopilot", description: `${core.rules.length} ${core.rules.length === 1 ? "rule" : "rules"} live.`, invalidatePrefixes: ["autopilots:", "portfolio:"], event: existing === null ? "autopilot_started" : "autopilot_updated" });
     if (!res) return { ok: false, step: "write", reason: `Your autopilot was not ${existing === null ? "started" : "updated"}: ${write.lastFailure() ?? "the transaction did not go through"}`, toasted: true, grantHash };
     // The chain now holds the rules: keep name, sentence and marks under the chain id, drop the draft it came from.
     const armed: Autopilot = { ...ap, id: chainUiId(chainId), status: "armed", armedUntil: Date.now() + opts.days * 86400_000, agentRuleId: agent.active?.ruleId ?? null };
@@ -179,7 +179,7 @@ export function useArmAutopilot() {
   const clear = useCallback(async (uiId: string) => {
     const chainId = chainIdOf(uiId);
     if (!address || chainId === null) return null;
-    const res = await write.run(() => writer.buildClearAutopilot(address, chainId), { title: "Rules cleared", doing: "Clearing your rules", description: "The router no longer holds these rules.", invalidatePrefixes: ["autopilots:"] });
+    const res = await write.run(() => writer.buildClearAutopilot(address, chainId), { title: "Rules cleared", doing: "Clearing your rules", description: "The router no longer holds these rules.", invalidatePrefixes: ["autopilots:"], event: "rules_cleared" });
     if (res) drafts.set((prev) => prev.filter((a) => a.id !== uiId));
     return res;
   }, [address, write]);

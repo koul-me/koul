@@ -35,7 +35,7 @@ export function FinalCta() {
   return (
     <Section inner="rounded-[var(--radius-tile)] bg-lime px-6 py-14 text-on-lime md:px-12 md:py-20">
       <h2 className="t-headline max-w-[14ch]">Start with one rule.</h2>
-      <StartButtons tone="onLime" className="mt-8" />
+      <StartButtons tone="onLime" from="close" className="mt-8" />
     </Section>
   );
 }

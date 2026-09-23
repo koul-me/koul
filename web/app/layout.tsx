@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { Observability } from "@/components/analytics/observability";
 import { cn } from "@/lib/utils";
 
 /** One face for everything that reads; the mono carries numbers, conditions, labels and addresses. */
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           {children}
         </Providers>
+        <Observability />
       </body>
     </html>
   );

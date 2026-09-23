@@ -9,6 +9,7 @@ import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/analytics";
 import { APP_PATH } from "./shell";
 import { KoulMark } from "@/components/brand/koul-mark";
 
@@ -60,7 +61,7 @@ export function TopBar() {
                 <a key={n.href} href={n.href} className="label inline-flex h-11 items-center rounded-full px-4 text-muted transition-colors hover:text-text">{n.label}</a>
               ))}
             </nav>
-            <a href={APP_PATH} className="label inline-flex h-11 items-center rounded-full bg-lime px-4 text-on-lime transition-[filter] hover:brightness-105">Open app</a>
+            <a href={APP_PATH} onClick={() => track("open_app", { from: "header" })} className="label inline-flex h-11 items-center rounded-full bg-lime px-4 text-on-lime transition-[filter] hover:brightness-105">Open app</a>
             <ThemeToggle />
           </div>
         </div>

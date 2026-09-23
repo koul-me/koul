@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { usePasskeyWallet, useCreateWallet, useConnectWallet, toSembolError, type SembolError } from "@sembol/passkey-react";
 import { shortAddress } from "@/lib/format";
 import { invalidate } from "@/lib/data/store";
+import { track } from "@/lib/analytics";
 
 /**
  * The connected passkey wallet. Thin wrapper over Sembol so pages import one thing. Balances come from the one
@@ -61,11 +62,13 @@ export function useWalletOnboarding() {
       if (which === "create") {
         const res = await create.createWallet({ userName: "Koul wallet", nickname: "Koul" });
         rememberWalletCreated(res.contractId);
+        track("wallet_created");
         setPhase("success");
         return res;
       }
       const res = await connect.connect({ fresh: true });
       if (!res) { setPhase("error"); setError(toSembolError(new Error("No wallet found for that passkey on this site"))); return null; }
+      track("wallet_connected");
       setPhase("success");
       return res;
     } catch (err) {
