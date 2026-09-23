@@ -6,7 +6,7 @@ A user creates a passkey smart wallet, brings Turkish lira in through an anchor,
 
 This document covers everything built so far and how to run it. Design work for the product UI is tracked separately and is not part of this document.
 
-**Live app: https://koul-stellar.vercel.app** · **Oracle admin: https://koul-oracle.vercel.app/oracle** · Stellar
+**Live app: https://koul.me** (app at https://app.koul.me) · **Oracle admin: https://koul-oracle.vercel.app/oracle** · Stellar
 testnet throughout. The keeper runs itself: a GitHub Actions schedule in this repo ticks every five minutes, so
 autopilots armed on the live app fire without anyone's laptop being open. Passkeys are bound to the origin, so a
 wallet created on `localhost` does not appear on the domain: press Create wallet there to make one.

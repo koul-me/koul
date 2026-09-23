@@ -1,15 +1,15 @@
 # Koul
 
-## ▶ Try it live: https://koul-stellar.vercel.app
+## ▶ Try it live: https://koul.me
 
 **Say what should happen to your money and when. Koul turns it into rules that live on Stellar and execute
 themselves.** Stellar **testnet**, no login, no seed phrase.
 
 | | |
 |---|---|
-| **Live app** | **https://koul-stellar.vercel.app** |
+| **Live app** | **https://koul.me** (the app itself is at https://app.koul.me) |
 | Oracle admin, the demo lever for USD/TRY | https://koul-oracle.vercel.app/oracle |
-| Repo | https://github.com/atahanyild/koul |
+| Repo | https://github.com/koul-me/koul |
 | Pitch deck | _add link_ |
 | Judge walkthrough | [How to evaluate](#how-to-evaluate), eight steps on the live app |
 | Paste-ready summary | [`docs/submission-summary.md`](docs/submission-summary.md) |
@@ -302,7 +302,7 @@ pins the CLI and toolchain: `source scripts/env.sh` before any contract work. Co
 the CLI.
 
 ```sh
-git clone https://github.com/atahanyild/koul && cd koul
+git clone https://github.com/koul-me/koul && cd koul
 pnpm install            # one workspace: web, keeper, packages/core, oracle-admin
 ```
 
@@ -352,7 +352,7 @@ cd web && npx tsc --noEmit && npx next build
 
 ## How to evaluate
 
-Everything below runs on https://koul-stellar.vercel.app against Stellar testnet. A passkey belongs to the origin it
+Everything below runs on https://app.koul.me against Stellar testnet. A passkey belongs to the origin it
 was created on, so create a wallet on the domain rather than expecting a local one to appear.
 
 1. **Create a wallet.** Press *Create wallet* and confirm with your device. No seed phrase appears because there is

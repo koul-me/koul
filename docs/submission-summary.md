@@ -1,7 +1,7 @@
 # Koul, project summary
 
-Paste-ready text for the submission form. Live app https://koul-stellar.vercel.app, repo
-https://github.com/atahanyild/koul, Stellar testnet.
+Paste-ready text for the submission form. Live app https://koul.me, repo
+https://github.com/koul-me/koul, Stellar testnet.
 
 ## One line
 
