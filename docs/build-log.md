@@ -455,3 +455,19 @@ autopilots and `LastFired` entries carry over. The SDK schema, the chat schema a
 
 Build note: the homebrew `cargo` on this machine fails to load `libllhttp.9.3.dylib`; put `~/.cargo/bin` first on
 `PATH` after `source scripts/env.sh` so `stellar contract build` finds the rustup toolchain.
+
+## Test USDC without the anchor (2026-09-23)
+
+Deposit now opens on a Testnet tab: one button, 100 USDC in the wallet in about 15 seconds. `POST
+/api/faucet/test-usdc` (`web/lib/test-usdc-server.ts`) makes a throwaway G account, has friendbot fund it, buys
+exactly 100 USDC (Circle testnet issuer `GBBD47IF...`) with its XLM on the testnet DEX in one transaction
+(`changeTrust` + `pathPaymentStrictReceive`, send max 5,000 XLM), then calls `transfer` on the USDC contract
+`CBIELTK6...` to the smart wallet. Nothing is spent from the keeper. The bank (anchor) route is still the Bank tab.
+The earlier Circle-faucet route (`/api/faucet/usdc`) is untouched and unused.
+
+| Run | Tx | Result |
+|---|---|---|
+| script, `sendTestUsdc(CBHMG4IG...)` | `eed3a4d5991789f7db90f2c661f8a87fec0f46643a3c91faea1ded9463f97c57` | SUCCESS, 16 s end to end |
+| dev server, `POST /api/faucet/test-usdc` for `CBHMG4IG...` | `cf4132dc02ab0f41b0092e79bcc7e9eed4ac9f73bb02cc944df4322f782600ba` | SUCCESS, 14 s |
+
+Depends on friendbot and on DEX liquidity for XLM/USDC; at the time a 100 USDC buy quoted 95.6 XLM on a direct path.

@@ -14,7 +14,7 @@ import { REFERENCE_KEYS, useTransferRunner } from "@/hooks/use-transfer-runner";
 import { fmtFx, fmtLira, fmtLiraWhole, fmtUsdc } from "@/lib/format";
 import type { Transfer } from "@/lib/data/types";
 import { AmountInput, parseAmount } from "./amount-input";
-import { FlowFrame, type Method } from "./flow-frame";
+import { DEPOSIT_OPTIONS, FlowFrame, type Method } from "./flow-frame";
 import { Steps } from "./steps";
 import { useAppHref } from "@/lib/app-base";
 
@@ -141,6 +141,7 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
       title="Deposit"
       method={method}
       onMethod={onMethod}
+      options={DEPOSIT_OPTIONS}
       action={<PillButton size="lg" full disabled={!canContinue} aria-busy={runner.busy} onClick={() => void runner.start("in", { amountTry: lira, amountUsdc: usdc, rate: rate ?? 0 })}>{runner.busy ? "Getting bank details" : "Continue"}</PillButton>}
     >
       <Tile className="grid gap-5">

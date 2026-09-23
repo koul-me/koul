@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { CopyRow, Label, PillButton, Sk, Tile } from "@/components/signal";
 import { useWallet } from "@/hooks/use-wallet";
-import { FlowFrame, type Method } from "./flow-frame";
+import { DEPOSIT_OPTIONS, FlowFrame, type Method } from "./flow-frame";
 import { useAppHref } from "@/lib/app-base";
 
 export function DepositCrypto({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
@@ -14,7 +14,7 @@ export function DepositCrypto({ method, onMethod }: { method: Method; onMethod: 
   const w = useWallet();
   const address = w.address ?? "";
   return (
-    <FlowFrame title="Deposit" method={method} onMethod={onMethod} action={<PillButton variant="outline" size="lg" full className="md:hidden" onClick={() => router.push(appHref("/"))}>Done</PillButton>}>
+    <FlowFrame title="Deposit" method={method} onMethod={onMethod} options={DEPOSIT_OPTIONS} action={<PillButton variant="outline" size="lg" full className="md:hidden" onClick={() => router.push(appHref("/"))}>Done</PillButton>}>
       <Tile className="grid justify-items-center gap-5">
         <div className="rounded-[var(--radius-group)] border border-line bg-paper p-4 text-ink">
           {address ? <QRCodeSVG value={address} size={168} bgColor="transparent" fgColor="currentColor" level="M" /> : <Sk className="size-[168px]" />}

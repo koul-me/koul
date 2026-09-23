@@ -15,6 +15,7 @@ export type KoulEvent =
   | "access_granted"
   | "access_revoked"
   | "crypto_sent"
+  | "test_usdc_added"
   | "bank_deposit_started"
   | "bank_deposit_completed"
   | "bank_withdraw_started"
