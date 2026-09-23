@@ -3,12 +3,12 @@
 /**
  * The problem, in one picture drawn as it arrives: a reading crosses a level in the middle of the night. On the
  * left nobody is awake for it. On the right a rule is, and the position is safe. The shape is invented: no asset,
- * no real prices.
+ * no real prices. Under them, the part a homemade bot cannot close: the time between reading the price and acting on it.
  */
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Label, Tile } from "@/components/signal";
-import { Section } from "./shell";
+import { Illustrative, Section } from "./shell";
 import { cn } from "@/lib/utils";
 
 /** The same reading in both panels up to the crossing; after it, one keeps falling and one is held. */
@@ -65,6 +65,34 @@ function Panel({ title, note, tone, path, crossed, still, children }: {
   );
 }
 
+/** An example, not a measurement: a bot reads, decides on its own server, then sends a separate transaction. */
+const BOT_GAP_S = 7;
+const SCALE_S = 10;
+
+function Gap({ who, note, seconds, tone, shown, still }: { who: string; note: string; seconds: number; tone: "danger" | "lime"; shown: boolean; still: boolean }) {
+  return (
+    <div className="grid gap-2 md:grid-cols-[180px_1fr] md:items-center md:gap-6">
+      <span className="text-[17px] font-bold">{who}</span>
+      <div className="grid gap-2">
+        <div className="flex items-center gap-3">
+          <div className="relative h-2 flex-1 rounded-full bg-surface-2">
+            <motion.div
+              className={cn("absolute inset-y-0 left-0 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
+              initial={{ width: still ? `${(seconds / SCALE_S) * 100}%` : "0%" }}
+              animate={{ width: shown ? `${(seconds / SCALE_S) * 100}%` : "0%" }}
+              transition={{ duration: still ? 0 : 0.9, delay: still ? 0 : 1.2, ease: "easeOut" }}
+            />
+            {/* The moment of the check: on the Koul row it is also the moment of the action. */}
+            <span className={cn("absolute top-1/2 left-0 size-3.5 -translate-y-1/2 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")} />
+          </div>
+          <span className={cn("mono w-10 shrink-0 text-right", tone === "lime" ? "text-accent-text" : "text-danger")}>{seconds} s</span>
+        </div>
+        <p className="text-[15px] text-muted">{note}</p>
+      </div>
+    </div>
+  );
+}
+
 export function Problem() {
   const still = useReducedMotion() ?? false;
   const [entered, setEntered] = React.useState(false);
@@ -84,6 +112,14 @@ export function Problem() {
             <p className="text-[22px] font-bold md:text-[26px]">Koul repaid the loan.</p>
           </div>
         </Panel>
+        <Tile className="grid gap-6 p-6 md:col-span-2 md:p-8">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-[20px] font-bold">Time between checking the price and acting</span>
+            <Illustrative>Example timing</Illustrative>
+          </div>
+          <Gap who="Your own bot" seconds={BOT_GAP_S} tone="danger" shown={shown} still={still} note="Reads the price, decides on its server, then sends. The price can move in between." />
+          <Gap who="Koul" seconds={0} tone="lime" shown={shown} still={still} note="The rule is checked inside the same transaction that repays the loan." />
+        </Tile>
       </motion.div>
     </Section>
   );
