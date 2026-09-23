@@ -64,7 +64,7 @@ export function conditionFor(kind: ConditionKind): Condition {
   return { kind, comparator: s.comparator, value: mid };
 }
 
-export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onChange, onRemove, still }: {
+export function RuleCard({ rule, index, runs, matched, skipped, canRemove, solo = false, onChange, onRemove, still }: {
   rule: Rule;
   index: number;
   /** This is the rule the router would run now. */
@@ -74,6 +74,8 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
   /** It matched but has nothing to move, so the walk goes past it. */
   skipped: boolean;
   canRemove: boolean;
+  /** The only rule on the page (a phone): nothing to reorder or remove, so no handle and no remove button. */
+  solo?: boolean;
   onChange: (next: Rule) => void;
   onRemove: () => void;
   still: boolean;
@@ -94,7 +96,7 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
       data-dragging={isDragging || undefined}
     >
       <div className="flex items-center gap-2">
-        <button type="button" ref={setActivatorNodeRef} data-drag-handle aria-label={`Reorder rule ${index + 1}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text" {...attributes} {...listeners}>
+        <button type="button" ref={setActivatorNodeRef} hidden={solo} data-drag-handle aria-label={`Reorder rule ${index + 1}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text" {...attributes} {...listeners}>
           <GripVertical className="size-4" aria-hidden />
         </button>
         <span className={cn("mono relative inline-flex size-7 shrink-0 items-center justify-center rounded-full font-medium", runs ? "text-on-lime" : "text-accent-text")}>
@@ -103,7 +105,7 @@ export function RuleCard({ rule, index, runs, matched, skipped, canRemove, onCha
         </span>
         <span className="mono hidden min-w-0 flex-1 truncate text-muted sm:block">{describeAction(rule.action)}</span>
         <Label tone={runs ? "lime" : skipped ? "muted" : matched ? "text" : "muted"} className="ml-auto shrink-0 sm:ml-0">{runs ? "Runs" : skipped ? "Nothing" : matched ? "Matches" : "Waiting"}</Label>
-        <button type="button" onClick={onRemove} disabled={!canRemove} aria-label={`Remove rule ${index + 1}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text disabled:opacity-30">
+        <button type="button" onClick={onRemove} disabled={!canRemove} hidden={solo} aria-label={`Remove rule ${index + 1}`} className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text disabled:opacity-30">
           <X className="size-4" aria-hidden />
         </button>
       </div>

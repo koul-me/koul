@@ -24,6 +24,20 @@ import { cn } from "@/lib/utils";
 /** 500 supplied against a 240 loan is a health of 1.67, comfortably above the 1.25 the first rule watches for. */
 const START: World = { gap: 0.4, price: 48.79, wallet: 120, poolA: 300, poolB: 200, debt: 240 };
 const MAX_RULES = 3;
+/** On a phone the page keeps one rule and puts its slider and its verdict together, so both stay on screen. */
+const NARROW = "(max-width: 767px)";
+
+function useNarrow(): boolean {
+  return React.useSyncExternalStore(
+    (onChange) => {
+      const m = window.matchMedia(NARROW);
+      m.addEventListener("change", onChange);
+      return () => m.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(NARROW).matches,
+    () => false,
+  );
+}
 
 /** Fixed ids for the two starting rules, so the server render and the browser agree; added rules get fresh ones. */
 const startingRules = (): Rule[] => [
@@ -74,7 +88,9 @@ function Bar({ title, value, of, tone = "text" }: { title: string; value: number
 
 export function Playground() {
   const still = useReducedMotion() ?? false;
-  const [rules, setRules] = React.useState<Rule[]>(startingRules);
+  const narrow = useNarrow();
+  const [allRules, setRules] = React.useState<Rule[]>(startingRules);
+  const rules = narrow ? allRules.slice(0, 1) : allRules;
   const [world, setWorld] = React.useState<World>(START);
   /** The last thing a press of Run did; the next press replaces it instead of stacking up. */
   const [last, setLast] = React.useState<{ id: number; text: string } | null>(null);
@@ -107,101 +123,134 @@ export function Playground() {
 
   const hp = health(world);
   const total = Math.max(1, world.wallet + collateral(world));
-  const verdict = runsIndex === null
-    ? w.skipped.length > 0
-      ? `Rule ${w.skipped[0]! + 1} has nothing to move. The router walks on.`
-      : "No rule matches. Move a slider."
-    : w.matched.length > 1
-      ? `Rules ${w.matched.map((i) => i + 1).join(" and ")} match. Only rule ${runsIndex + 1} runs.`
-      : `Rule ${runsIndex + 1} runs.`;
+  // On a phone there is one rule, and each verdict fits on one line so the box keeps its height while the slider moves.
+  const verdict = narrow
+    ? runsIndex === null ? (w.skipped.length > 0 ? "Matches, but nothing to move." : "No match. Move the slider.") : "Rule 1 runs."
+    : runsIndex === null
+      ? w.skipped.length > 0
+        ? `Rule ${w.skipped[0]! + 1} has nothing to move. The router walks on.`
+        : "No rule matches. Move a slider."
+      : w.matched.length > 1
+        ? `Rules ${w.matched.map((i) => i + 1).join(" and ")} match. Only rule ${runsIndex + 1} runs.`
+        : `Rule ${runsIndex + 1} runs.`;
+
+  /** What would run now, the button that runs it, and what the last run did. */
+  const outcome = (
+    <div className="grid gap-4">
+      <div className={cn("rounded-[var(--radius-group)] p-4", runsIndex === null ? "bg-surface-2" : "bg-lime text-on-lime")}>
+        <p className="text-[16px] font-bold">{verdict}</p>
+        {/* Always two lines tall, so the verdict box does not grow when a rule starts to match. */}
+        <p className={cn("mono mt-1", !runner && "invisible")}>{runner ? `${describeAction(runner.action)} · ${fmtUsdc(willMove)} USDC` : "\u00a0"}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <PillButton size="md" onClick={fire} disabled={runsIndex === null}>Run it</PillButton>
+      </div>
+      <div className="min-h-[20px]" aria-live="polite">
+        <AnimatePresence mode="wait" initial={false}>
+          {last && (
+            <motion.div key={last.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={tween()}>
+              <Label tone="lime">{last.text}</Label>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+
+  const market = (
+    <Tile className="grid gap-5 p-5 md:p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <TileLabel>The market</TileLabel>
+        <Label tone="muted">Pool {POOLS.A.hub} pays {rateOf(world, "A").toFixed(2)}% · Pool {POOLS.B.hub} pays {rateOf(world, "B").toFixed(2)}%</Label>
+      </div>
+      <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+        {SUBJECTS.filter((s) => !narrow || s.kind === rules[0]!.conditions[0]!.kind).map((s) => {
+          const lit = rules.some((r, i) => r.conditions[0]!.kind === s.kind && w.matched.includes(i));
+          const value = s.kind === "health_factor" ? hp : s.kind === "rate_gap" ? world.gap : s.kind === "fx_price" ? world.price : world.wallet;
+          const set = (v: number) => setWorld((prev) => (s.kind === "health_factor" ? { ...prev, debt: debtForHealth(prev, v) } : { ...prev, ...(s.kind === "rate_gap" ? { gap: v } : s.kind === "fx_price" ? { price: v } : { wallet: v }) }));
+          const display = s.kind === "health_factor" ? (world.debt <= 0 ? "NO DEBT" : collateral(world) <= 0 ? "0.00" : undefined) : undefined;
+          return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} display={display} />;
+        })}
+      </div>
+      {narrow && outcome}
+    </Tile>
+  );
+
+  const ruleList = (
+    <div className="grid content-start gap-3">
+      <div className="flex items-center justify-between gap-4 px-1">
+        <TileLabel>{narrow ? "Your rule" : "Your rules"}</TileLabel>
+        {!narrow && <Label tone="muted">First match runs</Label>}
+      </div>
+      <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+          <div className="grid gap-3">
+            {rules.map((r, i) => (
+              <RuleCard
+                key={r.id}
+                rule={r}
+                index={i}
+                runs={runsIndex === i}
+                matched={w.matched.includes(i)}
+                skipped={w.skipped.includes(i)}
+                canRemove={rules.length > 1}
+                solo={narrow}
+                still={still}
+                onChange={(next) => setRules((prev) => prev.map((x) => (x.id === r.id ? next : x)))}
+                onRemove={() => setRules((prev) => prev.filter((x) => x.id !== r.id))}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+      <div className="flex flex-wrap gap-2">
+        {!narrow && (
+          <PillButton
+            variant="ghost"
+            size="md"
+            disabled={rules.length >= MAX_RULES}
+            onClick={() => setRules((prev) => [...prev, makeRule({ id: newId("pg"), name: "Rule", conditions: [conditionFor("idle_usdc")], action: { kind: "supply_from_wallet", amount: "all", pool: "B" }, cooldownSec: 600 })])}
+          >
+            <Plus className="size-4" aria-hidden /> Add rule
+          </PillButton>
+        )}
+        <PillButton variant="ghost" size="md" onClick={reset}><RotateCcw className="size-4" aria-hidden /> Reset</PillButton>
+      </div>
+    </div>
+  );
+
+  const position = (
+    <Tile className="grid content-start gap-4 p-5 md:p-6">
+      <TileLabel>The position</TileLabel>
+      <div className="divide-y divide-line">
+        <Bar title="Wallet · idle" value={world.wallet} of={total} />
+        <Bar title={`Pool ${POOLS.A.hub} · supplied`} value={world.poolA} of={total} tone="lime" />
+        <Bar title={`Pool ${POOLS.B.hub} · supplied`} value={world.poolB} of={total} tone="lime" />
+        <Bar title="Debt" value={world.debt} of={Math.max(1, START.debt)} tone="danger" />
+      </div>
+      {!narrow && outcome}
+      <Illustrative>Sample numbers</Illustrative>
+    </Tile>
+  );
 
   return (
-    <Section id="build" title="Try it" lead="Drag a slider until a rule lights up.">
-      {/* The market sets the scene, so it spans the top; the rules and what they do to the position sit under it. */}
-      <Tile className="mt-10 grid gap-5 p-5 md:p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <TileLabel>The market</TileLabel>
-          <Label tone="muted">Pool {POOLS.A.hub} pays {rateOf(world, "A").toFixed(2)}% · Pool {POOLS.B.hub} pays {rateOf(world, "B").toFixed(2)}%</Label>
+    <Section id="build" title="Try it" lead={narrow ? "Drag the slider until the rule lights up." : "Drag a slider until a rule lights up."}>
+      {narrow ? (
+        <div className="mt-10 grid gap-4">
+          {ruleList}
+          {market}
+          {position}
         </div>
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-          {SUBJECTS.map((s) => {
-            const lit = rules.some((r, i) => r.conditions[0]!.kind === s.kind && w.matched.includes(i));
-            const value = s.kind === "health_factor" ? hp : s.kind === "rate_gap" ? world.gap : s.kind === "fx_price" ? world.price : world.wallet;
-            const set = (v: number) => setWorld((prev) => (s.kind === "health_factor" ? { ...prev, debt: debtForHealth(prev, v) } : { ...prev, ...(s.kind === "rate_gap" ? { gap: v } : s.kind === "fx_price" ? { price: v } : { wallet: v }) }));
-            const display = s.kind === "health_factor" ? (world.debt <= 0 ? "NO DEBT" : collateral(world) <= 0 ? "0.00" : undefined) : undefined;
-            return <Slider key={s.kind} label={s.label} value={value} min={s.min} max={s.max} step={s.step} unit={s.unit} decimals={s.decimals} onChange={set} lit={lit} display={display} />;
-          })}
-        </div>
-      </Tile>
-
-      <div className="mt-4 grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <div className="grid content-start gap-3">
-          <div className="flex items-center justify-between gap-4 px-1">
-            <TileLabel>Your rules</TileLabel>
-            <Label tone="muted">First match runs</Label>
+      ) : (
+        <>
+          {/* The market sets the scene, so it spans the top; the rules and what they do to the position sit under it. */}
+          <div className="mt-10">{market}</div>
+          <div className="mt-4 grid gap-4 md:gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            {ruleList}
+            <div className="grid content-start gap-4 md:gap-5">{position}</div>
           </div>
-          <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
-              <div className="grid gap-3">
-                {rules.map((r, i) => (
-                  <RuleCard
-                    key={r.id}
-                    rule={r}
-                    index={i}
-                    runs={runsIndex === i}
-                    matched={w.matched.includes(i)}
-                    skipped={w.skipped.includes(i)}
-                    canRemove={rules.length > 1}
-                    still={still}
-                    onChange={(next) => setRules((prev) => prev.map((x) => (x.id === r.id ? next : x)))}
-                    onRemove={() => setRules((prev) => prev.filter((x) => x.id !== r.id))}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-          <div className="flex flex-wrap gap-2">
-            <PillButton
-              variant="ghost"
-              size="md"
-              disabled={rules.length >= MAX_RULES}
-              onClick={() => setRules((prev) => [...prev, makeRule({ id: newId("pg"), name: "Rule", conditions: [conditionFor("idle_usdc")], action: { kind: "supply_from_wallet", amount: "all", pool: "B" }, cooldownSec: 600 })])}
-            >
-              <Plus className="size-4" aria-hidden /> Add rule
-            </PillButton>
-            <PillButton variant="ghost" size="md" onClick={reset}><RotateCcw className="size-4" aria-hidden /> Reset</PillButton>
-          </div>
-        </div>
-
-        <div className="grid content-start gap-4 md:gap-5">
-          <Tile className="grid content-start gap-4 p-5 md:p-6">
-            <TileLabel>The position</TileLabel>
-            <div className="divide-y divide-line">
-              <Bar title="Wallet · idle" value={world.wallet} of={total} />
-              <Bar title={`Pool ${POOLS.A.hub} · supplied`} value={world.poolA} of={total} tone="lime" />
-              <Bar title={`Pool ${POOLS.B.hub} · supplied`} value={world.poolB} of={total} tone="lime" />
-              <Bar title="Debt" value={world.debt} of={Math.max(1, START.debt)} tone="danger" />
-            </div>
-            <div className={cn("rounded-[var(--radius-group)] p-4", runsIndex === null ? "bg-surface-2" : "bg-lime text-on-lime")}>
-              <p className="text-[16px] font-bold">{verdict}</p>
-              {runner && <p className="mono mt-1">{describeAction(runner.action)} · {fmtUsdc(willMove)} USDC</p>}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <PillButton size="md" onClick={fire} disabled={runsIndex === null}>Run it</PillButton>
-            </div>
-            <div className="min-h-[20px]" aria-live="polite">
-              <AnimatePresence mode="wait" initial={false}>
-                {last && (
-                  <motion.div key={last.id} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={tween()}>
-                    <Label tone="lime">{last.text}</Label>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-            <Illustrative>Sample numbers</Illustrative>
-          </Tile>
-        </div>
-      </div>
+        </>
+      )}
     </Section>
   );
 }

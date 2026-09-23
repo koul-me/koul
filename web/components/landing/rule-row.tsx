@@ -23,18 +23,19 @@ const tones = {
   action: "bg-lime text-on-lime font-bold",
 } as const;
 
-/** `shown` draws only the first n chips, so the row can assemble itself. `sm` keeps a short rule on one line on a phone. */
+/** `shown` shows only the first n chips (the rest hold their place), so the row can assemble itself. `sm` keeps a short rule on one line on a phone. */
 export function RuleChips({ chips, shown = chips.length, firing, size = "md", className }: { chips: Chip[]; shown?: number; firing?: boolean; size?: "sm" | "md"; className?: string }) {
   return (
     <div className={cn("flex flex-wrap items-center", size === "sm" ? "gap-1.5" : "gap-2", className)}>
-      {chips.slice(0, shown).map((c, i) => (
+      {/* Every chip is always laid out and only fades in, so the row never changes size while it assembles. */}
+      {chips.map((c, i) => (
         <React.Fragment key={c.key}>
-          {i === chips.length - 1 && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={SPRING_SOFT} aria-hidden><ArrowRight className="size-4 text-accent-text" /></motion.span>}
+          {i === chips.length - 1 && <motion.span initial={false} animate={{ opacity: i < shown ? 1 : 0 }} transition={SPRING_SOFT} aria-hidden><ArrowRight className="size-4 text-accent-text" /></motion.span>}
           <motion.span
-            layout
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={false}
+            animate={{ opacity: i < shown ? 1 : 0, y: i < shown ? 0 : 6 }}
             transition={SPRING_SOFT}
+            aria-hidden={i < shown ? undefined : true}
             className={cn("inline-flex items-center rounded-full", size === "sm" ? "h-8 px-3 text-[13px]" : "h-10 px-4 text-[15px]", tones[c.tone ?? "plain"], firing && c.tone === "action" && "animate-flash")}
           >
             {c.text}

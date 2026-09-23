@@ -26,9 +26,9 @@ const TONES = {
 export function StartButtons({ tone = "dark", className }: { tone?: "dark" | "onLime"; className?: string }) {
   const t = TONES[tone];
   return (
-    <div className={cn("flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center", className)}>
+    <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-3", className)}>
       <a href={APP_PATH} className={cn(pill, t.main)}>Open app</a>
-      <Label tone={t.note} className="sm:ml-2">Stellar testnet</Label>
+      <Label tone={t.note}>Stellar testnet</Label>
     </div>
   );
 }

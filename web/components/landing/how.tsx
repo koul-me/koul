@@ -58,9 +58,13 @@ function SayIt({ still }: { still: boolean }) {
     <div className="grid min-w-0 gap-3">
       <div className="min-h-[76px] rounded-[var(--radius-group)] border border-accent-text p-4">
         <Label tone="lime">Tell Koul</Label>
-        <p className="mt-1.5 text-[16px] leading-snug">
-          {text}
-          <span className={cn("ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[0.15em] bg-accent-text", typing ? "animate-blink" : "opacity-0")} aria-hidden />
+        {/* The whole sentence holds the space; the typed part is drawn over it, so the box never grows as it types. */}
+        <p className="relative mt-1.5 text-[16px] leading-snug">
+          <span className="invisible" aria-hidden>{SENTENCE}</span>
+          <span className="absolute inset-0">
+            {text}
+            <span className={cn("ml-0.5 inline-block h-[1.05em] w-[2px] translate-y-[0.15em] bg-accent-text", typing ? "animate-blink" : "opacity-0")} aria-hidden />
+          </span>
         </p>
       </div>
       <div className="min-h-[40px]">
