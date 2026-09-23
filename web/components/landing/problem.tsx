@@ -8,7 +8,7 @@
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Label, Tile } from "@/components/signal";
-import { Illustrative, Section } from "./shell";
+import { Section } from "./shell";
 import { cn } from "@/lib/utils";
 
 /** The same reading in both panels up to the crossing; after it, one keeps falling and one is held. */
@@ -70,6 +70,8 @@ const BOT_GAP_S = 7;
 const SCALE_S = 10;
 
 function Gap({ who, note, seconds, tone, shown, still }: { who: string; note: string; seconds: number; tone: "danger" | "lime"; shown: boolean; still: boolean }) {
+  const width = `${(seconds / SCALE_S) * 100}%`;
+  const move = { duration: still ? 0 : 0.9, delay: still ? 0 : 1.2, ease: "easeOut" } as const;
   return (
     <div className="grid gap-2 md:grid-cols-[180px_1fr] md:items-center md:gap-6">
       <span className="text-[17px] font-bold">{who}</span>
@@ -78,12 +80,17 @@ function Gap({ who, note, seconds, tone, shown, still }: { who: string; note: st
           <div className="relative h-2 flex-1 rounded-full bg-surface-2">
             <motion.div
               className={cn("absolute inset-y-0 left-0 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
-              initial={{ width: still ? `${(seconds / SCALE_S) * 100}%` : "0%" }}
-              animate={{ width: shown ? `${(seconds / SCALE_S) * 100}%` : "0%" }}
-              transition={{ duration: still ? 0 : 0.9, delay: still ? 0 : 1.2, ease: "easeOut" }}
+              initial={{ width: still ? width : "0%" }}
+              animate={{ width: shown ? width : "0%" }}
+              transition={move}
             />
-            {/* The moment of the check: on the Koul row it is also the moment of the action. */}
-            <span className={cn("absolute top-1/2 left-0 size-3.5 -translate-y-1/2 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")} />
+            {/* The handle rides the end of the bar: where the action lands. On the Koul row it never leaves the check. */}
+            <motion.span
+              className={cn("absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
+              initial={{ left: still ? width : "0%" }}
+              animate={{ left: shown ? width : "0%" }}
+              transition={move}
+            />
           </div>
           <span className={cn("mono w-10 shrink-0 text-right", tone === "lime" ? "text-accent-text" : "text-danger")}>{seconds} s</span>
         </div>
@@ -113,10 +120,7 @@ export function Problem() {
           </div>
         </Panel>
         <Tile className="grid gap-6 p-6 md:col-span-2 md:p-8">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="text-[20px] font-bold">Time between checking the price and acting</span>
-            <Illustrative>Example timing</Illustrative>
-          </div>
+          <span className="text-[20px] font-bold">Time between checking the price and acting</span>
           <Gap who="Your own bot" seconds={BOT_GAP_S} tone="danger" shown={shown} still={still} note="Reads the price, decides on its server, then sends. The price can move in between." />
           <Gap who="Koul" seconds={0} tone="lime" shown={shown} still={still} note="The rule is checked inside the same transaction that repays the loan." />
         </Tile>
