@@ -4,6 +4,7 @@
  * The hero: the headline word by word (in CSS, so it reads before any script runs), the line, Open app, and under
  * them the hero animation: a rule typed, compiled, triggered and carried out, in one 16 s pass.
  */
+import * as React from "react";
 import { StartButtons } from "./shell";
 import { KoulHeroAnimation } from "./hero-animation/koul-hero-animation";
 
@@ -14,11 +15,12 @@ export function Hero() {
     <section className="px-4 pt-6 pb-16 md:px-8 md:pt-10 md:pb-24">
       <div className="mx-auto w-full max-w-[1280px]">
         <h1 className="t-headline max-w-[14ch]">
+          {/* The space sits between the word spans: inside an inline-block a trailing space collapses to nothing. */}
           {HEADLINE.map((w, i) => (
-            <span key={`${w}-${i}`} className="animate-rise inline-block" style={{ animationDelay: `${60 + i * 55}ms` }}>
-              {w}
-              {i < HEADLINE.length - 1 ? " " : ""}
-            </span>
+            <React.Fragment key={`${w}-${i}`}>
+              <span className="animate-rise inline-block" style={{ animationDelay: `${60 + i * 55}ms` }}>{w}</span>
+              {i < HEADLINE.length - 1 ? " " : null}
+            </React.Fragment>
           ))}
         </h1>
         <p className="mt-6 max-w-[46ch] text-[19px] text-muted md:text-[22px]">
