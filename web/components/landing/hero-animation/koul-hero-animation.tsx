@@ -39,6 +39,26 @@ export function KoulHeroAnimation({ showTagline = true, className }: {
     return () => ro.disconnect();
   }, []);
 
+  // Pause off screen and in a hidden tab. One attribute on the root pauses every animation at once, so on resume
+  // the parts continue from the same moment, still in sync.
+  React.useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    let onScreen = true;
+    const apply = () => el.setAttribute("data-paused", String(!onScreen || document.visibilityState === "hidden"));
+    const io = new IntersectionObserver(([entry]) => {
+      onScreen = entry?.isIntersecting ?? true;
+      apply();
+    });
+    io.observe(el);
+    document.addEventListener("visibilitychange", apply);
+    apply();
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", apply);
+    };
+  }, []);
+
   return (
     <div ref={rootRef} tabIndex={-1} className={cx(heroDisplay.variable, heroMono.variable, s.root, className)}>
       <div key={run} className={s.canvas}>

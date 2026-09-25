@@ -285,3 +285,6 @@
   .actions { margin-top: 24px; width: 100%; flex-direction: column; flex-wrap: nowrap; gap: 10px; }
   .open, .replay { height: 52px; padding: 0; border-radius: 26px; justify-content: center; font-size: 17px; }
 }
+
+/* Paused while the hero is off screen or the tab is hidden; everything holds its place and resumes together. */
+.root[data-paused="true"], .root[data-paused="true"] * { animation-play-state: paused !important; }
