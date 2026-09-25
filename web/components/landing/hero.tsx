@@ -25,7 +25,8 @@ export function Hero() {
           Automate your DeFi position from your own wallet.
         </p>
         <StartButtons from="hero" className="mt-8" />
-        <KoulHeroAnimation className="mt-10 md:mt-14" />
+        {/* Full width on phones, like the 390 px design; a dark panel in the column from tablet up. */}
+        <KoulHeroAnimation className="-mx-4 mt-10 md:mx-0 md:mt-14" />
       </div>
     </section>
   );

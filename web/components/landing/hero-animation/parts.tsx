@@ -108,6 +108,28 @@ function WideChart() {
   );
 }
 
+/**
+ * The chart as designed for the phone: the same drawing at 0.509 with heavier strokes and bigger marks, and the two
+ * labels outside the scaled group at their own sizes.
+ */
+function NarrowChart() {
+  return (
+    <svg className={s.chartNarrow} width="326" height="160" viewBox="0 0 326 160" aria-hidden="true">
+      <g transform="scale(0.509)">
+        <g stroke="#1C1C1C" strokeWidth="2"><line x1="0" y1="60" x2="640" y2="60" /><line x1="0" y1="135" x2="640" y2="135" /><line x1="0" y1="285" x2="640" y2="285" /></g>
+        <path className={s.area} d={AREA} fill="#C8F03C" fillOpacity=".07" />
+        <g className={s.thr}><line className={s.thrline} x1="0" y1="210" x2="640" y2="210" stroke="#C8F03C" strokeWidth="2.6" strokeDasharray="10 11" /></g>
+        <path className={s.pp} d={LINE} pathLength="100" fill="none" stroke="#F2F2F2" strokeWidth="4.4" strokeLinejoin="round" strokeLinecap="round" />
+        <circle className={s.burst} cx="585" cy="210" r="12" fill="none" stroke="#C8F03C" strokeWidth="4" />
+        <circle className={cx(s.burst, s.burst2)} cx="585" cy="210" r="12" fill="none" stroke="#C8F03C" strokeWidth="2.5" />
+        <g className={s.mover}><circle className={s.halo} cx="0" cy="0" r="12" fill="#C8F03C" fillOpacity=".45" /><circle className={s.cross} cx="0" cy="0" r="10" fill="#F2F2F2" /></g>
+      </g>
+      <g className={s.thrlab}><rect x="4" y="113" width="124" height="20" rx="10" fill="#1A1A1A" stroke="#2A2A2A" /><text x="66" y="126.8" textAnchor="middle" fontSize="10.5" fill="#C8F03C">Rule 1 at $110,000</text></g>
+      <g className={s.tlab}><rect x="170" y="130" width="150" height="24" rx="12" fill="#C8F03C" /><text x="245" y="146" textAnchor="middle" fontSize="11" fontWeight="700" fill="#0A0F00">Triggered at $110,000</text></g>
+    </svg>
+  );
+}
+
 /** BTC: the rolling price and the chart that crosses the rule's level. */
 export function PriceChart() {
   return (
@@ -122,6 +144,7 @@ export function PriceChart() {
         </span>
       </div>
       <WideChart />
+      <NarrowChart />
     </div>
   );
 }
