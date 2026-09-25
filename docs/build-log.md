@@ -469,5 +469,6 @@ The earlier Circle-faucet route (`/api/faucet/usdc`) is untouched and unused.
 |---|---|---|
 | script, `sendTestUsdc(CBHMG4IG...)` | `eed3a4d5991789f7db90f2c661f8a87fec0f46643a3c91faea1ded9463f97c57` | SUCCESS, 16 s end to end |
 | dev server, `POST /api/faucet/test-usdc` for `CBHMG4IG...` | `cf4132dc02ab0f41b0092e79bcc7e9eed4ac9f73bb02cc944df4322f782600ba` | SUCCESS, 14 s |
+| production, `POST https://app.koul.me/api/faucet/test-usdc` for `CBHMG4IG...` | `88cbf9369c5c7bb93dd1bd99cf0dfe03f18751ab24c1eef4242a42b34adf7297` | SUCCESS, 13 s |
 
 Depends on friendbot and on DEX liquidity for XLM/USDC; at the time a 100 USDC buy quoted 95.6 XLM on a direct path.
