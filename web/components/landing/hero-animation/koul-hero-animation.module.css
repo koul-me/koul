@@ -96,8 +96,6 @@
 .shine{animation:shine 16s ease-out 1 both}
 @keyframes shine{0%,59.5%{box-shadow:0 0 0 0 rgba(200,240,60,0)}63%{box-shadow:0 0 0 6px rgba(200,240,60,.2)}69%{box-shadow:0 0 0 0 rgba(200,240,60,0)}100%{box-shadow:0 0 0 0 rgba(200,240,60,0)}}
 
-.tw{opacity:0;animation:tw 16s cubic-bezier(.2,.9,.2,1) 1 both}
-@keyframes tw{0%,83%{opacity:0;transform:translateY(56px) rotate(3deg)}86.5%{opacity:1;transform:translateY(0) rotate(0)}100%{opacity:1;transform:translateY(0)}}
 
 .valpulse{animation:valpulse 16s ease-out 1 both}
 @keyframes valpulse{0%,24.5%{background:transparent;color:#C8F03C}25.5%{background:#C8F03C;color:#0A0F00}29%{background:transparent;color:#C8F03C}100%{background:transparent;color:#C8F03C}}
@@ -107,8 +105,6 @@
 @keyframes punch{0%,58.9%{transform:scale(1);border-color:#1F1F1F}59.5%{transform:scale(1.014);border-color:#C8F03C}61.5%{transform:scale(1);border-color:#C8F03C}66%{border-color:#1F1F1F}100%{transform:scale(1);border-color:#1F1F1F}}
 .fdot{opacity:0;animation:fdot 16s cubic-bezier(.5,0,.3,1) 1 both}
 @keyframes fdot{0%,59.6%{left:24%;opacity:0;transform:scale(.6)}60.3%{opacity:1;transform:scale(1)}63.6%{left:64%;opacity:1;transform:scale(1)}64.4%{left:67%;opacity:0;transform:scale(.4)}100%{left:67%;opacity:0}}
-.sub{opacity:0;animation:sub 16s cubic-bezier(.2,.9,.2,1) 1 both}
-@keyframes sub{0%,87.5%{opacity:0;transform:translateY(14px)}90%{opacity:1;transform:translateY(0)}100%{opacity:1;transform:translateY(0)}}
 
 /* typed lines are hidden until their typing starts, and cleared before the loop restarts */
 .lv1{animation:lv1 16s linear 1 both}
@@ -116,13 +112,6 @@
 .lv2{animation:lv2 16s linear 1 both}
 @keyframes lv2{0%,10.45%{opacity:0}10.5%{opacity:1}100%{opacity:1}}
 
-/* the finale's buttons: hidden (and unfocusable) until they fade in */
-.cta{opacity:0;visibility:hidden;animation:cta 16s cubic-bezier(.2,.9,.2,1) 1 both;transition:background-color .2s ease}
-.cta:hover{background:#E2FF7A !important;color:#0A0F00}
-.cta:focus-visible{outline:3px solid #F2F2F2;outline-offset:4px}
-@keyframes cta{0%,88.5%{opacity:0;visibility:hidden;transform:translateY(16px) scale(.96)}89%{visibility:visible}91.5%{opacity:1;visibility:visible;transform:translateY(0) scale(1)}100%{opacity:1;visibility:visible;transform:translateY(0) scale(1)}}
-.ghost{background:transparent !important;color:#F2F2F2 !important;border:1.5px solid #3A3A3A;transition:border-color .2s ease}
-.ghost:hover{border-color:#C8F03C}
 
 /* ------------------------------------------------------------------------------------------------ layout
  * Three layouts on the same elements and the same animation classes, so the timeline never depends on the layout:
@@ -195,23 +184,11 @@
 .actIconSvg { width: 14px; height: 14px; }
 .actTime { margin-left: auto; color: #8F8F8F; font-size: 14px; }
 
-.word { display: inline-block; }
-.wordLight { color: #F2F2F2; }
-.wordLime { color: #C8F03C; }
-.pair { display: inline; }
-.subline { padding-top: 28px; font-size: 20px; color: #8F8F8F; }
-.actions { margin-top: 28px; display: flex; gap: 12px; pointer-events: none; }
-.open { height: 56px; padding: 0 30px; border-radius: 28px; background: #C8F03C; color: #0A0F00; display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; text-decoration: none; pointer-events: auto; }
-.replay { height: 56px; padding: 0 26px; border-radius: 28px; display: flex; align-items: center; gap: 10px; font-family: inherit; font-size: 18px; font-weight: 700; cursor: pointer; pointer-events: auto; }
-.root:focus { outline: none; }
 
-/* tablet: the cards stacked in reading order, the finale over them */
 .canvas { position: relative; }
 .boardLayout { position: relative; box-sizing: border-box; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+/* tablet: the cards stacked in reading order */
 .colL, .colR { width: 100%; max-width: 688px; display: flex; flex-direction: column; gap: 24px; }
-.finale { position: absolute; inset: 0; box-sizing: border-box; padding: 0 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; pointer-events: none; }
-.tagline { font-size: clamp(44px, 8.4vw, 112px); line-height: 1.02; letter-spacing: -0.04em; }
-.actions { flex-wrap: wrap; justify-content: center; }
 
 /* desktop: the composition as designed, scaled whole to the hero's width (never up) */
 @media (min-width: 1100px) {
@@ -221,9 +198,6 @@
   .colL { width: 560px; max-width: none; }
   .colR { width: 688px; max-width: none; }
   .chartWide { width: 640px; height: 300px; }
-  .finale { left: 0; top: 0; width: 1440px; height: 860px; padding: 0; text-align: left; }
-  .tagline { font-size: 112px; white-space: nowrap; }
-  .actions { flex-wrap: nowrap; }
 }
 
 /* phone: the 390 px design, full width */
@@ -278,20 +252,13 @@
   .actIconSvg { width: 12px; height: 12px; }
   .actTime { display: none; }
 
-  .finale { padding: 0 24px; align-items: flex-start; gap: 2px; text-align: left; }
-  .tagline { display: contents; font-size: 46px; line-height: 1.04; }
-  .pair { display: block; }
-  .subline { padding-top: 18px; font-size: 14px; }
-  .actions { margin-top: 24px; width: 100%; flex-direction: column; flex-wrap: nowrap; gap: 10px; }
-  .open, .replay { height: 52px; padding: 0; border-radius: 26px; justify-content: center; font-size: 17px; }
 }
 
 /* Paused while the hero is off screen or the tab is hidden; everything holds its place and resumes together. */
 .root[data-paused="true"], .root[data-paused="true"] * { animation-play-state: paused !important; }
 
-/* Reduced motion: no animation, a still frame of the dashboard; the tagline and both finale buttons stay hidden
-   (the hero's own Open app covers it). As in the source. */
+/* Reduced motion: no animation and no loop, a still frame of the dashboard. As in the source. */
 @media (prefers-reduced-motion: reduce){
 .root *{animation:none !important}
-.tw{opacity:0}.sub{opacity:0}.fdot{opacity:0}
+.fdot{opacity:0}
 }

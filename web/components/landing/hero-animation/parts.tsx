@@ -3,10 +3,6 @@
  * CSS module, and every class runs the same 16 s keyframe clock from the moment the animation mounts, so the parts
  * stay in sync whatever the layout does.
  */
-import * as React from "react";
-import Link from "next/link";
-import { track } from "@/lib/analytics";
-import { APP_PATH } from "../shell";
 import s from "./koul-hero-animation.module.css";
 
 export const cx = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(" ");
@@ -181,44 +177,6 @@ export function SupplyTile() {
         </span>
         <span>Rule 1 moved half your BTC supply to USDC.</span>
         <span className={s.actTime}>Just now</span>
-      </div>
-    </div>
-  );
-}
-
-const LINE_1 = [["Set", "0.0s"], ["the", "0.07s"], ["rules", "0.14s"], ["once.", "0.21s"]];
-const LINE_2 = [["Koul", "0.28s"], ["does", "0.35s"], ["the", "0.42s"], ["rest.", "0.49s"]];
-
-/** One tagline line, its words in pairs (the phone layout sets each pair on its own line). */
-function TaglineLine({ words, tone }: { words: string[][]; tone: string }) {
-  const word = ([w, d]: string[]) => <span key={d} className={cx(s.tw, s.word, tone)} style={{ animationDelay: d }}>{w}</span>;
-  return (
-    <div className={cx(s.disp, s.tagline)} aria-hidden="true">
-      <span className={s.pair}>{word(words[0]!)} {word(words[1]!)}</span> <span className={s.pair}>{word(words[2]!)} {word(words[3]!)}</span>
-    </div>
-  );
-}
-
-/**
- * The finale: the tagline over the dimmed dashboard, the line under it, Open app and Replay. The buttons are real
- * controls; until they fade in they are visibility: hidden, so they can be neither clicked nor focused.
- */
-export function Finale({ showTagline, onReplay }: { showTagline: boolean; onReplay: () => void }) {
-  return (
-    <div className={s.finale}>
-      {showTagline && <TaglineLine words={LINE_1} tone={s.wordLight} />}
-      {showTagline && <TaglineLine words={LINE_2} tone={s.wordLime} />}
-      <div className={cx(s.sub, s.mono, s.subline)} aria-hidden="true">Lending autopilot on XOXNO</div>
-      <div className={s.actions}>
-        {/* No prefetch: on koul.me /app answers with a redirect to app.koul.me, which only a full navigation follows. */}
-        <Link href={APP_PATH} prefetch={false} className={cx(s.cta, s.open)} onClick={() => track("open_app", { from: "hero_animation" })}>
-          Open app
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 9 H14 M9.5 4.5 L14 9 L9.5 13.5" fill="none" stroke="#0A0F00" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        </Link>
-        <button type="button" className={cx(s.cta, s.ghost, s.replay)} style={{ animationDelay: ".12s" }} onClick={onReplay}>
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9 A5.5 5.5 0 1 0 5.2 5 M3.5 2.8 V5.6 H6.3" fill="none" stroke="#F2F2F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-          Replay
-        </button>
       </div>
     </div>
   );

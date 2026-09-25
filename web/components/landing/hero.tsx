@@ -2,7 +2,7 @@
 
 /**
  * The hero: the headline word by word (in CSS, so it reads before any script runs), the line, Open app, and under
- * them the hero animation: a rule typed, compiled, triggered and carried out, in one 16 s pass.
+ * them the hero animation, on a loop: a rule typed, compiled, triggered and carried out.
  */
 import * as React from "react";
 import { StartButtons } from "./shell";
