@@ -118,7 +118,8 @@
 
 /* ------------------------------------------------------------------------------------------------ layout */
 
-.canvas { position: absolute; left: 0; top: 0; width: 1440px; height: 860px; }
+.root { aspect-ratio: 1440 / 860; }
+.canvas { position: absolute; left: 0; top: 0; width: 1440px; height: 860px; transform: scale(var(--hero-s, .889)); transform-origin: 0 0; }
 .boardLayout { position: absolute; left: 0; top: 0; width: 1440px; height: 860px; box-sizing: border-box; padding: 64px; display: flex; align-items: center; gap: 64px; }
 .colL { width: 560px; display: flex; flex-direction: column; gap: 24px; }
 .colR { width: 688px; display: flex; flex-direction: column; gap: 24px; }
@@ -188,6 +189,7 @@
 .finale { position: absolute; left: 0; top: 0; width: 1440px; height: 860px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; pointer-events: none; }
 .tagline { font-size: 112px; line-height: 1.02; letter-spacing: -0.04em; white-space: nowrap; }
 .word { display: inline-block; }
+.pair { display: inline; }
 .wordLight { color: #F2F2F2; }
 .wordLime { color: #C8F03C; }
 .subline { padding-top: 28px; font-size: 20px; color: #8F8F8F; }
