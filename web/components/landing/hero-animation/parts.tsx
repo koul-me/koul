@@ -4,6 +4,9 @@
  * stay in sync whatever the layout does.
  */
 import * as React from "react";
+import Link from "next/link";
+import { track } from "@/lib/analytics";
+import { APP_PATH } from "../shell";
 import s from "./koul-hero-animation.module.css";
 
 export const cx = (...names: Array<string | false | null | undefined>) => names.filter(Boolean).join(" ");
@@ -173,14 +176,27 @@ function TaglineLine({ words, tone }: { words: string[][]; tone: string }) {
   );
 }
 
-/** The finale: the tagline over the dimmed dashboard and the line under it. */
-export function Finale({ showTagline, children }: { showTagline: boolean; children?: React.ReactNode }) {
+/**
+ * The finale: the tagline over the dimmed dashboard, the line under it, Open app and Replay. The buttons are real
+ * controls; until they fade in they are visibility: hidden, so they can be neither clicked nor focused.
+ */
+export function Finale({ showTagline, onReplay }: { showTagline: boolean; onReplay: () => void }) {
   return (
     <div className={s.finale}>
       {showTagline && <TaglineLine words={LINE_1} tone={s.wordLight} />}
       {showTagline && <TaglineLine words={LINE_2} tone={s.wordLime} />}
       <div className={cx(s.sub, s.mono, s.subline)} aria-hidden="true">Lending autopilot on XOXNO</div>
-      {children}
+      <div className={s.actions}>
+        {/* No prefetch: on koul.me /app answers with a redirect to app.koul.me, which only a full navigation follows. */}
+        <Link href={APP_PATH} prefetch={false} className={cx(s.cta, s.open)} onClick={() => track("open_app", { from: "hero_animation" })}>
+          Open app
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 9 H14 M9.5 4.5 L14 9 L9.5 13.5" fill="none" stroke="#0A0F00" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        </Link>
+        <button type="button" className={cx(s.cta, s.ghost, s.replay)} style={{ animationDelay: ".12s" }} onClick={onReplay}>
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3.5 9 A5.5 5.5 0 1 0 5.2 5 M3.5 2.8 V5.6 H6.3" fill="none" stroke="#F2F2F2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          Replay
+        </button>
+      </div>
     </div>
   );
 }

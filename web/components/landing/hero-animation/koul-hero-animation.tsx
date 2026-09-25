@@ -19,6 +19,13 @@ export function KoulHeroAnimation({ showTagline = true, className }: {
   className?: string;
 }) {
   const rootRef = React.useRef<HTMLDivElement>(null);
+  // Replay remounts the whole timeline, so every part starts again from 0 together.
+  const [run, setRun] = React.useState(0);
+  const replay = React.useCallback(() => {
+    setRun((n) => n + 1);
+    // The Replay button is gone with the old timeline; keep keyboard focus in the animation instead of the page top.
+    rootRef.current?.focus({ preventScroll: true });
+  }, []);
 
   // The desktop composition scales to the hero's width as one piece.
   React.useEffect(() => {
@@ -33,8 +40,8 @@ export function KoulHeroAnimation({ showTagline = true, className }: {
   }, []);
 
   return (
-    <div ref={rootRef} className={cx(heroDisplay.variable, heroMono.variable, s.root, className)}>
-      <div className={s.canvas}>
+    <div ref={rootRef} tabIndex={-1} className={cx(heroDisplay.variable, heroMono.variable, s.root, className)}>
+      <div key={run} className={s.canvas}>
         <div className={cx(s.board, s.boardLayout)} role="img" aria-label={LABEL}>
           <div className={s.colL}>
             <ChatBox />
@@ -45,7 +52,7 @@ export function KoulHeroAnimation({ showTagline = true, className }: {
             <SupplyTile />
           </div>
         </div>
-        <Finale showTagline={showTagline} />
+        <Finale showTagline={showTagline} onReplay={replay} />
       </div>
     </div>
   );
