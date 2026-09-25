@@ -65,25 +65,58 @@ function Panel({ title, note, tone, path, crossed, still, children }: {
   );
 }
 
-/** An example, not a measurement: a bot reads, decides on its own server, then sends a separate transaction. */
-const BOT_GAP_S = 7;
+/**
+ * An example, not a measurement: a bot reads, decides on its own server, then sends a separate transaction. Seconds
+ * count from the close of the ledger that carried the price. The wait is the chain, not the bot: its transaction
+ * cannot land before the next ledger closes, about 5 to 6 s later.
+ */
+type Step = { from: number; to: number; label: string; waiting?: boolean };
+const BOT_STEPS: Step[] = [
+  { from: 0, to: 1.5, label: "Reads the price" },
+  { from: 1.5, to: 2, label: "Decides" },
+  { from: 2, to: 3, label: "Builds and signs" },
+  { from: 3, to: 7, label: "Waits for the next ledger", waiting: true },
+];
+const BOT_GAP_S = BOT_STEPS[BOT_STEPS.length - 1].to;
 const SCALE_S = 10;
+const HATCH = { backgroundImage: "repeating-linear-gradient(135deg, var(--danger) 0 2px, transparent 2px 6px)" };
 
-function Gap({ who, note, seconds, tone, shown, still }: { who: string; note: string; seconds: number; tone: "danger" | "lime"; shown: boolean; still: boolean }) {
-  const width = `${(seconds / SCALE_S) * 100}%`;
+const pct = (s: number) => (s / SCALE_S) * 100;
+
+function Gap({ who, note, seconds, tone, shown, still, steps }: { who: string; note: string; seconds: number; tone: "danger" | "lime"; shown: boolean; still: boolean; steps?: Step[] }) {
+  const width = `${pct(seconds)}%`;
   const move = { duration: still ? 0 : 0.9, delay: still ? 0 : 1.2, ease: "easeOut" } as const;
+  const clip = (open: boolean) => `inset(0 ${open ? 100 - pct(seconds) : 100}% 0 0)`;
   return (
     <div className="grid gap-2 md:grid-cols-[180px_1fr] md:items-center md:gap-6">
       <span className="text-[17px] font-bold">{who}</span>
       <div className="grid gap-2">
         <div className="flex items-center gap-3">
           <div className="relative h-2 flex-1 rounded-full bg-surface-2">
-            <motion.div
-              className={cn("absolute inset-y-0 left-0 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
-              initial={{ width: still ? width : "0%" }}
-              animate={{ width: shown ? width : "0%" }}
-              transition={move}
-            />
+            {steps ? (
+              /* Segments sit at their final place and are uncovered left to right, so they keep their proportions while the bar grows. */
+              <motion.div
+                className="absolute inset-0"
+                initial={{ clipPath: clip(still) }}
+                animate={{ clipPath: clip(shown) }}
+                transition={move}
+              >
+                {steps.map((step, i) => (
+                  <span
+                    key={step.label}
+                    className={cn("absolute inset-y-0", step.waiting ? "bg-danger/25" : "bg-danger", i === 0 && "rounded-l-full", i === steps.length - 1 && "rounded-r-full")}
+                    style={{ left: `calc(${pct(step.from)}% + 1px)`, width: `calc(${pct(step.to - step.from)}% - 2px)`, ...(step.waiting ? HATCH : {}) }}
+                  />
+                ))}
+              </motion.div>
+            ) : (
+              <motion.div
+                className={cn("absolute inset-y-0 left-0 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
+                initial={{ width: still ? width : "0%" }}
+                animate={{ width: shown ? width : "0%" }}
+                transition={move}
+              />
+            )}
             {/* The handle rides the end of the bar: where the action lands. On the Koul row it never leaves the check. */}
             <motion.span
               className={cn("absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full", tone === "lime" ? "bg-lime" : "bg-danger")}
@@ -94,6 +127,17 @@ function Gap({ who, note, seconds, tone, shown, still }: { who: string; note: st
           </div>
           <span className={cn("mono w-10 shrink-0 text-right", tone === "lime" ? "text-accent-text" : "text-danger")}>{seconds} s</span>
         </div>
+        {steps && (
+          <ul className={cn("flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] transition-opacity delay-[2100ms] duration-300", shown ? "opacity-100" : "opacity-0")}>
+            {steps.map((step) => (
+              <li key={step.label} className="flex items-center gap-2">
+                <span className={cn("size-2.5 shrink-0 rounded-[2px]", step.waiting ? "bg-danger/25" : "bg-danger")} style={step.waiting ? HATCH : undefined} />
+                <span className="mono text-danger">{step.from}-{step.to} s</span>
+                <span className="text-muted">{step.label}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="text-[15px] text-muted">{note}</p>
       </div>
     </div>
@@ -121,7 +165,7 @@ export function Problem() {
         </Panel>
         <Tile className="grid gap-6 p-6 md:col-span-2 md:p-8">
           <span className="text-[20px] font-bold">Time between checking the price and acting</span>
-          <Gap who="Your own bot" seconds={BOT_GAP_S} tone="danger" shown={shown} still={still} note="Reads the price, decides on its server, then sends. The price can move in between." />
+          <Gap who="Your own bot" seconds={BOT_GAP_S} steps={BOT_STEPS} tone="danger" shown={shown} still={still} note="Its transaction cannot land before the next ledger closes. The price keeps moving the whole time." />
           <Gap who="Koul" seconds={0} tone="lime" shown={shown} still={still} note="The rule is checked inside the same transaction that repays the loan." />
         </Tile>
       </motion.div>
