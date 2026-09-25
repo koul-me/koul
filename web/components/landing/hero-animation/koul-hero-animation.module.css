@@ -288,3 +288,10 @@
 
 /* Paused while the hero is off screen or the tab is hidden; everything holds its place and resumes together. */
 .root[data-paused="true"], .root[data-paused="true"] * { animation-play-state: paused !important; }
+
+/* Reduced motion: no animation, a still frame of the dashboard; the tagline and both finale buttons stay hidden
+   (the hero's own Open app covers it). As in the source. */
+@media (prefers-reduced-motion: reduce){
+.root *{animation:none !important}
+.tw{opacity:0}.sub{opacity:0}.fdot{opacity:0}
+}
