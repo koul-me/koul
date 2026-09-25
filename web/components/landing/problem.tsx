@@ -70,18 +70,26 @@ function Panel({ title, note, tone, path, crossed, still, children }: {
  * count from the close of the ledger that carried the price. The wait is the chain, not the bot: its transaction
  * cannot land before the next ledger closes, about 5 to 6 s later.
  */
-type Step = { from: number; to: number; label: string; waiting?: boolean };
+type Step = { from: number; to: number; label: string; short?: string; tint: number; waiting?: boolean };
+/**
+ * Each step is the danger red mixed toward the track by its tint, so the bar deepens from reading to waiting. The
+ * labels alternate between two rows on a phone, where the short steps sit too close for one, and the long one shortens.
+ */
 const BOT_STEPS: Step[] = [
-  { from: 0, to: 1.5, label: "Reads the price" },
-  { from: 1.5, to: 2, label: "Decides" },
-  { from: 2, to: 3, label: "Builds and signs" },
-  { from: 3, to: 7, label: "Waits for the next ledger", waiting: true },
+  { from: 0, to: 1.5, label: "Read", tint: 35 },
+  { from: 1.5, to: 2, label: "Decide", tint: 60 },
+  { from: 2, to: 3, label: "Sign", tint: 85 },
+  { from: 3, to: 7, label: "Wait for the next ledger", short: "Wait for a ledger", tint: 100, waiting: true },
 ];
 const BOT_GAP_S = BOT_STEPS[BOT_STEPS.length - 1].to;
 const SCALE_S = 10;
-const HATCH = { backgroundImage: "repeating-linear-gradient(135deg, var(--danger) 0 2px, transparent 2px 6px)" };
 
 const pct = (s: number) => (s / SCALE_S) * 100;
+const tinted = (tint: number) => `color-mix(in srgb, var(--danger) ${tint}%, var(--surface-2))`;
+const fill = (step: Step) =>
+  step.waiting
+    ? { backgroundColor: `color-mix(in srgb, var(--danger) 25%, var(--surface-2))`, backgroundImage: "repeating-linear-gradient(135deg, var(--danger) 0 2px, transparent 2px 6px)" }
+    : { backgroundColor: tinted(step.tint) };
 
 function Gap({ who, note, seconds, tone, shown, still, steps }: { who: string; note: string; seconds: number; tone: "danger" | "lime"; shown: boolean; still: boolean; steps?: Step[] }) {
   const width = `${pct(seconds)}%`;
@@ -91,6 +99,33 @@ function Gap({ who, note, seconds, tone, shown, still, steps }: { who: string; n
     <div className="grid gap-2 md:grid-cols-[180px_1fr] md:items-center md:gap-6">
       <span className="text-[17px] font-bold">{who}</span>
       <div className="grid gap-2">
+        {steps && (
+          /* Each label is centred over its own segment, and appears once the bar has passed it. */
+          <div className="flex gap-3">
+            <div className="relative h-9 flex-1 md:h-5">
+              {steps.map((step, i) => (
+                <span
+                  key={step.label}
+                  className={cn(
+                    "absolute -translate-x-1/2 whitespace-nowrap text-[12px] font-medium transition-opacity duration-300 md:top-0",
+                    i % 2 ? "top-0" : "top-4",
+                    step.waiting ? "text-danger" : "text-muted",
+                    shown ? "opacity-100" : "opacity-0",
+                  )}
+                  style={{ left: `${pct((step.from + step.to) / 2)}%`, transitionDelay: still ? "0ms" : `${1200 + (step.to / seconds) * 900}ms` }}
+                >
+                  {step.short ? (
+                    <>
+                      <span className="md:hidden">{step.short}</span>
+                      <span className="hidden md:inline">{step.label}</span>
+                    </>
+                  ) : step.label}
+                </span>
+              ))}
+            </div>
+            <span className="w-10 shrink-0" />
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <div className="relative h-2 flex-1 rounded-full bg-surface-2">
             {steps ? (
@@ -104,8 +139,8 @@ function Gap({ who, note, seconds, tone, shown, still, steps }: { who: string; n
                 {steps.map((step, i) => (
                   <span
                     key={step.label}
-                    className={cn("absolute inset-y-0", step.waiting ? "bg-danger/25" : "bg-danger", i === 0 && "rounded-l-full", i === steps.length - 1 && "rounded-r-full")}
-                    style={{ left: `calc(${pct(step.from)}% + 1px)`, width: `calc(${pct(step.to - step.from)}% - 2px)`, ...(step.waiting ? HATCH : {}) }}
+                    className={cn("absolute inset-y-0", i === 0 && "rounded-l-full", i === steps.length - 1 && "rounded-r-full")}
+                    style={{ left: `calc(${pct(step.from)}% + 1px)`, width: `calc(${pct(step.to - step.from)}% - 2px)`, ...fill(step) }}
                   />
                 ))}
               </motion.div>
@@ -127,17 +162,6 @@ function Gap({ who, note, seconds, tone, shown, still, steps }: { who: string; n
           </div>
           <span className={cn("mono w-10 shrink-0 text-right", tone === "lime" ? "text-accent-text" : "text-danger")}>{seconds} s</span>
         </div>
-        {steps && (
-          <ul className={cn("flex flex-wrap gap-x-5 gap-y-1.5 text-[13px] transition-opacity delay-[2100ms] duration-300", shown ? "opacity-100" : "opacity-0")}>
-            {steps.map((step) => (
-              <li key={step.label} className="flex items-center gap-2">
-                <span className={cn("size-2.5 shrink-0 rounded-[2px]", step.waiting ? "bg-danger/25" : "bg-danger")} style={step.waiting ? HATCH : undefined} />
-                <span className="mono text-danger">{step.from}-{step.to} s</span>
-                <span className="text-muted">{step.label}</span>
-              </li>
-            ))}
-          </ul>
-        )}
         <p className="text-[15px] text-muted">{note}</p>
       </div>
     </div>
