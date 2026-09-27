@@ -8,7 +8,7 @@
  * - In editing mode, "make the lira exit 51" or "set rule 2 to 1.3" changes that rule in the list.
  * - Anything outside the router's vocabulary is unsupported, with what Koul can watch and do.
  */
-import { newId, type Condition, type ConditionKind, type Rule } from "@/lib/model/autopilot";
+import { newId, POOLS, type Condition, type ConditionKind, type PoolId, type Rule } from "@/lib/model/autopilot";
 import { actionShort } from "@/lib/model/labels";
 import { parseSentence } from "@/lib/sentence";
 import type { ChatReply, ChatMessage } from "./reducer";
@@ -65,12 +65,12 @@ const numberIn = (text: string): number | null => {
 
 const withValue = (rule: Rule, value: number): Rule => ({ ...rule, conditions: rule.conditions.map((c, i) => (i === 0 ? { ...c, value } : c)), inferred: rule.inferred.filter((f) => f !== "conditions.0.value") });
 
-function draftFor(rules: Rule[], rule: Rule, message?: string): ChatReply {
+function draftFor(rules: Rule[], rule: Rule, message?: string, lead = "Here is the rule."): ChatReply {
   const at = insertionIndex(rules, rule);
   const next = [...rules.slice(0, at), rule, ...rules.slice(at)];
   const after = next[at + 1];
   const where = at === next.length - 1 ? (next.length === 1 ? "It would be your only rule." : "It would run last.") : `It would run ${ORDINAL[at] ?? `${at + 1}th`}, before the ${subjectOf(after!.conditions[0]!).toLowerCase()} rule.`;
-  return { kind: "draft", message: message ?? `Here is the rule. ${where}`, rules: next, position: at + 1 };
+  return { kind: "draft", message: message ?? `${lead} ${where}`, rules: next, position: at + 1 };
 }
 
 /** Which rule an editing sentence means: "rule 2", or the subject it names. */
@@ -114,11 +114,14 @@ export function answerLocally(messages: ChatMessage[], rules: Rule[], mode: "liv
   if (!rule) return { kind: "unsupported", message: UNSUPPORTED };
   // The keyword parser defaults the wait to 5 s; a rule from the chat waits 10 minutes, or an hour for yield moves.
   const waits = rule.inferred.includes("cooldownSec") ? (rule.action.kind === "move_to_best_pool" || rule.action.kind === "supply_from_wallet" ? 3600 : 600) : rule.cooldownSec;
-  const fresh: Rule = { ...rule, id: newId("chat"), cooldownSec: waits };
+  // Supply names one hub. When the sentence did not name it, the one paying more right now is the sensible pick.
+  const better: PoolId | null = rule.action.kind === "supply_from_wallet" && rule.inferred.includes("action.pool") && live.rateA !== null && live.rateB !== null ? (live.rateA > live.rateB ? "A" : "B") : null;
+  const fresh: Rule = { ...rule, id: newId("chat"), cooldownSec: waits, action: better ? { ...rule.action, pool: better } : rule.action };
   if (fresh.inferred.includes("conditions.0.value")) {
     const c = fresh.conditions[0]!;
     const reading = readingFor(c, live);
     return { kind: "clarify", message: `At what ${subjectOf(c)} level?${reading ? ` ${reading}` : ""}`, choices: choicesFor(c, live), pending: fresh };
   }
-  return draftFor(rules, fresh, parsed.unplaced.length ? `Here is the rule for the part Koul can do (${actionShort(fresh.action).toLowerCase()}); "${parsed.unplaced[0]}" is not something it can act on.` : undefined);
+  const lead = better ? `It supplies to ${POOLS[better].name}, which pays more now.` : undefined;
+  return draftFor(rules, fresh, parsed.unplaced.length ? `Here is the rule for the part Koul can do (${actionShort(fresh.action).toLowerCase()}); "${parsed.unplaced[0]}" is not something it can act on.` : undefined, lead);
 }

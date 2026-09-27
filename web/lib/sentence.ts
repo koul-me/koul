@@ -42,6 +42,7 @@ export function parseSentence(input: string): ParseResult {
 
   for (const c of clauses) {
     let placed = false;
+    let supplied = false;
     // Health guard
     if (/health|liquidat|collateral|loan|debt|repay|safe|sağlık|borç|tasfiye|likidasyon|güvende/.test(c) && !has("health_factor")) {
       const v = num(c, /(?:under|below|less than|drops? (?:to|under|below)|<)\s*(\d+(?:[.,]\d+)?)/) ?? num(c, /(\d+[.,]\d+)(?:'?[ıi]n)?\s*(?:altına|altında)/) ?? num(c, /(\d+[.,]\d+)/);
@@ -52,8 +53,21 @@ export function parseSentence(input: string): ParseResult {
       rules.push(makeRule({ name: "Stay safe", conditions: [{ kind: "health_factor", comparator: "lte", value: v ?? RULE_DEFAULTS.health_factor.value }], action: { kind: "repay_from_wallet", amount: "all" }, cooldownSec: cd ?? RULE_DEFAULTS.health_factor.cooldownSec, inferred }));
       placed = true;
     }
-    // Rate chase
-    if (/pays? more|better rate|higher (?:rate|yield|apy)|best (?:rate|yield|pool)|whichever|wherever|earns? more|more interest|chase|yield|faiz|getiri|daha (?:çok|fazla) (?:öde|kazan)|hangi havuz/.test(c) && !has("rate_gap")) {
+    // Put idle USDC to work. Supply names one hub; "the hub that pays most" is left to the caller, which knows the rates.
+    if (/wallet|idle|sitting|cüzdan|boşta/.test(c) && /supply|deposit|put|lend|park|invest|to work|yatır|koy/.test(c) && !has("idle_usdc")) {
+      const v = num(c, /(?:more than|over|above|at least|exceeds?|>=?)\s*(\d+(?:[.,]\d+)?)/) ?? num(c, /(\d+(?:[.,]\d+)?)\s*usdc/);
+      const pool = /hub ?1|pool a|main hub|first hub/.test(c) ? "A" : /hub ?2|pool b|secondary hub|second hub/.test(c) ? "B" : null;
+      const cd = cooldownFrom(c);
+      const inferred: string[] = [];
+      if (v === null) inferred.push("conditions.0.value");
+      if (pool === null) inferred.push("action.pool");
+      if (cd === null) inferred.push("cooldownSec");
+      rules.push(makeRule({ name: "Put it to work", conditions: [{ kind: "idle_usdc", comparator: "gte", value: v ?? RULE_DEFAULTS.idle_usdc.value }], action: { kind: "supply_from_wallet", amount: "all", pool: pool ?? "B" }, cooldownSec: cd ?? RULE_DEFAULTS.idle_usdc.cooldownSec, inferred }));
+      placed = true;
+      supplied = true;
+    }
+    // Rate chase. In a supply clause, "the hub that pays more" picks the hub; it is not a second rule.
+    if (!supplied && /pays? more|better rate|higher (?:rate|yield|apy)|best (?:rate|yield|pool)|whichever|wherever|earns? more|more interest|chase|yield|faiz|getiri|daha (?:çok|fazla) (?:öde|kazan)|hangi havuz/.test(c) && !has("rate_gap")) {
       const v = num(c, /(\d+(?:[.,]\d+)?)\s*(?:%|percent|pts?|points?|bps)/) ?? (/half a (?:point|percent)/.test(c) ? 0.5 : null);
       const bps = /(\d+)\s*bps/.exec(c);
       const value = bps ? Number(bps[1]) / 100 : v;

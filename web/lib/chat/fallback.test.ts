@@ -39,6 +39,23 @@ describe("local answers", () => {
     expect(r.rules?.[1]?.conditions[0]?.value).toBe(51);
     expect(r.rules?.[0]).toEqual(health);
   });
+  it("puts idle USDC to work in the hub that pays more now", () => {
+    const r = answerLocally([{ role: "user", text: "Whenever I have more than 100 USDC sitting in my wallet, supply it to the hub that pays most" }], [health, gap], "live", live);
+    expect(r).toMatchObject({ kind: "draft", position: 2, message: "It supplies to USDC · Secondary hub, which pays more now. It would run second, before the rate gap rule." });
+    expect(r.rules).toHaveLength(3);
+    expect(r.rules?.[1]).toMatchObject({ conditions: [{ kind: "idle_usdc", comparator: "gte", value: 100 }], action: { kind: "supply_from_wallet", amount: "all", pool: "B" }, cooldownSec: 3600 });
+    const flipped = answerLocally([{ role: "user", text: "Whenever I have more than 100 USDC sitting in my wallet, supply it to the hub that pays most" }], [], "live", { ...live, rateA: 5, rateB: 4.2 });
+    expect(flipped.rules?.[0]?.action.pool).toBe("A");
+  });
+  it("supplies to the hub the sentence names", () => {
+    const r = answerLocally([{ role: "user", text: "Put anything over 50 USDC in my wallet into hub 1" }], [], "live", live);
+    expect(r).toMatchObject({ kind: "draft", message: "Here is the rule. It would be your only rule." });
+    expect(r.rules?.[0]).toMatchObject({ conditions: [{ kind: "idle_usdc", value: 50 }], action: { kind: "supply_from_wallet", pool: "A" } });
+  });
+  it("asks how much idle USDC when the sentence has no amount", () => {
+    const r = answerLocally([{ role: "user", text: "Supply whatever is sitting in my wallet" }], [], "live", live);
+    expect(r).toMatchObject({ kind: "clarify", message: "At what wallet level? You have 50.00 USDC idle now.", choices: ["50", "100", "500"] });
+  });
   it("says what it can do when it cannot", () => {
     const r = answerLocally([{ role: "user", text: "buy gold every friday" }], [], "live", live);
     expect(r.kind).toBe("unsupported");
