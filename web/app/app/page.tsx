@@ -19,6 +19,7 @@ import { PutToWorkDialog } from "@/components/home/put-to-work";
 import { PullToRefresh } from "@/components/signal";
 import { balanceHistory } from "@/lib/model/history";
 import { useWallet, walletCreatedAt } from "@/hooks/use-wallet";
+import { hubName } from "@/lib/model/hubs";
 
 /** A clock that ticks once a minute, for the "2H ago" labels; the number lives in state so renders stay pure. */
 function useMinute(): number {
@@ -69,7 +70,7 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-rows-[auto_1fr] md:gap-5">
           <div className="grid grid-cols-2 gap-4 md:gap-5">
             <motion.div {...tile}><PnlTile pnl={history?.pnl ?? null} pnlPct={history?.pnlPct ?? null} loading={!loaded || !activity.loaded} /></motion.div>
-            <motion.div {...tile}><IdleTile idle={idle} loading={!loaded} target={target ? `Hub ${target.hub}` : null} onPutToWork={() => setPutOpen(true)} busy={false} /></motion.div>
+            <motion.div {...tile}><IdleTile idle={idle} loading={!loaded} target={target ? hubName(target.hub) : null} onPutToWork={() => setPutOpen(true)} busy={false} /></motion.div>
           </div>
           <motion.div {...tile} className="flex min-w-0 flex-1"><ChartTile balance={balance} series={history?.series ?? null} loading={!loaded} now={now} className="h-full w-full" /></motion.div>
         </div>

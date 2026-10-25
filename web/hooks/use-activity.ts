@@ -12,6 +12,7 @@ import { usePoll } from "@/lib/data/store";
 import { loadEventsSnapshot, readWalletEvents, type WalletEvent } from "@/lib/data/events";
 import { XOXNO, tokenById } from "@/lib/koul";
 import { walletCreatedAt } from "./use-wallet";
+import { hubName } from "@/lib/model/hubs";
 
 export type ActivityWho = "auto" | "you";
 export type ActivityKind = "run" | "rules_saved" | "rules_cleared" | "access_given" | "access_revoked" | "supplied" | "withdrew" | "deposited" | "sent" | "wallet_created";
@@ -44,7 +45,7 @@ export interface ActivityState {
 }
 
 const usdc = (v: unknown) => Number(BigInt(String(v ?? 0))) / 1e7;
-const hub = (h: unknown) => `Hub ${Number(h)}`;
+const hub = (h: unknown) => hubName(Number(h));
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tokenOf = (t: unknown) => (t === XOXNO.usdc ? { symbol: "USDC", decimals: 7 } : tokenById(String(t)) ?? { symbol: `${String(t).slice(0, 4)}…`, decimals: 7 });
 const units = (v: unknown, decimals: number) => Number(BigInt(String(v ?? 0))) / 10 ** decimals;

@@ -1,8 +1,10 @@
+import { hubName } from "@/lib/model/hubs";
+
 /** The XOXNO testnet markets (configs/testnet/markets.json in XOXNO/rs-lending-xlm) and where each one lives on xoxno.com. */
 export interface Market {
   /** Asset code as XOXNO names it. */
   name: string;
-  /** Plain label with the hub, e.g. "USDC · Secondary hub". */
+  /** Plain label with the hub, e.g. "USDC · Secondary USDC". */
   label: string;
   /** What the market trades, as people read it: "USDC", "XLM/USDC LP". */
   pair: string;
@@ -15,8 +17,8 @@ export interface Market {
 }
 
 export const XOXNO_APP = "https://staging.xoxno.com";
-const HUB_NAMES: Record<number, string> = { 1: "Main", 2: "Secondary", 3: "Aquarius" };
-const market = (name: string, hub: number, asset: string, code = name): Market => ({ name, pair: code, label: `${code} · ${HUB_NAMES[hub] ?? `Hub ${hub}`} hub`, hub, hubName: HUB_NAMES[hub] ?? `Hub ${hub}`, asset, decimals: 7, url: `${XOXNO_APP}/defi/lending/${asset}` });
+// The hub's name is read when a label is drawn, so XOXNO's live names (lib/model/hubs.ts) apply once they load.
+const market = (name: string, hub: number, asset: string, code = name): Market => ({ name, pair: code, get label() { return `${code} · ${hubName(hub)}`; }, hub, get hubName() { return hubName(hub); }, asset, decimals: 7, url: `${XOXNO_APP}/defi/lending/${asset}` });
 
 export const MARKETS: Market[] = [
   market("USDC", 1, "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA"),

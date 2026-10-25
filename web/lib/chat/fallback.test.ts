@@ -41,7 +41,7 @@ describe("local answers", () => {
   });
   it("puts idle USDC to work in the hub that pays more now", () => {
     const r = answerLocally([{ role: "user", text: "Whenever I have more than 100 USDC sitting in my wallet, supply it to the hub that pays most" }], [health, gap], "live", live);
-    expect(r).toMatchObject({ kind: "draft", position: 2, message: "It supplies to USDC · Secondary hub, which pays more now. It would run second, before the rate gap rule." });
+    expect(r).toMatchObject({ kind: "draft", position: 2, message: "It supplies to USDC · Secondary USDC, which pays more now. It would run second, before the rate gap rule." });
     expect(r.rules).toHaveLength(3);
     expect(r.rules?.[1]).toMatchObject({ conditions: [{ kind: "idle_usdc", comparator: "gte", value: 100 }], action: { kind: "supply_from_wallet", amount: "all", pool: "B" }, cooldownSec: 3600 });
     const flipped = answerLocally([{ role: "user", text: "Whenever I have more than 100 USDC sitting in my wallet, supply it to the hub that pays most" }], [], "live", { ...live, rateA: 5, rateB: 4.2 });

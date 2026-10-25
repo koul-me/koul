@@ -6,6 +6,7 @@ import { tween } from "@/lib/motion";
 import { PasskeyWalletProvider, SEMBOL_TESTNET_ARTIFACTS, type SembolConfig } from "@sembol/passkey-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { loadHubNames } from "@/lib/model/hubs";
 
 /**
  * Passkeys belong to a domain. The app moved from koul.me to app.koul.me, so on any koul.me host the passkey is
@@ -28,6 +29,9 @@ const config: SembolConfig = {
   webAuthnHints: ["client-device", "hybrid"],
   ...(rpId ? { rpId } : {}),
 };
+
+// XOXNO's hub names, once per page load; labels drawn after use them, the defaults stand until then.
+if (typeof window !== "undefined") void loadHubNames();
 
 /** Dark is the default; the light theme is a class on <html>, toggled on the Account page. */
 export function Providers({ children }: { children: React.ReactNode }) {
