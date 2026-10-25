@@ -472,3 +472,101 @@ The earlier Circle-faucet route (`/api/faucet/usdc`) is untouched and unused.
 | production, `POST https://app.koul.me/api/faucet/test-usdc` for `CBHMG4IG...` | `88cbf9369c5c7bb93dd1bd99cf0dfe03f18751ab24c1eef4242a42b34adf7297` | SUCCESS, 13 s |
 
 Depends on friendbot and on DEX liquidity for XLM/USDC; at the time a 100 USDC buy quoted 95.6 XLM on a direct path.
+
+## XOXNO swap aggregator: first swaps from a smart account (2026-10-25)
+
+`@koul/core` gains `src/swap.ts` (`checkSwapDeployment`, `quoteSwap`) and `KoulWriter.buildSwap`, on
+`@xoxno/sdk-js` 1.0.233. The quote server is `https://testnet-stellar-swap.xoxno.com`, the router is
+`CDNTWMWW2WGYTKIZTJYNGNVQQZI4KTC5BQRZ3275KESRX5T4O3AYECL5` (both checked against `/api/v1/config` before every
+quote). A quote is taken with `fresh=true`, at most 3 hops and 1 split, and its route bytes are decoded and checked
+against the request (pair, input, encoded minimum) with the SDK's verifier before anything is built. The transaction is
+`execute_strategy(wallet, amount_in, route)` signed by the wallet's passkey; the router pulls the input from the wallet
+and pays the output back to it.
+
+`keeper/scripts/swap.ts` (`pnpm swap USDC 1 0.01`) ran it end to end on a fresh smart account with a software passkey
+and a friendbot-funded deployer (no keeper secret needed); the wallet and keys are kept under `swap` in
+`.phase0-state.json`.
+
+| Step | Tx | Result |
+|---|---|---|
+| wallet `CDDVMGPWRMI4RRLQQ7R255SA3GKHA4C7E6N37EIZFQEUX7EYKP4YEOJN` deployed | `678cd4ac7ac2c0d49c1fc829969d7abc9081db55fd9c52bddc857c598c87ed09` | |
+| 15 XLM from the deployer | `f7867aa293efa6dd5e3d530be480ebc60da48debde8ccc97d89abd7add007d26` | charged 25.96 XLM |
+| deployer buys 2 USDC on the classic DEX | `ac53c7c1c7833ee244ef58eb814786223dd7e90c92f9cd7894882e76abd0e10e` | |
+| 2 USDC to the wallet | `ba85378bddf91669112e1071dcccdaa363f78301104d3e766812dbea1abb0113` | charged 26.83 XLM |
+| swap 1 USDC -> XLM, Aquarius CALPNC > CDRT5V > CD3LFM | `5c7c8a1c27adaaac5a5f35989649fba1cbe88d76648ae68501741eded68bfb90` | +125.0817203 XLM, exactly the quote; charged 84.51 XLM |
+| swap 0.5 USDC -> XLM, same route | `fb82d9356096c5ebc6aae129fcda5f2fa8fe4c7196ae1ada04b03ae5dda6a35d` | +62.4689984 XLM, exactly the quote |
+
+Why the fees were high: testnet's live Soroban state was 4.14 GB, above the network's 4 GB target
+(`soroban_state_target_size_bytes`), and above the target the rent and write price climbs steeply (growth factor
+5000). Every Soroban transaction on testnet paid for it, so a plain SAC transfer was charged about 26 XLM and the
+first swap 84.51 XLM; routes that restore archived pools quoted 553 to 4,442 XLM, past the 429 XLM a transaction fee
+can carry. Nothing on our side caused it, and mainnet (1.70 GB) was unaffected. During the session the validators
+raised the target to 7 GB; fees fell back at once (same route, 29.76 XLM before, 0.0157 XLM after).
+
+| Swap after the fix | Tx | Result |
+|---|---|---|
+| 20 XLM -> USDC over the Aquarius pools walked backwards (`--reverse`, floor from a simulation) | `6dadde70770785f719ba8f55f57de0a9c444549494a4bd605193ebf18b53c66e` | +0.1586848 USDC, charged 0.0051 XLM |
+| 10 XLM -> USDC, the quote server's own route, Soroswap CDAJDQ > CCAQMK > CDWVNW (restores 14 archived entries) | `6239e0e5c386cb103bf25387f957de50a914c620c81d1943d69df47066a191fc` | +9.6905214 USDC, exactly the quote, fee 0.19 XLM |
+| 1 USDC -> XLM, Aquarius | `af08bd852e48307bdf2e2b33e468d4d5fa4b8fe0e8ad3602e275d736357de794` | +124.8251468 XLM, fee 0.016 XLM |
+
+Testnet pool prices disagree with each other: Soroswap prices 1 XLM at about 0.97 USDC, the Aquarius path at about
+0.008 USDC. Any floor the router derives from an oracle has to allow for that on testnet, or the demo pairs and
+venues must be chosen so the oracle and the pool agree.
+
+`pnpm swap-diag USDC 1 3 1` prints a route's resources and each footprint entry's TTL. The swap script refuses a
+resource fee above 5 XLM unless `--max-fee` raises it. A two-hop quote (`max_hops=2`) returned no `routeXdr`.
+`koul_router` and `koul_agent_policy` instances report a live-until ledger of 0 (archived); their next transaction
+restores them, which at normal fees is cheap.
+
+## Swap rules and the agent session, proven on a staging router (2026-10-25)
+
+Router (wasm `54d4f5b48b822b5fac4c462c8d1b1f5ddc13ca28eeacbbe58abf30aac516dc01`) gains two actions,
+`SwapFromWallet(token_in, token_out, amount, max_slippage_bps)` and `WithdrawAndSwap(hub, token_out, amount,
+max_slippage_bps)`, two conditions, `TokenPrice(token, cmp, level)` and `TokenBalance(token, cmp, amount)`, an admin
+feed registry (`set_feed`: Reflector oracle asset with a staleness limit, or a fixed price), `set_aggregator`,
+`set_policy`, and a `next_action` view. `tick` takes `route: Option<Bytes>`. For a swap the router reads the route's
+token pair and rejects a mismatch (7209), sets the input amount itself, measures what the wallet received and reverts
+below its own floor (7210): the oracle-implied output less the rule's slippage. A swap without a route is 7208.
+
+Policy (wasm `136b671b879d2d6688b0edd291c5e89d464d155dc79992f5fe63e5dde2ee4e89`), deployed at
+`CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ` (upload `4aeaea55...`, deploy `43683cc0...`): an
+allowlisted `tick` opens a session for the smart account and ledger, every other call needs it (7110), and the router
+closes it with `end_session`; `execute_strategy` must name the wallet as sender (7111).
+
+Staging router `CDWXYQFKEUHRWAPKPN3RSWFU5FLMU2NXLHR5YUCBUSZ2Q3KGBSUJME3S` (admin: the swap deployer), feeds XLM and
+USDC on Reflector CEX testnet `CCYOZJCO...` with a 900 s limit, aggregator `CDNTWMWW...`, policy `CAKEUMCI...`.
+`pnpm swap-rules` on the swap wallet, then the real keeper:
+
+| Step | Tx | Result |
+|---|---|---|
+| supply 2 USDC to hub 1 (XOXNO account 106) | `8f1df96c072457d614d8f59bebc2de0ff2910157f22e701e1ce8f25da1d65b37` | |
+| grant the agent under the new policy, aggregator allowlisted | `26248b5316607b28ae06950541bdb0b749880e47388eec4834c09becd6fed5cb` | |
+| set_autopilot: sell 20 XLM at 100+ XLM held; withdraw 1 USDC from hub 1 into XLM | `5d86af9fd8198e8449e2d15405a34d4a1dee75f66e51e68d6eb031069138062b` | |
+| keeper tick, rule 0, agent-signed, `tick > execute_strategy > transfer` | `a676b4822fde88c2abd82ed85113f8a2d424411c296b75968c1b18413fa08848` | 20 XLM -> 17.15 USDC (floor 3.28), 0.17 XLM fee |
+| keeper tick, rule 1, `tick > withdraw > execute_strategy > transfer` | `29a8aa974fa1ca3df2b24458c9e79854a6c5c4cd102e62bfc5ca08db37da064e` | 1 USDC from hub 1 -> 124.65 XLM (floor 5.73) |
+
+`pnpm session-deny`: the same agent key sending `execute_strategy`, `controller.withdraw` to the wallet and
+`usdc.transfer` to the aggregator straight at the contracts, all allowlisted calls, was rejected with 7110 each time.
+So the session holds with a real smart account: the policy sees `tick` first.
+
+Quote server: its default `platform` is now `all`, which can answer with a classic DEX path payment (`hops: []`,
+`platform: "sdex"`, no `routeXdr`) that a contract cannot make. `quoteSwap` asks for `platform=aggregator`.
+
+## Production router with swaps: a fresh deploy (2026-10-25)
+
+The old router `CBHRTWXA...` can only be upgraded by its admin, the keeper account, and that secret is not on this
+machine (Vercel and GitHub keep it write-only). So the new wasm went to a fresh router, as the team chose. Its admin is
+a new account, `GCCIYVPBXI32GMYEHOVSELTNUKVKXKC37ACZJQ3HKJQAG4WOQEHLBYG4`, whose secret is `ROUTER_ADMIN_SECRET` in
+`keeper/.env` (gitignored; keep a copy).
+
+| Step | Result |
+|---|---|
+| deploy wasm `54d4f5b4...` | router `CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D`, same controller, pool, USDC, mock FX oracle and spoke 3 |
+| `set_feed` XLM and USDC | Reflector CEX `CCYOZJCO...`, `Other(XLM)` / `Other(USDC)`, 900 s limit, 7 decimals |
+| `set_aggregator` | `CDNTWMWW...` |
+| `set_policy` | `CAKEUMCI...` |
+
+Web, keeper workflow, README and the smoke script point at the new router and policy. Every wallet saves its rules
+again on the new router (the old one keeps its state but nothing ticks it any more); arming grants the new policy.
+The keeper workflow lives in `atahanyild/koul`, which holds `KEEPER_SECRET` and `AGENT_SECRET`; it now checks out
+`koul-me/koul` and runs that keeper, so the code ships from one repo.

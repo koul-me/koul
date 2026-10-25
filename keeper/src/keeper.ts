@@ -4,10 +4,14 @@
  * entries with the agent Ed25519 key (one context_rule_id per auth context) and submit. The keeper never decides
  * anything: the router evaluates the rules on-chain, and koul_agent_policy confines what the agent key can authorise.
  * The keeper keeps no per-user state: users come from `list_users`, autopilots from `list_ids`, the agent rule id from
- * the wallet's context rules.
+ * the wallet's context rules. A swap rule needs a route, which only the XOXNO quote server can find: `next_action`
+ * says when and for what amount, the keeper quotes it and passes the route to `tick`. The router checks the route's
+ * pair, sets the amount itself and reverts below its own oracle floor, so a bad route costs a failed simulation, never
+ * the user's funds.
  *   pnpm tsx src/keeper.ts [--once] [--interval 30] [--quiet]
  */
 import { BASE_FEE, Contract, TransactionBuilder, contract, nativeToScVal, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { checkSwapDeployment, quoteSwap, type Planned } from "@koul/core";
 import { ForbiddenAuthenticator, RP_ID, ORIGIN, TESTNET, countContexts, describeEntries, json, keeperKeypair, loadEnv, loadState, makeKit } from "./lib/common";
 
 const env = loadEnv();
@@ -53,20 +57,44 @@ type RouterClient = {
   list_users: () => Promise<contract.AssembledTransaction<string[]>>;
   list_ids: (a: { user: string }) => Promise<contract.AssembledTransaction<number[]>>;
   check: (a: { user: string; id: number }) => Promise<contract.AssembledTransaction<RuleState[]>>;
-  tick: (a: { user: string; id: number }) => Promise<contract.AssembledTransaction<Executed | undefined>>;
+  tick: (a: { user: string; id: number; route?: Buffer }) => Promise<contract.AssembledTransaction<Executed | undefined>>;
+  next_action: (a: { user: string; id: number }) => Promise<contract.AssembledTransaction<Planned | undefined>>;
 };
+/** Slippage asked of the quote server. The router's own floor, from its oracle, is what protects the user. */
+const QUOTE_SLIPPAGE = 0.01;
+let swapDeploymentChecked = false;
 const router = (await contract.Client.from({ contractId: ROUTER, networkPassphrase: TESTNET.networkPassphrase, rpcUrl: TESTNET.rpcUrl, publicKey: keeper.publicKey() })) as unknown as RouterClient;
 
 const stamp = () => new Date().toISOString();
 const tag = (user: string, id: number) => `${user.slice(0, 8)}#${id}`;
-const describe = (x: Executed) => `${x.kind} rule ${x.rule_index} amount ${(Number(x.amount) / 1e7).toFixed(2)} USDC hub ${x.from_hub} -> ${x.to_hub}`;
+const describe = (x: Executed) => x.kind.endsWith("swap")
+  ? `${x.kind} rule ${x.rule_index} amount ${x.amount} of the input token${x.from_hub ? ` from hub ${x.from_hub}` : ""}`
+  : `${x.kind} rule ${x.rule_index} amount ${(Number(x.amount) / 1e7).toFixed(2)} USDC hub ${x.from_hub} -> ${x.to_hub}`;
 const describeState = (st: RuleState[]) => st.map((r, i) => `r${i}${r.ready ? "" : " cooling"}${r.holds ? " HOLDS" : ""}[${r.conditions.map((c) => `${c.holds ? "+" : "-"}${c.observed}`).join(" ")}]`).join(" ");
 
 async function tickOne(user: string, id: number, agentRuleId: number, kit: ReturnType<typeof makeKit>, selected: Awaited<ReturnType<typeof kit.multiSigners.buildSelectedSigners>>): Promise<void> {
   const log = (m: string) => console.log(`${stamp()} ${tag(user, id)} ${m}`);
+  let route: Buffer | undefined;
+  try {
+    const planned = (await router.next_action({ user, id })).result;
+    if (planned?.needs_route) {
+      if (!swapDeploymentChecked) { await checkSwapDeployment(); swapDeploymentChecked = true; }
+      const q = await quoteSwap({ from: planned.token_in, to: planned.token_out, amountIn: BigInt(planned.amount), slippage: QUOTE_SLIPPAGE, maxHops: 3, maxSplits: 1 });
+      const floor = BigInt(planned.min_out);
+      if (q.amountOut < floor) {
+        log(`swap rule ${planned.rule_index}: best route pays ${q.amountOut}, under the router's floor ${floor}; skipping`);
+        return;
+      }
+      route = xdr.ScVal.fromXDR(q.routeXdr, "base64").toXDR();
+      log(`swap rule ${planned.rule_index}: ${planned.amount} of ${planned.token_in.slice(0, 6)} -> ${planned.token_out.slice(0, 6)}, route ${q.hops.map((h) => `${h.dex}:${h.pool.slice(0, 6)}`).join(">")} expects ${q.amountOut}, floor ${floor}`);
+    }
+  } catch (err) {
+    log(`no swap route, skipping: ${(err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 300)}`);
+    return;
+  }
   let tx: contract.AssembledTransaction<Executed | undefined>;
   try {
-    tx = await router.tick({ user, id });
+    tx = await router.tick({ user, id, route });
   } catch (err) {
     log(`simulation failed, skipping: ${(err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 300)}`);
     return;

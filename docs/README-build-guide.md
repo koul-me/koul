@@ -77,8 +77,8 @@ Two signing paths exist and only two.
 
 | Item | Address or value |
 |---|---|
-| Router `koul_router` | `CBHRTWXARGZCUDBE7IX4SZV7GDFA6PRQICZQPUSOUPN3YDCVPXQBMT2P` (admin is the keeper G-account, upgradeable in place with `upgrade`, keep this address) |
-| Agent policy `koul_agent_policy` | `CBDQPSGJDJUGLUIYTLAVH7C7FQE3ZN2HXOKYELNPEEUHFPV52QRI5AR2` |
+| Router `koul_router` | `CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D` (admin is the keeper G-account, upgradeable in place with `upgrade`, keep this address) |
+| Agent policy `koul_agent_policy` | `CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ` |
 | Mock FX oracle `koul_mock_fx` | `CB6VNXADXR3XHCS4EKV5ZR5UJUZYQ5BZTPRHCNQE3XMKQMB4LJG6MKW2` |
 | Headless test wallet (software passkey) | `CBHMG4IGCLP36WJUMYR55N2TGDSZ4C5V6YQSBT4HWT6A77DCL3Y7UUFL`, XOXNO account 12, rules `0:multisig` and `7:koul-agent-bhrtwx` |
 | Keeper G-account (fees, sponsor, oracle admin, router admin) | `GAFHZTSL63YZYU35SCHDOGOMXQ25266DBQYG7KETG6HC2AHBIZMGXP6U` |
@@ -164,7 +164,7 @@ Upgrading the live router in place, so the address and every user's rules surviv
 source scripts/env.sh
 stellar contract upload --wasm target/wasm32v1-none/release/koul_router.wasm --source niet-testnet --network testnet
 # prints the new wasm hash, then
-stellar contract invoke --id CBHRTWXARGZCUDBE7IX4SZV7GDFA6PRQICZQPUSOUPN3YDCVPXQBMT2P --source niet-testnet --network testnet -- upgrade --new_wasm_hash <hash>
+stellar contract invoke --id CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D --source niet-testnet --network testnet -- upgrade --new_wasm_hash <hash>
 ```
 
 `niet-testnet` is the stellar CLI identity holding the keeper secret (created before the rename; the name is local to this machine). Create yours with `stellar keys add niet-testnet --secret-key` and paste the same secret that goes into `KEEPER_SECRET` below.
@@ -187,8 +187,8 @@ Fill `.env`:
 | `ANCHOR_HOME_DOMAINS`, `ANCHOR_ASSET_CODE` | `tr-mock-anchor.fly.dev`, `USDC` |
 | `KEEPER_SECRET` | a funded testnet G-secret. Pays fees, sponsors landing accounts, is the mock oracle admin and the router admin. Fund a new one with friendbot |
 | `AGENT_SECRET` | the Ed25519 secret whose public key users grant. Any `stellar keys generate --as-secret` output. Its public key goes into the web app as `NEXT_PUBLIC_KOUL_AGENT_PUBLIC_KEY` |
-| `ROUTER_V1` | `CBHRTWXARGZCUDBE7IX4SZV7GDFA6PRQICZQPUSOUPN3YDCVPXQBMT2P` |
-| `KOUL_POLICY` | `CBDQPSGJDJUGLUIYTLAVH7C7FQE3ZN2HXOKYELNPEEUHFPV52QRI5AR2` |
+| `ROUTER_V1` | `CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D` |
+| `KOUL_POLICY` | `CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ` |
 | `MOCK_FX` | `CB6VNXADXR3XHCS4EKV5ZR5UJUZYQ5BZTPRHCNQE3XMKQMB4LJG6MKW2` |
 | `ROUTER`, `NOOP_POLICY`, `DENY_POLICY` | phase 0 probe addresses, only needed by `scripts/phase0/*` |
 

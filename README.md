@@ -66,8 +66,8 @@ graph TD
     end
 
     subgraph Koul["Koul contracts"]
-        R["koul_router<br/>CBHRTWXA…MT2P<br/>set_autopilot · tick · check"]
-        POL["koul_agent_policy<br/>CBDQPSGJ…5AR2<br/>enforce per auth context"]
+        R["koul_router<br/>CD5VSBUX…AO2D<br/>set_autopilot · next_action · tick · check"]
+        POL["koul_agent_policy<br/>CAKEUMCI…KKNZ<br/>enforce per auth context, tick sessions"]
         FX["koul_mock_fx<br/>CB6VNXAD…MKW2<br/>Reflector read interface"]
     end
 
@@ -270,8 +270,8 @@ footprint". The next pass succeeds; the keeper treats it as any other failed sub
 
 | Contract | Address | WASM hash |
 |---|---|---|
-| `koul_router` | [`CBHRTWXARGZCUDBE7IX4SZV7GDFA6PRQICZQPUSOUPN3YDCVPXQBMT2P`](https://stellar.expert/explorer/testnet/contract/CBHRTWXARGZCUDBE7IX4SZV7GDFA6PRQICZQPUSOUPN3YDCVPXQBMT2P) | `608bca585be781d8f5edb8aa6d1e7a51d6b975cce1f15e624e198b81d1eb1aa4` |
-| `koul_agent_policy` | [`CBDQPSGJDJUGLUIYTLAVH7C7FQE3ZN2HXOKYELNPEEUHFPV52QRI5AR2`](https://stellar.expert/explorer/testnet/contract/CBDQPSGJDJUGLUIYTLAVH7C7FQE3ZN2HXOKYELNPEEUHFPV52QRI5AR2) | `ad6bddd790970182a9a6bf86d537c8f07e63b4660bdfbcdb68cef5d54aea32f7` |
+| `koul_router` | [`CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D`](https://stellar.expert/explorer/testnet/contract/CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D) | `54d4f5b48b822b5fac4c462c8d1b1f5ddc13ca28eeacbbe58abf30aac516dc01` |
+| `koul_agent_policy` | [`CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ`](https://stellar.expert/explorer/testnet/contract/CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ) | `136b671b879d2d6688b0edd291c5e89d464d155dc79992f5fe63e5dde2ee4e89` |
 | `koul_mock_fx` | [`CB6VNXADXR3XHCS4EKV5ZR5UJUZYQ5BZTPRHCNQE3XMKQMB4LJG6MKW2`](https://stellar.expert/explorer/testnet/contract/CB6VNXADXR3XHCS4EKV5ZR5UJUZYQ5BZTPRHCNQE3XMKQMB4LJG6MKW2) | `68d24e0791f6c6dac01f97ff048eac19f431905bb9de63cf139bbdf1d38532f0` |
 
 Contracts we integrate with, for reference:
@@ -281,6 +281,8 @@ Contracts we integrate with, for reference:
 | XOXNO controller | [`CCXRWJ6SIU2WPFEGLFGJVITPL57QAYIMIO6OAM2NBGNDQSSCK2FFV3F3`](https://stellar.expert/explorer/testnet/contract/CCXRWJ6SIU2WPFEGLFGJVITPL57QAYIMIO6OAM2NBGNDQSSCK2FFV3F3) |
 | XOXNO pool | [`CBSGF6QOQAMPFBEVSYPEQHSZRIHJ6RCGUPCRDMUX36DEKRWFAO2PZB5A`](https://stellar.expert/explorer/testnet/contract/CBSGF6QOQAMPFBEVSYPEQHSZRIHJ6RCGUPCRDMUX36DEKRWFAO2PZB5A) |
 | XOXNO position NFT | [`CDVN5JU675MEDPVRPCYC45AHFC275UH57WEU5OTFE4WFGZBNN7HTLPSY`](https://stellar.expert/explorer/testnet/contract/CDVN5JU675MEDPVRPCYC45AHFC275UH57WEU5OTFE4WFGZBNN7HTLPSY) |
+| XOXNO swap aggregator | [`CDNTWMWW2WGYTKIZTJYNGNVQQZI4KTC5BQRZ3275KESRX5T4O3AYECL5`](https://stellar.expert/explorer/testnet/contract/CDNTWMWW2WGYTKIZTJYNGNVQQZI4KTC5BQRZ3275KESRX5T4O3AYECL5), routes from `testnet-stellar-swap.xoxno.com` |
+| Reflector CEX feed (XLM, USDC prices for swap floors) | [`CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63`](https://stellar.expert/explorer/testnet/contract/CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63) |
 | USDC (SAC) | [`CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`](https://stellar.expert/explorer/testnet/contract/CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA) |
 | Smart account wasm | `1b5f4534a76322da2ad7c745f6900857a6802b0ca79850c35a03561df997785a` |
 | WebAuthn verifier | [`CC7EKIHQP3TN4CARQDND6CEOY2UXLWWC2X5GHTD5NLAT7BG5GPZIOM3F`](https://stellar.expert/explorer/testnet/contract/CC7EKIHQP3TN4CARQDND6CEOY2UXLWWC2X5GHTD5NLAT7BG5GPZIOM3F) |
@@ -328,7 +330,7 @@ source scripts/env.sh
 stellar contract build                      # all three
 cd contracts/koul_router && cargo test      # 10 unit and scenario tests
 stellar contract upload --wasm target/wasm32v1-none/release/koul_router.wasm --source <identity> --network testnet
-stellar contract invoke --id CBHRTWXARGZCUDBE7IX4SZV7GDFA6PRQICZQPUSOUPN3YDCVPXQBMT2P \
+stellar contract invoke --id CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D \
   --source <identity> --network testnet -- upgrade --new_wasm_hash <hash>
 ```
 

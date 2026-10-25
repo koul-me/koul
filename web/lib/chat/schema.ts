@@ -6,14 +6,14 @@
 import { z } from "zod";
 
 export const conditionSchema = z.object({
-  kind: z.enum(["fx_price", "health_factor", "rate_gap", "idle_usdc", "pool_rate"]),
+  kind: z.enum(["fx_price", "health_factor", "rate_gap", "idle_usdc", "pool_rate", "xlm_price", "xlm_balance"]),
   comparator: z.enum(["gte", "lte"]),
   value: z.number().finite().positive(),
   pool: z.enum(["A", "B"]).optional(),
 }).strict();
 
 export const actionSchema = z.object({
-  kind: z.enum(["withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool", "supply_from_wallet"]),
+  kind: z.enum(["withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool", "supply_from_wallet", "sell_xlm", "buy_xlm", "withdraw_to_xlm"]),
   amount: z.union([z.literal("all"), z.number().finite().min(1), z.object({ percent: z.number().int().min(1).max(100) }).strict()]),
   pool: z.enum(["A", "B"]).optional(),
 }).strict();
@@ -46,7 +46,7 @@ export const chatReplySchema = z.object({
 
 export type ChatReplyWire = z.infer<typeof chatReplySchema>;
 
-/** The readings the assistant may quote: TRY per USD, loan health, hub rates as APY percent, idle USDC. */
+/** The readings the assistant may quote: TRY per USD, loan health, hub rates as APY percent, idle USDC, XLM in USD and XLM held. */
 export const liveContextSchema = z.object({
   fx: z.number().nullable(),
   healthFactor: z.number().nullable(),
@@ -54,6 +54,8 @@ export const liveContextSchema = z.object({
   rateA: z.number().nullable(),
   rateB: z.number().nullable(),
   idleUsdc: z.number().nullable(),
+  xlmPrice: z.number().nullable(),
+  idleXlm: z.number().nullable(),
 });
 export type LiveContext = z.infer<typeof liveContextSchema>;
 

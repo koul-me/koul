@@ -22,9 +22,12 @@ export function describeParams(p: AgentParams | null): string {
   if (fns.has("supply")) can.push("put USDC from your wallet into your XOXNO lending account");
   if (fns.has("withdraw")) can.push("bring USDC from that position back to your wallet");
   if (fns.has("repay")) can.push("repay its debt");
+  const swaps = p.allowedCalls.some(([c, f]) => c === KOUL.aggregator && f === "execute_strategy");
+  if (swaps) can.push("swap between XLM and USDC in your wallet through XOXNO, never below the oracle price less 1%");
   const ticks = p.allowedCalls.some(([c, f]) => c === KOUL.router && f === "tick");
   const first = can.length ? `Koul acts for you with a limited key. It can only ${can.join(", ")} on account ${p.accountId}` : ticks ? "Koul acts for you with a limited key that can only run your rules" : "Koul acts for you with a limited key";
-  const recipients = p.transferRecipients.length ? ", and send USDC only to the XOXNO pool" : "";
+  const toPool = p.transferRecipients.includes(XOXNO.pool), toAggregator = p.transferRecipients.includes(KOUL.aggregator);
+  const recipients = toPool && toAggregator ? ", and send tokens only to the XOXNO pool or the swap aggregator" : toPool ? ", and send USDC only to the XOXNO pool" : toAggregator ? ", and send tokens only to the swap aggregator" : "";
   return `${first}${recipients}. Never anywhere else, at most ${p.maxCallsPerWindow} calls per ${Math.round((p.windowLedgers * 5) / 60)} minutes, and it stops when access ends.`;
 }
 

@@ -6,3 +6,4 @@ export * from "./permissions";
 export * from "./templates";
 export * from "./write";
 export * from "./cashout";
+export * from "./swap";

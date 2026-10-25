@@ -1,11 +1,12 @@
-import { Address, contract, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { Address, contract, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { createDefaultContext, createEd25519Signer, type SmartAccountKit } from "smart-account-kit";
 import { encodeAutopilot } from "./codec";
 import { permissionsFor } from "./permissions";
 import type { KoulConfig } from "./read";
 import type { Autopilot } from "./schema";
+import { XOXNO_SWAP, type SwapQuote } from "./swap";
 
-export interface KoulWriteConfig extends KoulConfig { policy: string; ed25519Verifier: string; spoke: number }
+export interface KoulWriteConfig extends KoulConfig { policy: string; ed25519Verifier: string; spoke: number; aggregator?: string }
 type Call = (args: Record<string, unknown>) => Promise<contract.AssembledTransaction<unknown>>;
 type Controller = { supply: Call; withdraw: Call; borrow: Call };
 const sym = (s: string) => xdr.ScVal.scvSymbol(s);
@@ -30,7 +31,7 @@ export class KoulWriter {
   /** Returns the unsigned kit transaction. The frontend submits it with kit.signAndSubmit. */
   async buildGrantAgent(kit: SmartAccountKit, ap: Autopilot, agentRawPublicKey: Uint8Array, days: number, name: string, maxCalls = 40, windowLedgers = 2000): Promise<contract.AssembledTransaction<unknown>> {
     if (!Number.isInteger(days) || days < 1 || days > 30) throw new Error("days must be 1..30");
-    const perms = permissionsFor(ap, this.config);
+    const perms = permissionsFor(ap, { ...this.config, aggregator: this.config.aggregator ?? XOXNO_SWAP.router });
     const params = xdr.ScVal.scvMap([
       new xdr.ScMapEntry({ key: sym("account_id"), val: nativeToScVal(BigInt(ap.account_id), { type: "u64" }) }),
       new xdr.ScMapEntry({ key: sym("allowed_calls"), val: xdr.ScVal.scvVec(perms.allowedCalls.map(([id, fn]) => xdr.ScVal.scvVec([addr(id), sym(fn)]))) }),
@@ -56,6 +57,12 @@ export class KoulWriter {
   async buildBorrow(user: string, accountId: bigint, hub: number, amount: bigint): Promise<contract.AssembledTransaction<unknown>> {
     if (amount <= 0n) throw new Error("amount must be positive");
     return (await this.controller()).borrow({ caller: user, account_id: accountId, borrows: [[this.key(hub), amount]], to: user });
+  }
+  /** `execute_strategy(user, amount_in, route)` on the XOXNO aggregator: pulls `amountIn` from the wallet, pays out at least `minOut`. */
+  buildSwap(user: string, quote: SwapQuote, router: string = XOXNO_SWAP.router): Promise<contract.AssembledTransaction<bigint>> {
+    // The route arrives as base64 ScVal XDR; the router takes its serialized bytes.
+    const route = xdr.ScVal.fromXDR(quote.routeXdr, "base64").toXDR();
+    return this.build(router, "execute_strategy", [addr(user), nativeToScVal(quote.amountIn, { type: "i128" }), xdr.ScVal.scvBytes(route)], (v) => BigInt(scValToNative(v) as bigint));
   }
   buildTransfer(from: string, to: string, amount: bigint): Promise<contract.AssembledTransaction<null>> {
     if (amount <= 0n) throw new Error("amount must be positive");

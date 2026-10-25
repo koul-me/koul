@@ -18,13 +18,13 @@ export const library = createLocalStore<LibraryEntry[]>("koul.library", []);
 export const MAX_NAME = 40;
 
 const conditionSchema = z.object({
-  kind: z.enum(["rate_gap", "pool_rate", "health_factor", "fx_price", "idle_usdc"]),
+  kind: z.enum(["rate_gap", "pool_rate", "health_factor", "fx_price", "idle_usdc", "xlm_price", "xlm_balance"]),
   comparator: z.enum(["gte", "lte"]),
   value: z.number().finite(),
   pool: z.enum(["A", "B"]).optional(),
 });
 const actionSchema = z.object({
-  kind: z.enum(["supply_from_wallet", "move_to_best_pool", "repay_from_wallet", "withdraw_to_wallet"]),
+  kind: z.enum(["supply_from_wallet", "move_to_best_pool", "repay_from_wallet", "withdraw_to_wallet", "sell_xlm", "buy_xlm", "withdraw_to_xlm"]),
   amount: z.union([z.literal("all"), z.number().positive().finite(), z.object({ percent: z.number().int().min(1).max(100) })]),
   pool: z.enum(["A", "B"]).optional(),
 });

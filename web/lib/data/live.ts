@@ -101,6 +101,15 @@ export async function readWalletPortfolio(address: string): Promise<WalletPortfo
   };
 }
 
+export interface TokenPrice { usd: number; timestamp: number; ageSec: number; stale: boolean }
+
+/** XLM in USD on Reflector's testnet feed, with the staleness limit the router's feed uses. */
+export async function readXlmPrice(): Promise<TokenPrice> {
+  const o = await reader.readOracle("XLM", KOUL.priceOracle);
+  if (!o) throw new Error("Reflector has no XLM price");
+  return { usd: Number(o.price) / 10 ** o.decimals, timestamp: Number(o.timestamp), ageSec: o.ageSeconds, stale: o.ageSeconds > MAX_PRICE_AGE_SECS };
+}
+
 /** USD/TRY read directly from the mock oracle; the admin write lives in the oracle-admin app. */
 export async function readFx(): Promise<FxPrice> {
   const o = await reader.readOracle("TRY");
