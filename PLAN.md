@@ -32,7 +32,9 @@ email field (`components/landing/waitlist-form.tsx`). Signups: `POST /api/waitli
 auto-upgrade off) is connected to project `koul`, `NEXT_PUBLIC_KOUL_WAITLIST=1` and 20 `KOUL_INVITE_CODES` (judge, team,
 beta prefixes) are set for Production. More codes: `pnpm invite-codes`, append on Vercel, redeploy. A new signup emails a
 confirmation to the person and a notice to `WAITLIST_NOTIFY_TO` through Resend (free plan, koul.me verified, DNS
-records on Vercel with a DMARC p=none). API routes are not gated.
+records on Vercel with a DMARC p=none). Approving: the owner's notice has an Approve link (confirm page, then POST)
+that makes a personal `inv-` code in Redis and emails the invite; "Have a code?" on the landing and the waitlist page.
+`WAITLIST_SECRET` is set for Production. API routes are not gated.
 
 2026-09-22 (hosts): the landing is https://koul.me and the app is https://app.koul.me (added to Vercel project `koul`,
 DNS on Vercel). One project serves both: `web/proxy.ts` with the rules in `web/lib/app-host.ts` (tested). On app.koul.me

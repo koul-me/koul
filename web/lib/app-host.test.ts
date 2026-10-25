@@ -54,30 +54,51 @@ describe("app links", () => {
 
 describe("waitlist gate", () => {
   const on = { on: true, codes: "judge-abc, team-def\nfriend-ghi" };
+  // Personal codes, faked: inv-good exists; its cookie is "inv-good.sig".
+  const personal = {
+    verify: async (c: string) => c === "inv-good.sig",
+    exists: async (c: string) => c === "inv-good",
+    sign: async (c: string) => `${c}.sig`,
+  };
 
-  it("lets everyone in when the waitlist is off", () => {
-    expect(gateFor("/autopilot", "", { on: false, codes: "judge-abc" })).toEqual({ kind: "open" });
+  it("lets everyone in when the waitlist is off", async () => {
+    expect(await gateFor("/autopilot", "", { on: false, codes: "judge-abc" })).toEqual({ kind: "open" });
   });
 
-  it("shows the waitlist without the cookie, or with a revoked one", () => {
-    expect(gateFor("/", "", on)).toEqual({ kind: "waitlist" });
-    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "old-code" })).toEqual({ kind: "waitlist" });
-    expect(gateFor("/", "?invite=wrong", on)).toEqual({ kind: "waitlist" });
+  it("shows the waitlist without the cookie, or with a revoked one", async () => {
+    expect(await gateFor("/", "", on)).toEqual({ kind: "waitlist", invalid: false });
+    expect(await gateFor("/autopilot", "?load=abc", { ...on, cookie: "old-code" })).toEqual({ kind: "waitlist", invalid: false });
   });
 
-  it("lets any listed code's cookie through", () => {
-    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "team-def" })).toEqual({ kind: "open" });
-    expect(gateFor("/", "", { ...on, cookie: "friend-ghi" })).toEqual({ kind: "open" });
+  it("says when a tried code does not work", async () => {
+    expect(await gateFor("/", "?invite=wrong", on)).toEqual({ kind: "waitlist", invalid: true });
+    expect(await gateFor("/", "?invite=inv-nope", { ...on, personal })).toEqual({ kind: "waitlist", invalid: true });
   });
 
-  it("admits a listed invite in any case and drops only the invite parameter", () => {
-    expect(gateFor("/", "?invite=judge-abc", on)).toEqual({ kind: "admit", to: "/", code: "judge-abc" });
-    expect(gateFor("/app/autopilot", "?load=abc&invite=TEAM-DEF", on)).toEqual({ kind: "admit", to: "/app/autopilot?load=abc", code: "team-def" });
+  it("lets any listed code's cookie through", async () => {
+    expect(await gateFor("/autopilot", "?load=abc", { ...on, cookie: "team-def" })).toEqual({ kind: "open" });
+    expect(await gateFor("/", "", { ...on, cookie: "friend-ghi" })).toEqual({ kind: "open" });
   });
 
-  it("has no way in when no codes are set", () => {
-    expect(gateFor("/", "?invite=", { on: true, cookie: "" })).toEqual({ kind: "waitlist" });
-    expect(gateFor("/", "?invite=", { on: true, codes: " , ", cookie: "" })).toEqual({ kind: "waitlist" });
+  it("admits a listed invite in any case and drops only the invite parameter", async () => {
+    expect(await gateFor("/", "?invite=judge-abc", on)).toEqual({ kind: "admit", to: "/", cookie: "judge-abc" });
+    expect(await gateFor("/app/autopilot", "?load=abc&invite=TEAM-DEF", on)).toEqual({ kind: "admit", to: "/app/autopilot?load=abc", cookie: "team-def" });
+  });
+
+  it("admits a personal code with a signed cookie, and lets that cookie through", async () => {
+    expect(await gateFor("/", "?invite=INV-good", { ...on, personal })).toEqual({ kind: "admit", to: "/", cookie: "inv-good.sig" });
+    expect(await gateFor("/deposit", "", { ...on, personal, cookie: "inv-good.sig" })).toEqual({ kind: "open" });
+    expect(await gateFor("/deposit", "", { ...on, personal, cookie: "inv-good.forged" })).toEqual({ kind: "waitlist", invalid: false });
+  });
+
+  it("ignores personal codes when they are off", async () => {
+    expect(await gateFor("/", "?invite=inv-good", on)).toEqual({ kind: "waitlist", invalid: true });
+    expect(await gateFor("/", "", { ...on, cookie: "inv-good.sig" })).toEqual({ kind: "waitlist", invalid: false });
+  });
+
+  it("has no way in when no codes are set", async () => {
+    expect(await gateFor("/", "", { on: true, cookie: "" })).toEqual({ kind: "waitlist", invalid: false });
+    expect(await gateFor("/", "?invite=x", { on: true, codes: " , ", cookie: "" })).toEqual({ kind: "waitlist", invalid: true });
   });
 
   it("splits the code list on commas, spaces and new lines", () => {

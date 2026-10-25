@@ -31,7 +31,7 @@ export function StartButtons({ tone = "dark", from, className }: { tone?: "dark"
   return (
     <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-3", className)}>
       {WAITLIST_ON ? (
-        <WaitlistForm tone={tone} from={from} className="w-full md:w-[480px]" />
+        <WaitlistForm tone={tone} from={from} codeTarget={APP_PATH} className="w-full md:w-[480px]" />
       ) : (
         <a href={APP_PATH} onClick={() => track("open_app", { from })} className={cn(pill, t.main)}>Open app</a>
       )}

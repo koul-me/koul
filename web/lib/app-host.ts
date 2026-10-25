@@ -51,31 +51,45 @@ export function appPathFor(base: string, pathname: string): string {
   return pathname.slice(base.length) || "/";
 }
 
-/** The cookie an invite link sets. It holds the code itself, so taking a code out of KOUL_INVITE_CODES revokes it. */
+/**
+ * The cookie an invite link sets. For an env code (KOUL_INVITE_CODES) it holds the code, so taking the code out of the
+ * list revokes it; for a personal code it holds "code.signature" (lib/invite.ts), checked without a network call.
+ */
 export const INVITE_COOKIE = "koul_invite";
 
 /** KOUL_INVITE_CODES as a list: separated by commas, spaces or new lines, compared in lower case. */
 export const parseInviteCodes = (raw = "") => raw.toLowerCase().split(/[\s,]+/).filter(Boolean);
 
-export type Gate = { kind: "open" } | { kind: "admit"; to: string; code: string } | { kind: "waitlist" };
+export type Gate = { kind: "open" } | { kind: "admit"; to: string; cookie: string } | { kind: "waitlist"; invalid: boolean };
+
+export type GateInput = {
+  on: boolean;
+  /** KOUL_INVITE_CODES, raw. */
+  codes?: string;
+  cookie?: string;
+  /** Personal codes: whether a signed cookie is good, whether a code exists, and the cookie for one. Absent = off. */
+  personal?: { verify: (cookie: string) => Promise<boolean>; exists: (code: string) => Promise<boolean>; sign: (code: string) => Promise<string> };
+};
 
 /**
  * While the waitlist is on, whether an app page opens. `path` and `search` are what the browser asked for, after
- * routeFor's redirects. `?invite=CODE` with a listed code sets the cookie and comes back to the same page without
- * the parameter; anyone else sees the waitlist in place (a rewrite, never a redirect a browser could cache).
+ * routeFor's redirects. `?invite=CODE` with a good code sets the cookie and comes back to the same page without the
+ * parameter; anyone else sees the waitlist in place (a rewrite, never a redirect a browser could cache), told when
+ * the code they tried does not work. Only a request with ?invite= ever looks a code up.
  */
-export function gateFor(path: string, search: string, gate: { on: boolean; codes?: string; cookie?: string }): Gate {
+export async function gateFor(path: string, search: string, gate: GateInput): Promise<Gate> {
   if (!gate.on) return { kind: "open" };
   const codes = parseInviteCodes(gate.codes);
-  if (gate.cookie && codes.includes(gate.cookie)) return { kind: "open" };
+  if (gate.cookie && (codes.includes(gate.cookie) || (await gate.personal?.verify(gate.cookie)))) return { kind: "open" };
   const params = new URLSearchParams(search);
   const invite = params.get("invite")?.trim().toLowerCase();
-  if (invite && codes.includes(invite)) {
-    params.delete("invite");
-    const rest = params.toString();
-    return { kind: "admit", to: `${path}${rest ? `?${rest}` : ""}`, code: invite };
-  }
-  return { kind: "waitlist" };
+  if (!invite) return { kind: "waitlist", invalid: false };
+  params.delete("invite");
+  const rest = params.toString();
+  const to = `${path}${rest ? `?${rest}` : ""}`;
+  if (codes.includes(invite)) return { kind: "admit", to, cookie: invite };
+  if (gate.personal && (await gate.personal.exists(invite))) return { kind: "admit", to, cookie: await gate.personal.sign(invite) };
+  return { kind: "waitlist", invalid: true };
 }
 
 /** True when a request that routeFor did not redirect renders an app page on this host. */
