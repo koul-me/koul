@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { IconButton, InlineConfirm, Label, Tile, TickSlider } from "@/components/signal";
 import { RuleLine } from "@/components/rules/rule-line";
-import { POOLS, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
+import { POOLS, amountUnit, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
 import { ACTION_CHOICES, CONDITION_SUBJECTS, agoShort, cooldownShort, liveLabel, observedLabel } from "@/lib/model/labels";
 import type { LiveRule } from "@/hooks/use-autopilot-live";
 import type { Editor } from "./use-editor";
@@ -39,6 +39,8 @@ function defaultsFor(kind: ConditionKind): Condition {
     case "rate_gap": return { kind, comparator: "gte", value: 1 };
     case "idle_usdc": return { kind, comparator: "gte", value: 100 };
     case "pool_rate": return { kind, comparator: "lte", value: 2, pool: "B" };
+    case "xlm_price": return { kind, comparator: "lte", value: 0.15 };
+    case "xlm_balance": return { kind, comparator: "gte", value: 100 };
   }
 }
 
@@ -92,6 +94,9 @@ function amountContext(kind: Action["kind"], live: LiveValues): { all: string; h
     case "repay_from_wallet": return { all: "the whole debt, from the wallet", have: live.idleUsdc };
     case "withdraw_to_wallet": return { all: "everything supplied", have: supplied };
     case "move_to_best_pool": return { all: "everything supplied", have: supplied };
+    case "sell_xlm": return { all: "all the XLM in the wallet", have: live.idleXlm };
+    case "buy_xlm": return { all: "every idle USDC in the wallet", have: live.idleUsdc };
+    case "withdraw_to_xlm": return { all: "everything supplied", have: supplied };
   }
 }
 
@@ -109,6 +114,7 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
     if (isFixed(action.amount) && parseAmount(text) !== action.amount) setText(String(action.amount));
   }
   const ctx = amountContext(action.kind, live);
+  const unit = amountUnit(action.kind);
   const have = ctx.have === null ? null : ctx.have.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <div className="grid gap-2">
@@ -139,11 +145,11 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
             inputMode="decimal"
             autoComplete="off"
             size={6}
-            aria-label="Amount in USDC"
+            aria-label={`Amount in ${unit}`}
             className="num w-[7ch] bg-transparent text-right outline-none placeholder:text-dim"
             placeholder="0"
           />
-          <span className="text-muted">USDC</span>
+          <span className="text-muted">{unit}</span>
         </label>
       )}
       {share !== null && (
@@ -167,13 +173,13 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
           min={MIN_AMOUNT_USDC}
           max={Math.max(MIN_AMOUNT_USDC + 1, Math.floor(ctx.have))}
           step={1}
-          label="Amount in USDC, up to what you hold"
-          format={(v) => ({ main: v.toLocaleString("en-US"), unit: "USDC" })}
+          label={`Amount in ${unit}, up to what you hold`}
+          format={(v) => ({ main: v.toLocaleString("en-US"), unit })}
           onCommit={(v) => { setText(String(v)); onChange({ ...action, amount: v }); }}
         />
       )}
       {have !== null && !fixed && (
-        <span className="label min-h-11 inline-flex items-center px-3 text-muted">{share !== null ? `${share}% of ${ctx.all} · ${have} USDC now` : `Everything = ${ctx.all} · ${have} USDC now`}</span>
+        <span className="label min-h-11 inline-flex items-center px-3 text-muted">{share !== null ? `${share}% of ${ctx.all} · ${have} ${unit} now` : `Everything = ${ctx.all} · ${have} ${unit} now`}</span>
       )}
       {typeof action.amount === "number" && ctx.have !== null && action.amount > ctx.have && (
         <Label tone="lime" className="basis-full normal-case">More than you hold now ({have}). The rule runs when you have it.</Label>

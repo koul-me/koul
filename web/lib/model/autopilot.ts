@@ -4,7 +4,7 @@
  * and `fromCoreAutopilot` maps back.
  */
 import type { Action as CoreAction, Amount as CoreAmount, Autopilot as CoreAutopilot, Condition as CoreCondition, Rule as CoreRule } from "@koul/core";
-import { LEDGER_SECONDS, MAX_PRICE_AGE_SECS, tryPerUsdToUsdPerTry, usdPerTryToTryPerUsd } from "@/lib/koul";
+import { LEDGER_SECONDS, MAX_PRICE_AGE_SECS, SWAP_SLIPPAGE_BPS, XOXNO, tryPerUsdToUsdPerTry, usdPerTryToTryPerUsd } from "@/lib/koul";
 
 // ---------------------------------------------------------------- pools
 
@@ -19,7 +19,7 @@ export const poolByHub = (hub: number): PoolId => (hub === 2 ? "B" : "A");
 // ---------------------------------------------------------------- vocabulary
 
 /** What the router can actually check. Anything outside this list is flagged, never invented. */
-export type ConditionKind = "rate_gap" | "pool_rate" | "health_factor" | "fx_price" | "idle_usdc";
+export type ConditionKind = "rate_gap" | "pool_rate" | "health_factor" | "fx_price" | "idle_usdc" | "xlm_price" | "xlm_balance";
 export type Comparator = "gte" | "lte";
 
 export interface Condition {
@@ -31,11 +31,16 @@ export interface Condition {
 }
 
 /** What the router can actually do. One action per rule. */
-export type ActionKind = "supply_from_wallet" | "move_to_best_pool" | "repay_from_wallet" | "withdraw_to_wallet";
+export type ActionKind = "supply_from_wallet" | "move_to_best_pool" | "repay_from_wallet" | "withdraw_to_wallet" | "sell_xlm" | "buy_xlm" | "withdraw_to_xlm";
+
+/** Actions that swap through the XOXNO aggregator, never below the oracle price less the slippage. */
+export const SWAP_ACTIONS: ReadonlySet<ActionKind> = new Set(["sell_xlm", "buy_xlm", "withdraw_to_xlm"]);
+/** The token an action's fixed amount is counted in: XLM when it sells XLM, USDC otherwise. */
+export const amountUnit = (kind: ActionKind) => (kind === "sell_xlm" ? "XLM" : "USDC");
 
 export interface Action {
   kind: ActionKind;
-  /** "all", a share of what the action could move (percent), or a fixed USDC amount. */
+  /** "all", a share of what the action could move (percent), or a fixed amount in `amountUnit(kind)`. */
   amount: "all" | number | { percent: number };
   /** Which pool the action names, where it needs one (supply and withdraw). Defaults to the second hub. */
   pool?: PoolId;
@@ -77,6 +82,8 @@ export const CONDITION_LABELS: Record<ConditionKind, { subject: string; unit: st
   health_factor: { subject: "my loan health", unit: "", technical: "XOXNO controller get_health_factor (WAD); liquidation at 1.00" },
   fx_price: { subject: "USD/TRY", unit: "", technical: "Reflector-shaped oracle lastprice(TRY), USD per TRY with 14 decimals, inverted" },
   idle_usdc: { subject: "idle USDC in my wallet", unit: "USDC", technical: "USDC SAC balance of the smart account" },
+  xlm_price: { subject: "the XLM price", unit: "USD", technical: "Reflector lastprice(XLM), USD per XLM with 14 decimals; a price older than 15 minutes never matches" },
+  xlm_balance: { subject: "XLM in my wallet", unit: "XLM", technical: "XLM SAC balance of the smart account" },
 };
 
 export const COMPARATOR_LABELS: Record<Comparator, string> = { gte: "is at or above", lte: "is at or below" };
@@ -97,6 +104,18 @@ export const ACTION_LABELS: Record<ActionKind, { sentence: (amount: Action["amou
   withdraw_to_wallet: {
     sentence: (a) => `withdraw ${a === "all" ? "everything" : typeof a === "number" ? `${a} USDC` : `${a.percent}% of what is supplied`} from the pools to my wallet`,
     technical: "controller.withdraw from every hub to the smart account; stays armed while over 1 USDC remains",
+  },
+  sell_xlm: {
+    sentence: (a) => `sell ${a === "all" ? "all the XLM" : typeof a === "number" ? `${a} XLM` : `${a.percent}% of the XLM`} in my wallet for USDC`,
+    technical: "aggregator.execute_strategy from the wallet, XLM to USDC; the router refuses less than the Reflector price minus 1%",
+  },
+  buy_xlm: {
+    sentence: (a) => `buy XLM with ${a === "all" ? "the idle USDC in my wallet" : typeof a === "number" ? `${a} USDC from my wallet` : `${a.percent}% of the idle USDC in my wallet`}`,
+    technical: "aggregator.execute_strategy from the wallet, USDC to XLM; the router refuses less than the Reflector price minus 1%",
+  },
+  withdraw_to_xlm: {
+    sentence: (a) => `take ${a === "all" ? "everything" : typeof a === "number" ? `${a} USDC` : `${a.percent}% of what is supplied`} out of the pools and swap it into XLM`,
+    technical: "controller.withdraw to the wallet, then aggregator.execute_strategy USDC to XLM, in one transaction, per hub",
   },
 };
 
@@ -125,6 +144,9 @@ export interface LiveValues {
   idleUsdc: number | null;
   suppliedA: number | null;
   suppliedB: number | null;
+  xlmPrice: number | null; // USD per XLM
+  xlmStale: boolean;
+  idleXlm: number | null;
 }
 
 export interface ConditionEval {
@@ -154,6 +176,8 @@ export interface AutopilotEval {
 }
 
 const fmt2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** XLM trades in cents and fractions of a cent: four decimals. */
+export const fmtPrice = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 export function evaluateCondition(c: Condition, live: LiveValues): ConditionEval {
   let now: number | null = null;
@@ -187,6 +211,15 @@ export function evaluateCondition(c: Condition, live: LiveValues): ConditionEval
     case "idle_usdc":
       now = live.idleUsdc;
       nowLabel = now === null ? "—" : `${fmt2(now)} USDC`;
+      break;
+    case "xlm_price":
+      now = live.xlmPrice;
+      nowLabel = now === null ? "—" : `$${fmtPrice(now)}${live.xlmStale ? " (stale)" : ""}`;
+      if (live.xlmStale) return { met: null, now, nowLabel };
+      break;
+    case "xlm_balance":
+      now = live.idleXlm;
+      nowLabel = now === null ? "—" : `${fmt2(now)} XLM`;
       break;
   }
   if (now === null) return { met: null, now, nowLabel };
@@ -239,6 +272,27 @@ function describeAction(r: Rule, live: LiveValues): { actionable: boolean; block
       if (total < 1) return { actionable: false, blocker: "Nothing is supplied right now", wouldDo };
       return { actionable: true, blocker: null, wouldDo };
     }
+    case "sell_xlm": {
+      const xlm = live.idleXlm ?? 0;
+      const wouldDo = `sell ${fmt2(xlm)} XLM for USDC`;
+      if (live.xlmPrice === null || live.xlmStale) return { actionable: false, blocker: "No fresh XLM price", wouldDo };
+      if (xlm * live.xlmPrice < 1) return { actionable: false, blocker: "Less than 1 USD of XLM in the wallet", wouldDo };
+      return { actionable: true, blocker: null, wouldDo };
+    }
+    case "buy_xlm": {
+      const idle = live.idleUsdc ?? 0;
+      const wouldDo = `buy XLM with ${fmt2(idle)} USDC`;
+      if (live.xlmPrice === null || live.xlmStale) return { actionable: false, blocker: "No fresh XLM price", wouldDo };
+      if (idle < 1) return { actionable: false, blocker: "No idle USDC in the wallet", wouldDo };
+      return { actionable: true, blocker: null, wouldDo };
+    }
+    case "withdraw_to_xlm": {
+      const total = a + b;
+      const wouldDo = `swap ${fmt2(total)} supplied USDC into XLM`;
+      if (live.xlmPrice === null || live.xlmStale) return { actionable: false, blocker: "No fresh XLM price", wouldDo };
+      if (total < 1) return { actionable: false, blocker: "Nothing is supplied right now", wouldDo };
+      return { actionable: true, blocker: null, wouldDo };
+    }
   }
 }
 
@@ -248,7 +302,7 @@ function describeAction(r: Rule, live: LiveValues): { actionable: boolean; block
 export function conditionSentence(c: Condition): { subject: string; verb: string; value: string; technical: string } {
   const l = CONDITION_LABELS[c.kind];
   const subject = c.kind === "pool_rate" ? `${POOLS[c.pool ?? "B"].name} pays` : l.subject;
-  const value = c.kind === "rate_gap" ? `${fmt2(c.value)} pts` : c.kind === "idle_usdc" ? `${fmt2(c.value)} USDC` : c.kind === "pool_rate" ? `${fmt2(c.value)}%` : fmt2(c.value);
+  const value = c.kind === "rate_gap" ? `${fmt2(c.value)} pts` : c.kind === "idle_usdc" ? `${fmt2(c.value)} USDC` : c.kind === "pool_rate" ? `${fmt2(c.value)}%` : c.kind === "xlm_price" ? `$${fmtPrice(c.value)}` : c.kind === "xlm_balance" ? `${fmt2(c.value)} XLM` : fmt2(c.value);
   const verb = c.kind === "rate_gap" ? (c.comparator === "gte" ? "at least" : "at most") : COMPARATOR_LABELS[c.comparator];
   return { subject, verb, value, technical: l.technical };
 }
@@ -268,6 +322,8 @@ export const RULE_DEFAULTS = {
   health_factor: { value: 1.25, cooldownSec: 5 },
   rate_gap: { value: 1, cooldownSec: 5 },
   fx_price: { value: 50, cooldownSec: 5 },
+  xlm_price: { value: 0.15, cooldownSec: 600 },
+  xlm_balance: { value: 100, cooldownSec: 600 },
 } as const;
 
 export function makeRule(partial: Partial<Rule> & Pick<Rule, "name" | "conditions" | "action">): Rule {
@@ -312,6 +368,16 @@ export const TEMPLATES: Template[] = [
     rules: () => [makeRule({ name: "Best rate", conditions: [{ kind: "rate_gap", comparator: "gte", value: 0.5 }], action: { kind: "move_to_best_pool", amount: "all" }, cooldownSec: 5 })],
   },
   {
+    id: "xlm-dip",
+    name: "Buy the XLM dip",
+    tagline: "Dollars into XLM when it is cheap, back out when it is not.",
+    description: "When XLM drops under $0.15 buy XLM with 10 USDC from my wallet, and when it is back over $0.25 sell half of my XLM for USDC.",
+    rules: () => [
+      makeRule({ name: "Buy the dip", conditions: [{ kind: "xlm_price", comparator: "lte", value: 0.15 }], action: { kind: "buy_xlm", amount: 10 }, cooldownSec: 3600 }),
+      makeRule({ name: "Take profit", conditions: [{ kind: "xlm_price", comparator: "gte", value: 0.25 }], action: { kind: "sell_xlm", amount: { percent: 50 } }, cooldownSec: 3600 }),
+    ],
+  },
+  {
     id: "loan-guard",
     name: "Loan guard",
     tagline: "Repay before liquidation, automatically.",
@@ -335,6 +401,8 @@ export const aprToApy = (apr: number) => Math.expm1(apr / 100) * 100;
 export const apyToApr = (apy: number) => Math.log1p(apy / 100) * 100;
 
 const toLedgers = (sec: number) => Math.max(1, Math.round(sec / LEDGER_SECONDS));
+/** Prices are USD with 14 decimals on Reflector and in the router. */
+const toPrice = (usd: number) => BigInt(Math.round(usd * 1e8)).toString() + "000000";
 const toUnits = (usdc: number) => BigInt(Math.round(usdc * 1e7)).toString();
 const toAmount = (a: Action["amount"]): CoreAmount => (a === "all" ? { type: "All" } : typeof a === "number" ? { type: "Fixed", value: toUnits(a) } : { type: "Percent", bps: Math.max(1, Math.min(10_000, Math.round(a.percent * 100))) });
 const fromAmount = (a: CoreAmount): Action["amount"] => (a.type === "All" ? "all" : a.type === "Fixed" ? Number(a.value) / 1e7 : a.bps >= 10_000 ? "all" : { percent: Math.max(1, Math.round(a.bps / 100)) });
@@ -360,6 +428,10 @@ function toCoreConditions(c: Condition): { variants: CoreCondition[][]; unsuppor
       const bps = Math.max(1, Math.round(apyToApr(c.value) * 100));
       return { variants: [[{ type: "SupplyRate", hub: POOLS[c.pool ?? "B"].hub, cmp: c.comparator === "gte" ? "AtOrAbove" : "Below", bps }]], unsupported: false };
     }
+    case "xlm_price":
+      return { variants: [[{ type: "TokenPrice", token: XOXNO.xlm, cmp: c.comparator === "gte" ? "AtOrAbove" : "Below", level: toPrice(c.value) }]], unsupported: false };
+    case "xlm_balance":
+      return { variants: [[{ type: "TokenBalance", token: XOXNO.xlm, cmp: c.comparator === "gte" ? "AtOrAbove" : "Below", amount: toUnits(c.value) }]], unsupported: false };
   }
 }
 
@@ -398,6 +470,18 @@ export function toCoreAutopilot(ap: Pick<Autopilot, "rules">, accountId: bigint)
         if (gapIndex >= 0) { unsupported.push(r); continue; }
         push(conditionsFor(0), { type: "SupplyFromWallet", hub: POOLS[r.action.pool ?? "B"].hub, amount });
         break;
+      case "sell_xlm":
+        if (gapIndex >= 0) { unsupported.push(r); continue; }
+        push(conditionsFor(0), { type: "SwapFromWallet", token_in: XOXNO.xlm, token_out: XOXNO.usdc, amount, max_slippage_bps: SWAP_SLIPPAGE_BPS });
+        break;
+      case "buy_xlm":
+        if (gapIndex >= 0) { unsupported.push(r); continue; }
+        push(conditionsFor(0), { type: "SwapFromWallet", token_in: XOXNO.usdc, token_out: XOXNO.xlm, amount, max_slippage_bps: SWAP_SLIPPAGE_BPS });
+        break;
+      case "withdraw_to_xlm":
+        if (gapIndex >= 0) { unsupported.push(r); continue; }
+        for (const hub of HUBS) push(conditionsFor(0), { type: "WithdrawAndSwap", hub, token_out: XOXNO.xlm, amount, max_slippage_bps: SWAP_SLIPPAGE_BPS });
+        break;
     }
   }
   return { autopilot: { account_id: accountId.toString(), rules }, unsupported, ruleIds };
@@ -410,10 +494,23 @@ function fromCoreCondition(c: CoreCondition): Condition {
     case "IdleBalance": return { kind: "idle_usdc", comparator: c.cmp === "AtOrAbove" ? "gte" : "lte", value: Number(c.amount) / 1e7 };
     case "SupplyRateGap": return { kind: "rate_gap", comparator: "gte", value: c.min_bps / 100 };
     case "SupplyRate": return { kind: "pool_rate", comparator: c.cmp === "AtOrAbove" ? "gte" : "lte", value: Number(aprToApy(c.bps / 100).toFixed(2)), pool: poolByHub(c.hub) };
+    case "TokenPrice": return { kind: "xlm_price", comparator: c.cmp === "AtOrAbove" ? "gte" : "lte", value: Number((Number(c.level) / 1e14).toFixed(4)) };
+    case "TokenBalance": return { kind: "xlm_balance", comparator: c.cmp === "AtOrAbove" ? "gte" : "lte", value: Number(c.amount) / 1e7 };
   }
 }
 
-const RULE_NAMES: Record<ActionKind, string> = { supply_from_wallet: "Put it to work", move_to_best_pool: "Best rate", repay_from_wallet: "Stay safe", withdraw_to_wallet: "Lira exit" };
+function actionKindOf(a: CoreAction): ActionKind {
+  switch (a.type) {
+    case "MoveSupply": return "move_to_best_pool";
+    case "WithdrawToWallet": return "withdraw_to_wallet";
+    case "SupplyFromWallet": return "supply_from_wallet";
+    case "RepayFromWallet": case "RepayWithCollateral": return "repay_from_wallet";
+    case "SwapFromWallet": return a.token_in === XOXNO.xlm ? "sell_xlm" : "buy_xlm";
+    case "WithdrawAndSwap": return "withdraw_to_xlm";
+  }
+}
+
+const RULE_NAMES: Record<ActionKind, string> = { supply_from_wallet: "Put it to work", move_to_best_pool: "Best rate", repay_from_wallet: "Stay safe", withdraw_to_wallet: "Lira exit", sell_xlm: "Sell XLM", buy_xlm: "Buy XLM", withdraw_to_xlm: "Into XLM" };
 
 export interface FoldedRules { rules: Rule[]; /** contract rule index -> index into `rules` */ contractToUi: number[] }
 
@@ -426,7 +523,7 @@ export function foldCoreRules(core: CoreAutopilot): FoldedRules {
   const contractToUi: number[] = [];
   const shapes: string[] = [];
   core.rules.forEach((r, index) => {
-    const kind: ActionKind = r.action.type === "MoveSupply" ? "move_to_best_pool" : r.action.type === "WithdrawToWallet" ? "withdraw_to_wallet" : r.action.type === "SupplyFromWallet" ? "supply_from_wallet" : "repay_from_wallet";
+    const kind = actionKindOf(r.action);
     const conditions = r.conditions.map(fromCoreCondition);
     const amount = fromAmount(r.action.amount);
     const pool: PoolId | undefined = r.action.type === "SupplyFromWallet" ? poolByHub(r.action.hub) : undefined;
@@ -453,5 +550,8 @@ export function permissionsFor(ap: Pick<Autopilot, "rules">): { can: string[]; t
   if (kinds.has("move_to_best_pool")) { can.push("Move your USDC between the two USDC hubs"); technical.push("controller.withdraw", "controller.supply", "usdc.transfer → XOXNO pool only"); }
   if (kinds.has("repay_from_wallet")) { can.push("Repay your loan with USDC from this wallet"); technical.push("controller.repay", "usdc.transfer → XOXNO pool only"); }
   if (kinds.has("withdraw_to_wallet")) { can.push("Withdraw your USDC from the pools back into this wallet"); technical.push("controller.withdraw"); }
+  if (kinds.has("sell_xlm") || kinds.has("buy_xlm")) { can.push("Swap between XLM and USDC in this wallet through XOXNO, paid back to this wallet, never below the Reflector price minus 1%"); technical.push("aggregator.execute_strategy, sender = this wallet", kinds.has("sell_xlm") ? "xlm.transfer → aggregator only" : "usdc.transfer → aggregator only"); }
+  if (kinds.has("withdraw_to_xlm")) { can.push("Take USDC out of the pools and swap it into XLM in this wallet, never below the Reflector price minus 1%"); technical.push("controller.withdraw", "aggregator.execute_strategy, sender = this wallet", "usdc.transfer → aggregator only"); }
+  if (kinds.size) technical.push("only inside router.tick: the policy rejects any other call from the agent key");
   return { can, technical: [...new Set(technical)] };
 }

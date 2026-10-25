@@ -3,7 +3,7 @@ import { answerLocally } from "./fallback";
 import type { ChatMessage } from "./reducer";
 import type { Rule } from "@/lib/model/autopilot";
 
-const live = { fx: 48.79, healthFactor: 2.1, hasLoan: true, rateA: 3.1, rateB: 4.2, idleUsdc: 50 };
+const live = { fx: 48.79, healthFactor: 2.1, hasLoan: true, rateA: 3.1, rateB: 4.2, idleUsdc: 50, xlmPrice: 0.17, idleXlm: 120 };
 const health: Rule = { id: "h", name: "Stay safe", conditions: [{ kind: "health_factor", comparator: "lte", value: 1.25 }], match: "all", action: { kind: "repay_from_wallet", amount: "all" }, cooldownSec: 600, inferred: [], enabled: true };
 const gap: Rule = { id: "g", name: "Best rate", conditions: [{ kind: "rate_gap", comparator: "gte", value: 1 }], match: "all", action: { kind: "move_to_best_pool", amount: "all" }, cooldownSec: 3600, inferred: [], enabled: true };
 

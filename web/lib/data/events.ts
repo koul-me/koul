@@ -5,6 +5,7 @@
  * never changes, so its rows are kept in memory and only the newest window is asked again on each poll.
  *
  *   router   fired { autopilot_id, rule_index, kind, amount, from_hub, to_hub, observed[] }   -> AUTO
+ *   router   swapped { token_in, token_out, amount_in, amount_out, min_out }, beside a swap's fired
  *   router   autopilot_set { autopilot_id, account_id, rules } / autopilot_cleared            -> YOU
  *   policy   koul_installed { context_rule_id, allowed_calls, max_calls_per_window, ... }     -> YOU
  *   wallet   context_rule_removed(rule_id) from the smart account itself, when it is Koul's rule -> YOU
@@ -13,7 +14,7 @@
 import { Address, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { KOUL, XOXNO } from "@/lib/koul";
 
-export type WalletEventKind = "fired" | "autopilot_set" | "autopilot_cleared" | "koul_installed" | "context_rule_removed" | "transfer";
+export type WalletEventKind = "fired" | "swapped" | "autopilot_set" | "autopilot_cleared" | "koul_installed" | "context_rule_removed" | "transfer";
 
 export interface WalletEvent {
   id: string;
@@ -110,7 +111,7 @@ async function page(filters: rpc.Api.EventFilter[], startLedger: number, endLedg
       if (e.ledger > endLedger) break;
       const topics = e.topic.map((t) => { try { return scValToNative(t) as unknown; } catch { return null; } });
       const name = String(topics[0] ?? "");
-      const kind: WalletEventKind | null = name === "fired" || name === "autopilot_set" || name === "autopilot_cleared" || name === "koul_installed" || name === "context_rule_removed" || name === "transfer" ? name : null;
+      const kind: WalletEventKind | null = name === "fired" || name === "swapped" || name === "autopilot_set" || name === "autopilot_cleared" || name === "koul_installed" || name === "context_rule_removed" || name === "transfer" ? name : null;
       if (!kind) continue;
       // The smart account puts the removed rule's id in the second topic and nothing in the value.
       const value = kind === "context_rule_removed" ? { rule: Number(topics[1]) } : decodeValue(e.value);
@@ -144,7 +145,7 @@ export async function readWalletEvents(address: string, limit = 80): Promise<Wal
   const wallet = new Address(address).toScVal().toXDR("base64");
   const filters: [rpc.Api.EventFilter[], rpc.Api.EventFilter[]] = [
     [
-      { type: "contract", contractIds: [KOUL.router], topics: [[sym("fired"), wallet], [sym("autopilot_set"), wallet], [sym("autopilot_cleared"), wallet]] },
+      { type: "contract", contractIds: [KOUL.router], topics: [[sym("fired"), wallet], [sym("swapped"), wallet], [sym("autopilot_set"), wallet], [sym("autopilot_cleared"), wallet]] },
       { type: "contract", contractIds: [KOUL.policy], topics: [[sym("koul_installed"), wallet]] },
       { type: "contract", contractIds: [address], topics: [[sym("context_rule_removed"), "*"]] },
     ],

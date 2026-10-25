@@ -54,6 +54,8 @@ export function reading(kind: ConditionKind, w: World, pool: PoolId = "B"): numb
     case "fx_price": return w.price;
     case "idle_usdc": return w.wallet;
     case "pool_rate": return rateOf(w, pool);
+    // The landing's world has no XLM; its playground never offers these.
+    case "xlm_price": case "xlm_balance": return NaN;
   }
 }
 
@@ -75,6 +77,7 @@ export function base(action: Action, w: World): number {
     case "repay_from_wallet": return Math.min(w.wallet, w.debt);
     case "withdraw_to_wallet": return w.poolA + w.poolB;
     case "move_to_best_pool": return betterPool(w) === "B" ? w.poolA : w.poolB;
+    case "sell_xlm": case "buy_xlm": case "withdraw_to_xlm": return 0;
   }
 }
 
@@ -118,6 +121,8 @@ export function run(action: Action, w: World): Ran {
       else { next.poolB = atLeast0(w.poolB - moved); next.poolA = atLeast0(w.poolA + moved); }
       return { world: next, moved, text: `Moved ${moved.toFixed(2)} USDC to Pool ${POOLS[to].hub}` };
     }
+    case "sell_xlm": case "buy_xlm": case "withdraw_to_xlm":
+      return { world: next, moved: 0, text: "Swaps are not part of the landing's world" };
   }
 }
 

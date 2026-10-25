@@ -45,18 +45,30 @@ export interface ActivityState {
 
 const usdc = (v: unknown) => Number(BigInt(String(v ?? 0))) / 1e7;
 const hub = (h: unknown) => `Hub ${Number(h)}`;
+const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Both tokens Koul swaps have 7 decimals. */
+const tokenName = (t: unknown) => (t === XOXNO.xlm ? "XLM" : t === XOXNO.usdc ? "USDC" : `${String(t).slice(0, 4)}…`);
 
-function fromFired(e: WalletEvent): ActivityRow {
+function fromFired(e: WalletEvent, swap?: Record<string, unknown>): ActivityRow {
   const v = e.value;
   const kind = String(v.kind);
   const amount = usdc(v.amount);
   const base = { id: e.id, kind: "run" as const, who: "auto" as const, at: e.at, txHash: e.txHash, autopilotId: Number(v.autopilot_id), ruleIndex: Number(v.rule_index), amount };
+  if ((kind === "swap" || kind === "withdraw_swap") && swap) {
+    const tin = tokenName(swap.token_in), tout = tokenName(swap.token_out);
+    const ain = usdc(swap.amount_in), aout = usdc(swap.amount_out);
+    const from = kind === "withdraw_swap" ? ` from ${hub(v.from_hub)}` : "";
+    // The USDC side is the amount the row shows.
+    return { ...base, amount: tin === "USDC" ? ain : aout, title: `Swapped ${n2(ain)} ${tin}${from} into ${n2(aout)} ${tout}` };
+  }
   switch (kind) {
     case "move_supply": return { ...base, title: `Moved ${hub(v.from_hub)} to ${hub(v.to_hub)}` };
     case "supply": return { ...base, title: `Supplied to ${hub(v.to_hub)}` };
     case "withdraw": return { ...base, title: `Withdrew to wallet from ${hub(v.from_hub)}` };
     case "repay_wallet": return { ...base, title: `Repaid debt on ${hub(v.to_hub)}` };
     case "repay_collateral": return { ...base, title: `Repaid ${hub(v.to_hub)} from ${hub(v.from_hub)}` };
+    case "swap": return { ...base, title: "Swapped in the wallet" };
+    case "withdraw_swap": return { ...base, title: `Swapped USDC from ${hub(v.from_hub)}` };
     default: return { ...base, title: kind };
   }
 }
@@ -74,12 +86,13 @@ function fromTransfer(e: WalletEvent, wallet: string): ActivityRow | null {
 
 export function toRows(events: WalletEvent[], wallet: string): ActivityRow[] {
   const autoTx = new Set(events.filter((e) => e.kind === "fired").map((e) => e.txHash));
+  const swaps = new Map(events.filter((e) => e.kind === "swapped").map((e) => [e.txHash, e.value] as const));
   // A removed rule is "Access revoked" only when it is one Koul's policy was installed on; a passkey change is not.
   const koulRules = new Set(events.filter((e) => e.kind === "koul_installed").map((e) => Number(e.value.context_rule_id)));
   const rows: ActivityRow[] = [];
   for (const e of events) {
     switch (e.kind) {
-      case "fired": rows.push(fromFired(e)); break;
+      case "fired": rows.push(fromFired(e, swaps.get(e.txHash))); break;
       // The chain counts its own rules, and one rule in the app can be two there (one per hub, or one per
       // direction), so the count would mislead. The event only says the autopilot was saved.
       case "autopilot_set": rows.push({ id: e.id, kind: "rules_saved", who: "you", at: e.at, txHash: e.txHash, title: "Autopilot saved" }); break;

@@ -3,7 +3,7 @@
  * are mono, actions are plain words. Nothing here is a sentence.
  */
 import { usdPerTryToTryPerUsd } from "@/lib/koul";
-import { aprToApy, type Action, type Condition, type ConditionKind } from "./autopilot";
+import { aprToApy, fmtPrice, type Action, type Condition, type ConditionKind } from "./autopilot";
 
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -16,6 +16,8 @@ export const CONDITION_SUBJECTS: { kind: ConditionKind; label: string; unit: str
   { kind: "rate_gap", label: "rate gap", unit: "%" },
   { kind: "idle_usdc", label: "wallet", unit: "USDC" },
   { kind: "pool_rate", label: "hub APY", unit: "%" },
+  { kind: "xlm_price", label: "XLM price", unit: "USD" },
+  { kind: "xlm_balance", label: "XLM held", unit: "XLM" },
 ];
 
 export const ACTION_CHOICES: { kind: Action["kind"]; label: string }[] = [
@@ -23,6 +25,9 @@ export const ACTION_CHOICES: { kind: Action["kind"]; label: string }[] = [
   { kind: "repay_from_wallet", label: "Repay debt" },
   { kind: "move_to_best_pool", label: "Move to the better hub" },
   { kind: "supply_from_wallet", label: "Supply to a hub" },
+  { kind: "sell_xlm", label: "Sell XLM for USDC" },
+  { kind: "buy_xlm", label: "Buy XLM with USDC" },
+  { kind: "withdraw_to_xlm", label: "Swap supplied USDC into XLM" },
 ];
 
 const NO_DEBT = 10n ** 30n;
@@ -39,17 +44,21 @@ export function observedLabel(kind: ConditionKind, observed: bigint | null): str
     case "pool_rate": return `${n2(aprToApy(Number(observed) / 100))}%`;
     case "fx_price": return observed === 0n ? null : n2(usdPerTryToTryPerUsd(observed));
     case "idle_usdc": return `${n2(Number(observed) / 1e7)} USDC`;
+    case "xlm_price": return observed === 0n ? null : `$${fmtPrice(Number(observed) / 1e14)}`;
+    case "xlm_balance": return `${n2(Number(observed) / 1e7)} XLM`;
   }
 }
 
 /** The same label from the app's live numbers, for rules that are not on-chain yet. */
-export function liveLabel(c: Condition, live: { rateA: number | null; rateB: number | null; healthFactor: number | null; hasLoan: boolean; fx: number | null; idleUsdc: number | null }): string | null {
+export function liveLabel(c: Condition, live: { rateA: number | null; rateB: number | null; healthFactor: number | null; hasLoan: boolean; fx: number | null; idleUsdc: number | null; xlmPrice: number | null; idleXlm: number | null }): string | null {
   switch (c.kind) {
     case "health_factor": return !live.hasLoan ? "NO DEBT" : live.healthFactor === null ? null : n2(live.healthFactor);
     case "rate_gap": return live.rateA === null || live.rateB === null ? null : `${n2(Math.abs(live.rateB - live.rateA))}%`;
     case "pool_rate": { const apr = (c.pool ?? "B") === "A" ? live.rateA : live.rateB; return apr === null ? null : `${n2(aprToApy(apr))}%`; }
     case "fx_price": return live.fx === null || live.fx <= 0 ? null : n2(live.fx);
     case "idle_usdc": return live.idleUsdc === null ? null : `${n2(live.idleUsdc)} USDC`;
+    case "xlm_price": return live.xlmPrice === null ? null : `$${fmtPrice(live.xlmPrice)}`;
+    case "xlm_balance": return live.idleXlm === null ? null : `${n2(live.idleXlm)} XLM`;
   }
 }
 

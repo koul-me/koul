@@ -16,7 +16,7 @@ import { bestPool, usePools } from "@/hooks/use-market";
 import { useWallet } from "@/hooks/use-wallet";
 import { chainUiId, useArmAutopilot } from "@/hooks/use-autopilots";
 import { invalidate } from "@/lib/data/store";
-import { newId, toCoreAutopilot, type Autopilot } from "@/lib/model/autopilot";
+import { aprToApy, newId, toCoreAutopilot, type Autopilot } from "@/lib/model/autopilot";
 import { phaseDetail, planDelete, planSteps, saveSteps, type SaveStep, type SaveStepKey } from "@/lib/model/save-steps";
 import { decodeRules, type LibraryEntry } from "@/lib/model/library";
 import { InlineConfirm, Label, PillButton, Sk, StatusPill, Tile, type StatusKind } from "@/components/signal";
@@ -62,7 +62,9 @@ export default function AutopilotPage() {
   const editor = useEditor(w.address, saved);
 
   // The chat: what Koul may quote, and what happens when a draft is accepted.
-  const chatLive = React.useMemo<LiveContext>(() => ({ fx: values.live.fx, healthFactor: values.live.healthFactor, hasLoan: values.live.hasLoan, rateA: values.live.rateA, rateB: values.live.rateB, idleUsdc: values.live.idleUsdc }), [values.live]);
+  // The chat speaks in the APY the app shows; the live values carry the pool's simple rate.
+  const apy = (apr: number | null) => (apr === null ? null : aprToApy(apr));
+  const chatLive = React.useMemo<LiveContext>(() => ({ fx: values.live.fx, healthFactor: values.live.healthFactor, hasLoan: values.live.hasLoan, rateA: apy(values.live.rateA), rateB: apy(values.live.rateB), idleUsdc: values.live.idleUsdc, xlmPrice: values.live.xlmStale ? null : values.live.xlmPrice, idleXlm: values.live.idleXlm }), [values.live]);
   const [highlight, setHighlight] = React.useState<string | null>(null);
   // What the chat changed while editing: the rows get CHANGED · UNDO until the change is undone or saved.
   const [chatChanges, setChatChanges] = React.useState<RuleChange[]>([]);

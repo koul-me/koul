@@ -125,11 +125,12 @@ export class KoulReader {
     return { contract: nft, tokenId, name, symbol, imageUrl };
   }
 
-  async readOracle(asset = "TRY"): Promise<OracleReading | null> {
+  /** `lastprice(Other(asset))` on the router's FX oracle, or on any Reflector-shaped `oracle`. */
+  async readOracle(asset = "TRY", oracle = this.config.oracle): Promise<OracleReading | null> {
     const oracleAsset = xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("Other"), xdr.ScVal.scvSymbol(asset)]);
     const [price, decimals] = await Promise.all([
-      this.raw(this.config.oracle, "lastprice", [oracleAsset]) as Promise<{ price: bigint; timestamp: bigint } | null>,
-      this.raw(this.config.oracle, "decimals", []) as Promise<number>,
+      this.raw(oracle, "lastprice", [oracleAsset]) as Promise<{ price: bigint; timestamp: bigint } | null>,
+      this.raw(oracle, "decimals", []) as Promise<number>,
     ]);
     if (!price) return null;
     return { asset, price: price.price, timestamp: price.timestamp, decimals, ageSeconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(price.timestamp)) };
