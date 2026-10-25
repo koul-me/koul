@@ -622,3 +622,11 @@ wallet went through to SDF and confirmed (`67d8cc63d974c84feb578ed2bc07614b3a5d7
 
 Later: moving to stellar-accounts v0.8.0 means smart-account-kit 0.9 across web, keeper and SDK, and rebuilding
 `koul_agent_policy` against the v0.8.0 interfaces; the relay can then go.
+
+Same day, "Start autopilot failed: Wallet contract is not allowlisted": SDF's relayer sponsors calls only into contracts
+it allowlists, and the production router `CD5VSBUX...` (deployed that day) is not one; a grant into the wallet itself
+still went through. The relay now forwards to SDF first and, when SDF answers 403 "not allowlisted" for a call into
+one of Koul's own contracts (router, policy, aggregator, XOXNO controller, USDC and the swap tokens), submits it with
+the keeper account. Checked locally end to end on a wallet created through the relay: grant with the policy through
+SDF (`e45dbed2...`), then `set_autopilot` refused by SDF and paid by the relay
+(`d272802d15e915afa733261af434a92c7481c0b9d316186eb51b5fd767062df7`).
