@@ -21,8 +21,9 @@ Deployed, all from this repo on `master`, every push redeploys:
 email field (`components/landing/waitlist-form.tsx`). Signups: `POST /api/waitlist` into Upstash Redis
 (`lib/waitlist-server.ts`). Live on production since 2026-10-25: Upstash Redis `koul-waitlist` (free plan, iad1,
 auto-upgrade off) is connected to project `koul`, `NEXT_PUBLIC_KOUL_WAITLIST=1` and 20 `KOUL_INVITE_CODES` (judge, team,
-beta prefixes) are set for Production. More codes: `pnpm invite-codes`, append on Vercel, redeploy. API routes are not
-gated.
+beta prefixes) are set for Production. More codes: `pnpm invite-codes`, append on Vercel, redeploy. A new signup emails a
+confirmation to the person and a notice to `WAITLIST_NOTIFY_TO` through Resend (free plan, koul.me verified, DNS
+records on Vercel with a DMARC p=none). API routes are not gated.
 
 2026-09-22 (hosts): the landing is https://koul.me and the app is https://app.koul.me (added to Vercel project `koul`,
 DNS on Vercel). One project serves both: `web/proxy.ts` with the rules in `web/lib/app-host.ts` (tested). On app.koul.me
