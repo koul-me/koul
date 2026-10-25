@@ -6,28 +6,31 @@
  * bought on the classic DEX. Then it checks
  * the quote server's deployment, takes a fresh quote, verifies the route bytes against the request, builds
  * `execute_strategy(wallet, amount_in, route)`, signs with the passkey and reports the balances on both sides.
- *   pnpm swap [XLM|USDC] [amount] [slippage] [--max-fee XLM]      e.g. pnpm swap USDC 1 0.01
+ * `--reverse` takes the pools of a quote in the opposite direction and walks them backwards, for a pair whose own best
+ * route runs through archived pools (XLM -> USDC on testnet); the floor then comes from a simulation of that route.
+ *   pnpm swap [XLM|USDC] [amount] [slippage] [--max-fee XLM] [--reverse]      e.g. pnpm swap USDC 1 0.01
  */
 import { Address, Asset, BASE_FEE, Contract, Keypair, Operation, TransactionBuilder, nativeToScVal, rpc, scValToNative, type Transaction } from "@stellar/stellar-sdk";
-import { KoulWriter, XOXNO_SWAP, checkSwapDeployment, quoteSwap } from "@koul/core";
+import { KoulWriter, XOXNO_SWAP, checkSwapDeployment, pathRoute, quoteSwap, reverseHops, type SwapQuote } from "@koul/core";
 import { SoftwareAuthenticator, type AuthenticatorState } from "../src/phase0/passkey";
 import { ORIGIN, RP_ID, TESTNET, XOXNO, json, loadEnv, loadState, makeKit, saveState, step } from "../src/lib/common";
 
 const TOKENS: Record<string, string> = { XLM: TESTNET.xlmSac, USDC: XOXNO.usdc };
 const USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 /**
- * Testnet writes are expensive at the moment (a plain SAC transfer was charged 26 XLM on 2026-10-25), so a swap costs
- * tens of XLM. A fee far above that means the route restores archived pools (one 2-hop route quoted 4,442 XLM);
- * `--max-fee <XLM>` raises the ceiling deliberately.
+ * A swap costs well under 1 XLM, archived entries restored included. Far more means the network's rent price has
+ * spiked, as it did on testnet on 2026-10-25 while the Soroban state was above its target size (a plain SAC transfer
+ * was charged 26 XLM); `--max-fee <XLM>` accepts that deliberately.
  */
 const maxFeeArg = process.argv.indexOf("--max-fee");
-const MAX_RESOURCE_FEE = BigInt(Math.round((maxFeeArg > 0 ? Number(process.argv[maxFeeArg + 1]) : 100) * 1e7));
-const args = process.argv.slice(2).filter((a, i, all) => a !== "--max-fee" && all[i - 1] !== "--max-fee");
+const MAX_RESOURCE_FEE = BigInt(Math.round((maxFeeArg > 0 ? Number(process.argv[maxFeeArg + 1]) : 5) * 1e7));
+const reverse = process.argv.includes("--reverse");
+const args = process.argv.slice(2).filter((a, i, all) => !a.startsWith("--") && all[i - 1] !== "--max-fee");
 const fromName = (args[0] ?? "XLM").toUpperCase();
 const toName = fromName === "XLM" ? "USDC" : "XLM";
 const amount = Number(args[1] ?? (fromName === "XLM" ? 10 : 1));
 const slippage = Number(args[2] ?? 0.01);
-if (!TOKENS[fromName] || !(amount > 0)) throw new Error("usage: pnpm swap [XLM|USDC] [amount] [slippage] [--max-fee XLM]");
+if (!TOKENS[fromName] || !(amount > 0)) throw new Error("usage: pnpm swap [XLM|USDC] [amount] [slippage] [--max-fee XLM] [--reverse]");
 const from = TOKENS[fromName]!;
 const to = TOKENS[toName]!;
 const amountIn = BigInt(Math.round(amount * 1e7));
@@ -99,20 +102,31 @@ const before = { in: await balance(from, wallet, deployer.publicKey()), out: awa
 console.log(`before: ${fmt(before.in)} ${fromName}, ${fmt(before.out)} ${toName}`);
 if (before.in < amountIn) throw new Error(`wallet holds ${fmt(before.in)} ${fromName}, needs ${fmt(amountIn)}`);
 
-step("quote");
-await checkSwapDeployment();
-// One path of at most three hops: cheaper to run, and what XOXNO recommends when a route is composed into other calls.
-const quote = await quoteSwap({ from, to, amountIn, slippage, maxHops: 3, maxSplits: 1 });
-console.log(`router ${XOXNO_SWAP.router}, snapshot ledger ${quote.snapshotLedger}`);
-console.log(`pay ${fmt(quote.amountIn)} ${fromName}, expect ${fmt(quote.amountOut)} ${toName}, at least ${fmt(quote.minOut)} (slippage ${slippage}), impact ${quote.priceImpact ?? "n/a"}`);
-console.log(`route: ${quote.hops.map((h) => `${h.dex}:${h.pool.slice(0, 6)}`).join(" > ")}`);
-
-step("swap");
 const writer = new KoulWriter({
   rpcUrl: TESTNET.rpcUrl, networkPassphrase: TESTNET.networkPassphrase, publicKey: deployer.publicKey(),
   router: env.ROUTER_V1 ?? "", oracle: env.MOCK_FX ?? "", controller: XOXNO.controller, pool: XOXNO.pool, usdc: XOXNO.usdc, xlm: TESTNET.xlmSac,
   policy: env.KOUL_POLICY ?? "", ed25519Verifier: TESTNET.ed25519VerifierAddress, spoke: XOXNO.spoke,
 });
+
+step("quote");
+await checkSwapDeployment();
+let quote: SwapQuote;
+if (reverse) {
+  // The pools a quote for the opposite swap found, walked backwards. A floor of one unit lets a simulation measure the
+  // output; the route that is signed carries that output less the slippage.
+  const opposite = await quoteSwap({ from: to, to: from, amountIn: 10_000_000n, slippage, maxHops: 3, maxSplits: 1 });
+  const hops = reverseHops(opposite.hops);
+  const probe = await writer.buildSwap(wallet, pathRoute({ from, to, amountIn, expectedOut: 1n, slippage: 0, hops }));
+  quote = pathRoute({ from, to, amountIn, expectedOut: probe.result, slippage, hops });
+} else {
+  // One path of at most three hops: cheaper to run, and what XOXNO recommends when a route is composed into other calls.
+  quote = await quoteSwap({ from, to, amountIn, slippage, maxHops: 3, maxSplits: 1 });
+}
+console.log(`router ${XOXNO_SWAP.router}, ${reverse ? "reversed route, floor from simulation" : `snapshot ledger ${quote.snapshotLedger}`}`);
+console.log(`pay ${fmt(quote.amountIn)} ${fromName}, expect ${fmt(quote.amountOut)} ${toName}, at least ${fmt(quote.minOut)} (slippage ${slippage}), impact ${quote.priceImpact ?? "n/a"}`);
+console.log(`route: ${quote.hops.map((h) => `${h.dex}:${h.pool.slice(0, 6)}`).join(" > ")}`);
+
+step("swap");
 const tx = await writer.buildSwap(wallet, quote);
 const sim = (tx as { simulation?: rpc.Api.SimulateTransactionResponse }).simulation;
 if (!sim || rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed: ${sim && rpc.Api.isSimulationError(sim) ? sim.error : "no simulation"}`);

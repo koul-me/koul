@@ -496,13 +496,24 @@ and a friendbot-funded deployer (no keeper secret needed); the wallet and keys a
 | swap 1 USDC -> XLM, Aquarius CALPNC > CDRT5V > CD3LFM | `5c7c8a1c27adaaac5a5f35989649fba1cbe88d76648ae68501741eded68bfb90` | +125.0817203 XLM, exactly the quote; charged 84.51 XLM |
 | swap 0.5 USDC -> XLM, same route | `fb82d9356096c5ebc6aae129fcda5f2fa8fe4c7196ae1ada04b03ae5dda6a35d` | +62.4689984 XLM, exactly the quote |
 
-Testnet fees: writes are expensive network-wide right now, so even a plain SAC transfer is charged about 26 XLM and a
-swap 30 to 85 XLM. The first swap also renewed the instance lease of token `CBL6KD2L...` on the route. Routes that
-touch archived pools are far worse: XLM -> USDC through Soroswap quoted 553 to 863 XLM (15 of 28 footprint entries
-archived, above the 429 XLM a transaction fee can carry) and one 2-hop USDC -> XLM route 4,442 XLM.
-`pnpm swap-diag USDC 1 3 1` prints a route's resources and each footprint entry's TTL. The swap script refuses a
-resource fee above 100 XLM unless `--max-fee` raises it. The two-hop quote (`max_hops=2`) returned no `routeXdr`.
+Why the fees were high: testnet's live Soroban state was 4.14 GB, above the network's 4 GB target
+(`soroban_state_target_size_bytes`), and above the target the rent and write price climbs steeply (growth factor
+5000). Every Soroban transaction on testnet paid for it, so a plain SAC transfer was charged about 26 XLM and the
+first swap 84.51 XLM; routes that restore archived pools quoted 553 to 4,442 XLM, past the 429 XLM a transaction fee
+can carry. Nothing on our side caused it, and mainnet (1.70 GB) was unaffected. During the session the validators
+raised the target to 7 GB; fees fell back at once (same route, 29.76 XLM before, 0.0157 XLM after).
 
-The same fees apply to everything else Koul submits, so the keeper account's balance and the Sembol relayer's
-willingness to sponsor tens of XLM per transaction both need checking before a demo. `koul_router` and
-`koul_agent_policy` instances report a live-until ledger of 0 (archived); their next transaction pays the restore.
+| Swap after the fix | Tx | Result |
+|---|---|---|
+| 20 XLM -> USDC over the Aquarius pools walked backwards (`--reverse`, floor from a simulation) | `6dadde70770785f719ba8f55f57de0a9c444549494a4bd605193ebf18b53c66e` | +0.1586848 USDC, charged 0.0051 XLM |
+| 10 XLM -> USDC, the quote server's own route, Soroswap CDAJDQ > CCAQMK > CDWVNW (restores 14 archived entries) | `6239e0e5c386cb103bf25387f957de50a914c620c81d1943d69df47066a191fc` | +9.6905214 USDC, exactly the quote, fee 0.19 XLM |
+| 1 USDC -> XLM, Aquarius | `af08bd852e48307bdf2e2b33e468d4d5fa4b8fe0e8ad3602e275d736357de794` | +124.8251468 XLM, fee 0.016 XLM |
+
+Testnet pool prices disagree with each other: Soroswap prices 1 XLM at about 0.97 USDC, the Aquarius path at about
+0.008 USDC. Any floor the router derives from an oracle has to allow for that on testnet, or the demo pairs and
+venues must be chosen so the oracle and the pool agree.
+
+`pnpm swap-diag USDC 1 3 1` prints a route's resources and each footprint entry's TTL. The swap script refuses a
+resource fee above 5 XLM unless `--max-fee` raises it. A two-hop quote (`max_hops=2`) returned no `routeXdr`.
+`koul_router` and `koul_agent_policy` instances report a live-until ledger of 0 (archived); their next transaction
+restores them, which at normal fees is cheap.
