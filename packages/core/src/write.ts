@@ -1,9 +1,10 @@
-import { Address, contract, nativeToScVal, xdr } from "@stellar/stellar-sdk";
+import { Address, contract, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { createDefaultContext, createEd25519Signer, type SmartAccountKit } from "smart-account-kit";
 import { encodeAutopilot } from "./codec";
 import { permissionsFor } from "./permissions";
 import type { KoulConfig } from "./read";
 import type { Autopilot } from "./schema";
+import { XOXNO_SWAP, type SwapQuote } from "./swap";
 
 export interface KoulWriteConfig extends KoulConfig { policy: string; ed25519Verifier: string; spoke: number }
 type Call = (args: Record<string, unknown>) => Promise<contract.AssembledTransaction<unknown>>;
@@ -56,6 +57,12 @@ export class KoulWriter {
   async buildBorrow(user: string, accountId: bigint, hub: number, amount: bigint): Promise<contract.AssembledTransaction<unknown>> {
     if (amount <= 0n) throw new Error("amount must be positive");
     return (await this.controller()).borrow({ caller: user, account_id: accountId, borrows: [[this.key(hub), amount]], to: user });
+  }
+  /** `execute_strategy(user, amount_in, route)` on the XOXNO aggregator: pulls `amountIn` from the wallet, pays out at least `minOut`. */
+  buildSwap(user: string, quote: SwapQuote, router: string = XOXNO_SWAP.router): Promise<contract.AssembledTransaction<bigint>> {
+    // The route arrives as base64 ScVal XDR; the router takes its serialized bytes.
+    const route = xdr.ScVal.fromXDR(quote.routeXdr, "base64").toXDR();
+    return this.build(router, "execute_strategy", [addr(user), nativeToScVal(quote.amountIn, { type: "i128" }), xdr.ScVal.scvBytes(route)], (v) => BigInt(scValToNative(v) as bigint));
   }
   buildTransfer(from: string, to: string, amount: bigint): Promise<contract.AssembledTransaction<null>> {
     if (amount <= 0n) throw new Error("amount must be positive");

@@ -472,3 +472,37 @@ The earlier Circle-faucet route (`/api/faucet/usdc`) is untouched and unused.
 | production, `POST https://app.koul.me/api/faucet/test-usdc` for `CBHMG4IG...` | `88cbf9369c5c7bb93dd1bd99cf0dfe03f18751ab24c1eef4242a42b34adf7297` | SUCCESS, 13 s |
 
 Depends on friendbot and on DEX liquidity for XLM/USDC; at the time a 100 USDC buy quoted 95.6 XLM on a direct path.
+
+## XOXNO swap aggregator: first swaps from a smart account (2026-10-25)
+
+`@koul/core` gains `src/swap.ts` (`checkSwapDeployment`, `quoteSwap`) and `KoulWriter.buildSwap`, on
+`@xoxno/sdk-js` 1.0.233. The quote server is `https://testnet-stellar-swap.xoxno.com`, the router is
+`CDNTWMWW2WGYTKIZTJYNGNVQQZI4KTC5BQRZ3275KESRX5T4O3AYECL5` (both checked against `/api/v1/config` before every
+quote). A quote is taken with `fresh=true`, at most 3 hops and 1 split, and its route bytes are decoded and checked
+against the request (pair, input, encoded minimum) with the SDK's verifier before anything is built. The transaction is
+`execute_strategy(wallet, amount_in, route)` signed by the wallet's passkey; the router pulls the input from the wallet
+and pays the output back to it.
+
+`keeper/scripts/swap.ts` (`pnpm swap USDC 1 0.01`) ran it end to end on a fresh smart account with a software passkey
+and a friendbot-funded deployer (no keeper secret needed); the wallet and keys are kept under `swap` in
+`.phase0-state.json`.
+
+| Step | Tx | Result |
+|---|---|---|
+| wallet `CDDVMGPWRMI4RRLQQ7R255SA3GKHA4C7E6N37EIZFQEUX7EYKP4YEOJN` deployed | `678cd4ac7ac2c0d49c1fc829969d7abc9081db55fd9c52bddc857c598c87ed09` | |
+| 15 XLM from the deployer | `f7867aa293efa6dd5e3d530be480ebc60da48debde8ccc97d89abd7add007d26` | charged 25.96 XLM |
+| deployer buys 2 USDC on the classic DEX | `ac53c7c1c7833ee244ef58eb814786223dd7e90c92f9cd7894882e76abd0e10e` | |
+| 2 USDC to the wallet | `ba85378bddf91669112e1071dcccdaa363f78301104d3e766812dbea1abb0113` | charged 26.83 XLM |
+| swap 1 USDC -> XLM, Aquarius CALPNC > CDRT5V > CD3LFM | `5c7c8a1c27adaaac5a5f35989649fba1cbe88d76648ae68501741eded68bfb90` | +125.0817203 XLM, exactly the quote; charged 84.51 XLM |
+| swap 0.5 USDC -> XLM, same route | `fb82d9356096c5ebc6aae129fcda5f2fa8fe4c7196ae1ada04b03ae5dda6a35d` | +62.4689984 XLM, exactly the quote |
+
+Testnet fees: writes are expensive network-wide right now, so even a plain SAC transfer is charged about 26 XLM and a
+swap 30 to 85 XLM. The first swap also renewed the instance lease of token `CBL6KD2L...` on the route. Routes that
+touch archived pools are far worse: XLM -> USDC through Soroswap quoted 553 to 863 XLM (15 of 28 footprint entries
+archived, above the 429 XLM a transaction fee can carry) and one 2-hop USDC -> XLM route 4,442 XLM.
+`pnpm swap-diag USDC 1 3 1` prints a route's resources and each footprint entry's TTL. The swap script refuses a
+resource fee above 100 XLM unless `--max-fee` raises it. The two-hop quote (`max_hops=2`) returned no `routeXdr`.
+
+The same fees apply to everything else Koul submits, so the keeper account's balance and the Sembol relayer's
+willingness to sponsor tens of XLM per transaction both need checking before a demo. `koul_router` and
+`koul_agent_policy` instances report a live-until ledger of 0 (archived); their next transaction pays the restore.
