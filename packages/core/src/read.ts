@@ -1,5 +1,5 @@
 import { Address, BASE_FEE, Contract, TransactionBuilder, contract, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
-import type { Autopilot, Executed, RuleState } from "./schema";
+import type { Autopilot, Executed, Planned, RuleState } from "./schema";
 import { decodeAutopilot } from "./codec";
 
 export interface KoulConfig {
@@ -54,7 +54,7 @@ export function rpcMessage(err: unknown): string {
 const EVENT_WINDOW = 5000;
 const EVENT_PAGE = 200;
 type Call = (args: Record<string, unknown>) => Promise<contract.AssembledTransaction<unknown>>;
-type Router = { list_ids: Call; get_autopilot: Call; check: Call; tick: Call; list_users: Call };
+type Router = { list_ids: Call; get_autopilot: Call; check: Call; tick: Call; list_users: Call; next_action: Call };
 type Controller = { get_health_factor: Call; get_collateral_amount: Call; get_borrow_amount: Call };
 type Pool = { get_deposit_rate: Call; get_sync_data: Call; get_supplied_amount: Call; get_borrowed_amount: Call; get_utilisation: Call };
 
@@ -155,9 +155,16 @@ export class KoulReader {
     return raw ? decodeAutopilot(raw as xdr.ScVal) : null;
   }
 
+  /** A swap rule needs a route, so its tick simulates to a RouteRequired error; read `nextAction` for those. */
   async simulateTick(user: string, id: number): Promise<Executed | null> {
     const router = await this.client<Router>(this.config.router);
-    return ((await router.tick({ user, id })).result as Executed | undefined) ?? null;
+    return ((await router.tick({ user, id, route: undefined })).result as Executed | undefined) ?? null;
+  }
+
+  /** What the next tick would run, swaps included, without needing a route. */
+  async nextAction(user: string, id: number): Promise<Planned | null> {
+    const router = await this.client<Router>(this.config.router);
+    return ((await router.next_action({ user, id })).result as Planned | undefined) ?? null;
   }
 
   async checkAutopilot(user: string, id: number): Promise<RuleState[]> {

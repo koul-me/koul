@@ -20,14 +20,16 @@ export function validateAutopilot(input: unknown): string[] {
       if (condition.type === "SupplyRateGap" && condition.min_bps === 0) errors.push(`${p}.min_bps must be positive`);
       if (condition.type === "SupplyRate" && condition.bps === 0) errors.push(`${p}.bps must be positive`);
       if (condition.type === "FxPrice" && BigInt(condition.max_age_secs) === 0n) errors.push(`${p}.max_age_secs must be positive`);
-      const values = condition.type === "HealthFactor" ? [condition.level_wad] : condition.type === "FxPrice" ? [condition.level] : condition.type === "IdleBalance" ? [condition.amount] : [];
+      const values = condition.type === "HealthFactor" ? [condition.level_wad] : condition.type === "FxPrice" || condition.type === "TokenPrice" ? [condition.level] : condition.type === "IdleBalance" || condition.type === "TokenBalance" ? [condition.amount] : [];
       for (const value of values) if (BigInt(value) > I128_MAX) errors.push(`${p}: value exceeds i128`);
       if (condition.type === "FxPrice" && BigInt(condition.max_age_secs) > U64_MAX) errors.push(`${p}.max_age_secs exceeds u64`);
     });
     const action = rule.action;
     if (action.type === "MoveSupply" && action.from_hub === action.to_hub) errors.push(`${path}.action: hubs must differ`);
     if (action.amount.type === "Percent" && (action.amount.bps < 1 || action.amount.bps > 10_000)) errors.push(`${path}.action.amount.bps must be 1..10000`);
-    if (action.amount.type === "Fixed" && BigInt(action.amount.value) < MIN_MOVE) errors.push(`${path}.action.amount.value must be at least 1 USDC (10000000 units)`);
+    if (action.type === "SwapFromWallet" && action.token_in === action.token_out) errors.push(`${path}.action: tokens must differ`);
+    // A wallet swap's fixed amount is in its own token's units; the router skips anything worth under 1 USD.
+    if (action.amount.type === "Fixed" && action.type !== "SwapFromWallet" && BigInt(action.amount.value) < MIN_MOVE) errors.push(`${path}.action.amount.value must be at least 1 USDC (10000000 units)`);
     if (action.amount.type === "Fixed" && BigInt(action.amount.value) > I128_MAX) errors.push(`${path}.action.amount.value exceeds i128`);
   });
   return errors;

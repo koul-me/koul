@@ -138,7 +138,7 @@ export async function parseAutopilot(text: string, context: ParseContext, option
       if (c.type === "SupplyRate" && !context.hubIds.includes(c.hub)) errors.push("Rule names an unknown hub");
     }
     const a = rule.action;
-    const hubs = a.type === "MoveSupply" ? [a.from_hub, a.to_hub] : a.type === "RepayWithCollateral" ? [a.withdraw_hub, a.repay_hub] : [a.hub];
+    const hubs = a.type === "MoveSupply" ? [a.from_hub, a.to_hub] : a.type === "RepayWithCollateral" ? [a.withdraw_hub, a.repay_hub] : a.type === "SwapFromWallet" ? [] : [a.hub];
     if (hubs.some((hub) => !context.hubIds.includes(hub))) errors.push("Action names an unknown hub");
   }
   if (errors.length) throw new Error(`Generated autopilot failed validation: ${[...new Set(errors)].join("; ")}`);

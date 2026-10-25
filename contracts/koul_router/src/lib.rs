@@ -7,11 +7,17 @@
 //! At most one action per tick. `set_autopilot` is passkey-signed; `tick` needs `user.require_auth()`, which the
 //! agent key satisfies through the smart account's agent rule and `koul_agent_policy`. `check` is a read-only view
 //! for live UIs. The router holds no funds and keeps no state beyond autopilots, registries and last-fired ledgers.
+//!
+//! Swaps go through the XOXNO aggregator with the wallet as sender. The route comes from the keeper, because only an
+//! off-chain quote server can search DEX liquidity, so the router trusts nothing in it: it checks the route's token
+//! pair against the rule, sets the input amount itself, measures what the wallet actually received and reverts below
+//! its own floor, derived from oracle prices less the rule's slippage. `next_action` tells the keeper when a route is
+//! needed and for what amount. At the end of every tick the router closes the agent's session on `koul_agent_policy`.
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractclient, contracterror, contractevent, contractimpl, contracttype, panic_with_error, token, Address,
-    BytesN, Env, Symbol, Vec,
+    contract, contractclient, contracterror, contractevent, contractimpl, contracttype, panic_with_error, token, xdr::FromXdr,
+    Address, Bytes, BytesN, Env, Symbol, Vec,
 };
 
 #[contracttype]
@@ -95,6 +101,43 @@ pub trait Oracle {
     fn lastprice(env: Env, asset: OracleAsset) -> Option<PriceData>;
 }
 
+#[contractclient(name = "AggregatorClient")]
+pub trait Aggregator {
+    fn execute_strategy(env: Env, sender: Address, total_in: i128, swap_xdr: Bytes) -> i128;
+}
+
+/// `koul_agent_policy` opens an agent session when it authorizes `tick`; the router closes it before returning.
+#[contractclient(name = "SessionClient")]
+pub trait Session {
+    fn end_session(env: Env, smart_account: Address);
+}
+
+/// The aggregator's `StrategyPayload`, enough to read the route's token pair: `ops[1]` and `ops[2]` index `assets`.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct StrategyPayload {
+    pub amounts: Vec<i128>,
+    pub assets: Vec<Address>,
+    pub ops: Bytes,
+}
+
+/// Where a token's USD price comes from, 14 decimals like Reflector: an oracle asset with a staleness limit in
+/// seconds, or a fixed price.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PriceSource {
+    Oracle(Address, OracleAsset, u64),
+    Fixed(i128),
+}
+
+/// A token the router may swap or price: its USD price source and its decimals.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Feed {
+    pub source: PriceSource,
+    pub decimals: u32,
+}
+
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -138,6 +181,10 @@ pub enum Condition {
     FxPrice(Symbol, Cmp, i128, u64),
     /// Idle USDC in the wallet (7 decimals) compared with the amount.
     IdleBalance(Cmp, i128),
+    /// A registered token's USD price (14 decimals) compared with the level. A missing or stale price never matches.
+    TokenPrice(Address, Cmp, i128),
+    /// The wallet's balance of any token, in its own base units, compared with the amount.
+    TokenBalance(Address, Cmp, i128),
 }
 
 #[contracttype]
@@ -153,6 +200,10 @@ pub enum Action {
     RepayWithCollateral(u32, u32, Amount),
     /// Withdraw `amount` of the collateral in `hub` to the wallet.
     WithdrawToWallet(u32, Amount),
+    /// Swap `amount` of the wallet's `token_in` balance into `token_out`, at most `max_slippage_bps` below the oracle.
+    SwapFromWallet(Address, Address, Amount, u32),
+    /// Withdraw `amount` of the collateral in `hub` to the wallet, then swap that USDC into `token_out`.
+    WithdrawAndSwap(u32, Address, Amount, u32),
 }
 
 #[contracttype]
@@ -184,6 +235,20 @@ pub struct Executed {
     pub to_hub: u32,
 }
 
+/// What the next tick would run, for the keeper: a swap needs a route for exactly `amount` of `token_in`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Planned {
+    pub rule_index: u32,
+    pub kind: Symbol,
+    pub amount: i128,
+    pub needs_route: bool,
+    pub token_in: Address,
+    pub token_out: Address,
+    /// The least the router accepts from the swap; 0 for other actions.
+    pub min_out: i128,
+}
+
 /// Live state of one condition for the `check` view.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -213,6 +278,9 @@ pub enum DataKey {
     Ids(Address),
     Autopilot(Address, u32),
     LastFired(Address, u32, u32),
+    Feed(Address),
+    Aggregator,
+    Policy,
 }
 
 #[contracterror]
@@ -222,6 +290,11 @@ pub enum RouterError {
     NoAutopilot = 7200,
     BadAutopilot = 7201,
     NothingMoved = 7206,
+    UnknownToken = 7207,
+    RouteRequired = 7208,
+    RouteMismatch = 7209,
+    BelowFloor = 7210,
+    NotConfigured = 7211,
 }
 
 #[contractevent]
@@ -237,6 +310,20 @@ pub struct Fired {
     pub to_hub: u32,
     /// One value per condition of the fired rule, in rule order.
     pub observed: Vec<i128>,
+}
+
+#[contractevent]
+#[derive(Clone)]
+pub struct Swapped {
+    #[topic]
+    pub user: Address,
+    pub autopilot_id: u32,
+    pub rule_index: u32,
+    pub token_in: Address,
+    pub token_out: Address,
+    pub amount_in: i128,
+    pub amount_out: i128,
+    pub min_out: i128,
 }
 
 #[contractevent]
@@ -265,6 +352,9 @@ pub const GRAIN: i128 = 100_000;
 pub const MIN_MOVE: i128 = 10_000_000;
 pub const MAX_RULES: u32 = 32;
 pub const MAX_CONDITIONS: u32 = 3;
+/// Prices are USD with 14 decimals, as Reflector publishes them.
+pub const PRICE_ONE: i128 = 100_000_000_000_000;
+pub const MAX_SLIPPAGE_BPS: u32 = 2_000;
 const TTL_THRESHOLD: u32 = 17280 * 7;
 const TTL_EXTEND: u32 = 17280 * 30;
 
@@ -314,11 +404,45 @@ pub fn is_stale(now: u64, ts: u64, max_age: u64) -> bool {
     now.saturating_sub(ts) > max_age
 }
 
+fn pow10(n: u32) -> i128 {
+    10i128.pow(n)
+}
+
+/// 0.01 of a token in its base units, the swap counterpart of `GRAIN`.
+pub fn grain_of(decimals: u32) -> i128 {
+    if decimals >= 2 { pow10(decimals - 2) } else { 1 }
+}
+
+pub fn floor_to(x: i128, grain: i128) -> i128 {
+    if x <= 0 { 0 } else { x - x % grain }
+}
+
+/// USD value of `amount` base units at `price` (14 decimals), in 14 decimals.
+pub fn usd_value(amount: i128, decimals: u32, price: i128) -> i128 {
+    amount / pow10(decimals) * price + amount % pow10(decimals) * price / pow10(decimals)
+}
+
+/// The least the router accepts for `amount_in`: the oracle-implied output less `slippage_bps`.
+pub fn swap_floor(amount_in: i128, dec_in: u32, price_in: i128, dec_out: u32, price_out: i128, slippage_bps: u32) -> i128 {
+    if price_out <= 0 {
+        return 0;
+    }
+    let out = usd_value(amount_in, dec_in, price_in) * pow10(dec_out) / price_out;
+    out / 10_000 * (10_000 - slippage_bps as i128) + out % 10_000 * (10_000 - slippage_bps as i128) / 10_000
+}
+
 fn amount_ok(a: &Amount) -> bool {
     match a {
         Amount::All => true,
         Amount::Percent(bps) => *bps >= 1 && *bps <= 10_000,
         Amount::Fixed(x) => *x >= MIN_MOVE,
+    }
+}
+
+fn swap_amount_ok(a: &Amount) -> bool {
+    match a {
+        Amount::Fixed(x) => *x > 0,
+        _ => amount_ok(a),
     }
 }
 
@@ -329,6 +453,8 @@ fn condition_ok(c: &Condition) -> bool {
         Condition::SupplyRate(_, _, bps) => *bps > 0,
         Condition::FxPrice(_, _, level, max_age) => *level > 0 && *max_age > 0,
         Condition::IdleBalance(_, amount) => *amount >= 0,
+        Condition::TokenPrice(_, _, level) => *level > 0,
+        Condition::TokenBalance(_, _, amount) => *amount >= 0,
     }
 }
 
@@ -339,11 +465,14 @@ fn action_ok(a: &Action) -> bool {
         Action::RepayFromWallet(_, amt) => amount_ok(amt),
         Action::RepayWithCollateral(_, _, amt) => amount_ok(amt),
         Action::WithdrawToWallet(_, amt) => amount_ok(amt),
+        Action::SwapFromWallet(tin, tout, amt, slip) => tin != tout && swap_amount_ok(amt) && *slip >= 1 && *slip <= MAX_SLIPPAGE_BPS,
+        Action::WithdrawAndSwap(_, _, amt, slip) => amount_ok(amt) && *slip >= 1 && *slip <= MAX_SLIPPAGE_BPS,
     }
 }
 
 /// The limits the SDK mirrors: 1..=32 rules, 1..=3 conditions each, cooldown > 0, hubs differ for moves and rate gaps,
-/// percentages in 1..=10000 bps, fixed amounts at least 1 USDC, positive levels.
+/// percentages in 1..=10000 bps, fixed amounts at least 1 USDC (any positive amount for a swap's own token), positive
+/// levels, swap slippage in 1..=2000 bps and two different tokens.
 pub fn autopilot_ok(ap: &Autopilot) -> bool {
     if ap.rules.is_empty() || ap.rules.len() > MAX_RULES {
         return false;
@@ -367,6 +496,39 @@ fn hub_withdrawable(pool: &PoolClient, k: &HubAssetKey, collateral: i128) -> i12
     }
     let sd = pool.get_sync_data(k);
     withdrawable(collateral, sd.state.cash, pool.get_supplied_amount(k), pool.get_borrowed_amount(k), sd.params.max_utilization)
+}
+
+fn feed(e: &Env, token: &Address) -> Option<Feed> {
+    e.storage().persistent().get(&DataKey::Feed(token.clone()))
+}
+
+fn instance_addr(e: &Env, k: &DataKey) -> Option<Address> {
+    e.storage().instance().get(k)
+}
+
+/// Every token a rule names must have a feed, and a swap needs the aggregator. Checked when an autopilot is stored.
+fn tokens_known(e: &Env, cfg: &Config, ap: &Autopilot) -> Result<(), RouterError> {
+    for r in ap.rules.iter() {
+        for c in r.conditions.iter() {
+            if let Condition::TokenPrice(t, _, _) = c {
+                if feed(e, &t).is_none() {
+                    return Err(RouterError::UnknownToken);
+                }
+            }
+        }
+        let (tin, tout) = match &r.action {
+            Action::SwapFromWallet(tin, tout, _, _) => (tin.clone(), tout.clone()),
+            Action::WithdrawAndSwap(_, tout, _, _) => (cfg.usdc.clone(), tout.clone()),
+            _ => continue,
+        };
+        if tin == tout || feed(e, &tin).is_none() || feed(e, &tout).is_none() {
+            return Err(RouterError::UnknownToken);
+        }
+        if instance_addr(e, &DataKey::Aggregator).is_none() {
+            return Err(RouterError::NotConfigured);
+        }
+    }
+    Ok(())
 }
 
 fn last_fired(e: &Env, user: &Address, id: u32, rule_index: u32) -> u32 {
@@ -441,8 +603,16 @@ impl<'a> Reads<'a> {
                 }
             }
             Condition::IdleBalance(cmp, amount) => {
-                let idle = token::TokenClient::new(self.e, &self.cfg.usdc).balance(user);
+                let idle = self.balance(&self.cfg.usdc, user);
                 ConditionState { holds: holds(*cmp, idle, *amount), observed: idle }
+            }
+            Condition::TokenPrice(t, cmp, level) => match self.price(t) {
+                Some((p, _)) => ConditionState { holds: holds(*cmp, p, *level), observed: p },
+                None => ConditionState { holds: false, observed: 0 },
+            },
+            Condition::TokenBalance(t, cmp, amount) => {
+                let b = self.balance(t, user);
+                ConditionState { holds: holds(*cmp, b, *amount), observed: b }
             }
         }
     }
@@ -485,70 +655,183 @@ impl<'a> Reads<'a> {
         if debt <= 0 { 0 } else { ceil_grain(debt + GRAIN) }
     }
 
-    /// Run the action. `None` means the action resolved to nothing worth doing (no collateral, no debt, no idle
-    /// funds, hub illiquid); the caller then goes on to the next rule.
-    fn execute(&self, user: &Address, account_id: u64, rule_index: u32, a: &Action) -> Option<Executed> {
+    /// A registered token's USD price, or `None` when it has no feed or the oracle's price is missing or stale.
+    fn price(&self, token: &Address) -> Option<(i128, u32)> {
+        let f = feed(self.e, token)?;
+        let p = match f.source {
+            PriceSource::Fixed(p) => p,
+            PriceSource::Oracle(oracle, asset, max_age) => {
+                let pd = OracleClient::new(self.e, &oracle).lastprice(&asset)?;
+                if is_stale(self.e.ledger().timestamp(), pd.timestamp, max_age) {
+                    return None;
+                }
+                pd.price
+            }
+        };
+        if p > 0 { Some((p, f.decimals)) } else { None }
+    }
+
+    fn balance(&self, token: &Address, user: &Address) -> i128 {
+        token::TokenClient::new(self.e, token).balance(user)
+    }
+
+    /// The swap half of a plan: amount snapped to 0.01 of the token, worth at least 1 USD, with the router's floor.
+    fn plan_swap(&self, tin: &Address, tout: &Address, amount: i128, slip: u32, withdraw_hub: Option<u32>) -> Option<Plan> {
+        let (pin, din) = self.price(tin)?;
+        let (pout, dout) = self.price(tout)?;
+        let amount = floor_to(amount, grain_of(din));
+        if amount <= 0 || usd_value(amount, din, pin) < PRICE_ONE {
+            return None;
+        }
+        let min_out = swap_floor(amount, din, pin, dout, pout, slip);
+        if min_out <= 0 {
+            return None;
+        }
+        Some(Plan::Swap { tin: tin.clone(), tout: tout.clone(), amount, min_out, withdraw_hub })
+    }
+
+    /// Resolve an action against live reads without moving anything. `None` means it has nothing worth doing (no
+    /// collateral, no debt, no idle funds, hub illiquid, no fresh price); `tick` then goes on to the next rule.
+    fn plan(&self, user: &Address, account_id: u64, a: &Action) -> Option<Plan> {
         match a {
             Action::MoveSupply(from, to, amt) => {
                 let w = resolve(amt, self.withdrawable_in(account_id, *from));
-                if w < MIN_MOVE {
-                    return None;
-                }
-                let received = self.withdraw(user, account_id, *from, w);
-                if received < MIN_MOVE {
-                    panic_with_error!(self.e, RouterError::NothingMoved);
-                }
-                let mut s = Vec::new(self.e);
-                s.push_back((key(self.cfg, *to), received));
-                self.controller.supply(user, &account_id, &self.cfg.spoke_id, &s);
-                Some(Executed { rule_index, kind: Symbol::new(self.e, "move_supply"), amount: received, from_hub: *from, to_hub: *to })
+                if w < MIN_MOVE { None } else { Some(Plan::Move { from: *from, to: *to, amount: w }) }
             }
             Action::SupplyFromWallet(hub, amt) => {
-                let idle = floor_grain(token::TokenClient::new(self.e, &self.cfg.usdc).balance(user));
-                let put = resolve(amt, idle);
-                if put < MIN_MOVE {
-                    return None;
-                }
-                let mut s = Vec::new(self.e);
-                s.push_back((key(self.cfg, *hub), put));
-                self.controller.supply(user, &account_id, &self.cfg.spoke_id, &s);
-                Some(Executed { rule_index, kind: Symbol::new(self.e, "supply"), amount: put, from_hub: *hub, to_hub: *hub })
+                let put = resolve(amt, floor_grain(self.balance(&self.cfg.usdc, user)));
+                if put < MIN_MOVE { None } else { Some(Plan::Supply { hub: *hub, amount: put }) }
             }
             Action::RepayFromWallet(hub, amt) => {
                 let want = resolve(amt, self.debt_base(account_id, *hub));
-                let idle = floor_grain(token::TokenClient::new(self.e, &self.cfg.usdc).balance(user));
+                let idle = floor_grain(self.balance(&self.cfg.usdc, user));
                 let pay = if want < idle { want } else { idle };
-                if pay <= 0 {
-                    return None;
-                }
-                self.repay(user, account_id, *hub, pay);
-                Some(Executed { rule_index, kind: Symbol::new(self.e, "repay_wallet"), amount: pay, from_hub: *hub, to_hub: *hub })
+                if pay <= 0 { None } else { Some(Plan::RepayWallet { hub: *hub, amount: pay }) }
             }
             Action::RepayWithCollateral(from, hub, amt) => {
                 let want = resolve(amt, self.debt_base(account_id, *hub));
                 let avail = self.withdrawable_in(account_id, *from);
                 let w = if want < avail { want } else { avail };
-                if w < MIN_MOVE {
-                    return None;
-                }
-                let received = self.withdraw(user, account_id, *from, w);
-                if received <= 0 {
-                    panic_with_error!(self.e, RouterError::NothingMoved);
-                }
-                self.repay(user, account_id, *hub, received);
-                Some(Executed { rule_index, kind: Symbol::new(self.e, "repay_collateral"), amount: received, from_hub: *from, to_hub: *hub })
+                if w < MIN_MOVE { None } else { Some(Plan::RepayCollateral { from: *from, hub: *hub, amount: w }) }
             }
             Action::WithdrawToWallet(hub, amt) => {
                 let w = resolve(amt, self.withdrawable_in(account_id, *hub));
-                if w < MIN_MOVE {
-                    return None;
+                if w < MIN_MOVE { None } else { Some(Plan::Withdraw { hub: *hub, amount: w }) }
+            }
+            Action::SwapFromWallet(tin, tout, amt, slip) => {
+                let base = self.balance(tin, user);
+                let want = match amt {
+                    Amount::All => base,
+                    Amount::Percent(bps) => base / 10_000 * (*bps as i128) + (base % 10_000) * (*bps as i128) / 10_000,
+                    Amount::Fixed(x) => if *x < base { *x } else { base },
+                };
+                self.plan_swap(tin, tout, want, *slip, None)
+            }
+            Action::WithdrawAndSwap(hub, tout, amt, slip) => {
+                let w = resolve(amt, self.withdrawable_in(account_id, *hub));
+                if w < MIN_MOVE { None } else { self.plan_swap(&self.cfg.usdc, tout, w, *slip, Some(*hub)) }
+            }
+        }
+    }
+
+    /// Run a plan. Swaps need the keeper's route; everything about it except the venues is checked here.
+    fn run(&self, user: &Address, account_id: u64, id: u32, rule_index: u32, p: Plan, route: &Option<Bytes>) -> Executed {
+        let ex = |kind: &str, amount: i128, from_hub: u32, to_hub: u32| Executed { rule_index, kind: Symbol::new(self.e, kind), amount, from_hub, to_hub };
+        match p {
+            Plan::Move { from, to, amount } => {
+                let received = self.withdraw(user, account_id, from, amount);
+                if received < MIN_MOVE {
+                    panic_with_error!(self.e, RouterError::NothingMoved);
                 }
-                let received = self.withdraw(user, account_id, *hub, w);
+                let mut s = Vec::new(self.e);
+                s.push_back((key(self.cfg, to), received));
+                self.controller.supply(user, &account_id, &self.cfg.spoke_id, &s);
+                ex("move_supply", received, from, to)
+            }
+            Plan::Supply { hub, amount } => {
+                let mut s = Vec::new(self.e);
+                s.push_back((key(self.cfg, hub), amount));
+                self.controller.supply(user, &account_id, &self.cfg.spoke_id, &s);
+                ex("supply", amount, hub, hub)
+            }
+            Plan::RepayWallet { hub, amount } => {
+                self.repay(user, account_id, hub, amount);
+                ex("repay_wallet", amount, hub, hub)
+            }
+            Plan::RepayCollateral { from, hub, amount } => {
+                let received = self.withdraw(user, account_id, from, amount);
                 if received <= 0 {
                     panic_with_error!(self.e, RouterError::NothingMoved);
                 }
-                Some(Executed { rule_index, kind: Symbol::new(self.e, "withdraw"), amount: received, from_hub: *hub, to_hub: *hub })
+                self.repay(user, account_id, hub, received);
+                ex("repay_collateral", received, from, hub)
             }
+            Plan::Withdraw { hub, amount } => {
+                let received = self.withdraw(user, account_id, hub, amount);
+                if received <= 0 {
+                    panic_with_error!(self.e, RouterError::NothingMoved);
+                }
+                ex("withdraw", received, hub, hub)
+            }
+            Plan::Swap { tin, tout, amount, min_out, withdraw_hub } => {
+                let route = route.clone().unwrap_or_else(|| panic_with_error!(self.e, RouterError::RouteRequired));
+                let payload = StrategyPayload::from_xdr(self.e, &route).unwrap_or_else(|_| panic_with_error!(self.e, RouterError::RouteMismatch));
+                let asset = |i: u32| payload.ops.get(i).and_then(|ix| payload.assets.get(ix as u32));
+                if asset(1) != Some(tin.clone()) || asset(2) != Some(tout.clone()) {
+                    panic_with_error!(self.e, RouterError::RouteMismatch);
+                }
+                // The route was quoted for exactly `amount`; the controller returns that unless the hub changed meanwhile.
+                if let Some(hub) = withdraw_hub {
+                    if self.withdraw(user, account_id, hub, amount) != amount {
+                        panic_with_error!(self.e, RouterError::NothingMoved);
+                    }
+                }
+                let aggregator = instance_addr(self.e, &DataKey::Aggregator).unwrap_or_else(|| panic_with_error!(self.e, RouterError::NotConfigured));
+                let before = self.balance(&tout, user);
+                AggregatorClient::new(self.e, &aggregator).execute_strategy(user, &amount, &route);
+                let got = self.balance(&tout, user) - before;
+                if got < min_out {
+                    panic_with_error!(self.e, RouterError::BelowFloor);
+                }
+                Swapped { user: user.clone(), autopilot_id: id, rule_index, token_in: tin, token_out: tout, amount_in: amount, amount_out: got, min_out }.publish(self.e);
+                match withdraw_hub {
+                    Some(hub) => ex("withdraw_swap", amount, hub, 0),
+                    None => ex("swap", amount, 0, 0),
+                }
+            }
+        }
+    }
+}
+
+/// A resolved action: what `run` will move, decided from reads only.
+enum Plan {
+    Move { from: u32, to: u32, amount: i128 },
+    Supply { hub: u32, amount: i128 },
+    RepayWallet { hub: u32, amount: i128 },
+    RepayCollateral { from: u32, hub: u32, amount: i128 },
+    Withdraw { hub: u32, amount: i128 },
+    Swap { tin: Address, tout: Address, amount: i128, min_out: i128, withdraw_hub: Option<u32> },
+}
+
+impl Plan {
+    fn planned(&self, e: &Env, cfg: &Config, rule_index: u32) -> Planned {
+        let usdc = cfg.usdc.clone();
+        let p = |kind: &str, amount: i128| Planned { rule_index, kind: Symbol::new(e, kind), amount, needs_route: false, token_in: usdc.clone(), token_out: usdc.clone(), min_out: 0 };
+        match self {
+            Plan::Move { amount, .. } => p("move_supply", *amount),
+            Plan::Supply { amount, .. } => p("supply", *amount),
+            Plan::RepayWallet { amount, .. } => p("repay_wallet", *amount),
+            Plan::RepayCollateral { amount, .. } => p("repay_collateral", *amount),
+            Plan::Withdraw { amount, .. } => p("withdraw", *amount),
+            Plan::Swap { tin, tout, amount, min_out, withdraw_hub } => Planned {
+                rule_index,
+                kind: Symbol::new(e, if withdraw_hub.is_some() { "withdraw_swap" } else { "swap" }),
+                amount: *amount,
+                needs_route: true,
+                token_in: tin.clone(),
+                token_out: tout.clone(),
+                min_out: *min_out,
+            },
         }
     }
 }
@@ -582,11 +865,49 @@ impl KoulRouter {
         config(&e)
     }
 
+    /// Admin: register or replace a token's price source. Oracles must quote USD with 14 decimals, like Reflector.
+    pub fn set_feed(e: Env, token: Address, feed: Feed) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        let k = DataKey::Feed(token);
+        e.storage().persistent().set(&k, &feed);
+        extend(&e, &k);
+    }
+
+    pub fn get_feed(e: Env, token: Address) -> Option<Feed> {
+        feed(&e, &token)
+    }
+
+    /// Admin: the XOXNO swap aggregator router swaps execute through.
+    pub fn set_aggregator(e: Env, aggregator: Address) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        e.storage().instance().set(&DataKey::Aggregator, &aggregator);
+    }
+
+    /// Admin: the agent policy whose session every tick closes.
+    pub fn set_policy(e: Env, policy: Address) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        e.storage().instance().set(&DataKey::Policy, &policy);
+    }
+
+    pub fn get_aggregator(e: Env) -> Option<Address> {
+        instance_addr(&e, &DataKey::Aggregator)
+    }
+
+    pub fn get_policy(e: Env) -> Option<Address> {
+        instance_addr(&e, &DataKey::Policy)
+    }
+
     /// Create or replace autopilot `id` for `user`. Replacing resets the cooldowns of every rule.
     pub fn set_autopilot(e: Env, user: Address, id: u32, autopilot: Autopilot) {
         user.require_auth();
         if !autopilot_ok(&autopilot) {
             panic_with_error!(&e, RouterError::BadAutopilot);
+        }
+        if let Err(err) = tokens_known(&e, &config(&e), &autopilot) {
+            panic_with_error!(&e, err);
         }
         let k = DataKey::Autopilot(user.clone(), id);
         let existed = e.storage().persistent().has(&k);
@@ -668,9 +989,29 @@ impl KoulRouter {
         out
     }
 
+    /// What the next tick would run, without moving anything. The keeper reads it to learn whether the tick needs a swap
+    /// route and for how much. No auth.
+    pub fn next_action(e: Env, user: Address, id: u32) -> Option<Planned> {
+        let cfg = config(&e);
+        let ap: Autopilot = e.storage().persistent().get(&DataKey::Autopilot(user.clone(), id)).unwrap_or_else(|| panic_with_error!(&e, RouterError::NoAutopilot));
+        let reads = Reads::new(&e, &cfg);
+        let now = e.ledger().sequence();
+        for (i, r) in ap.rules.iter().enumerate() {
+            let idx = i as u32;
+            if !ready(last_fired(&e, &user, id, idx), now, r.cooldown_ledgers) || !reads.evaluate_rule(&user, ap.account_id, &r).0 {
+                continue;
+            }
+            if let Some(p) = reads.plan(&user, ap.account_id, &r.action) {
+                return Some(p.planned(&e, &cfg, idx));
+            }
+        }
+        None
+    }
+
     /// Evaluate and execute the first applicable rule of autopilot `id`. Returns `None` when nothing applies, so the
-    /// keeper can simulate first and skip submission.
-    pub fn tick(e: Env, user: Address, id: u32) -> Option<Executed> {
+    /// keeper can simulate first and skip submission. `route` is the aggregator route for a swap rule, quoted for the
+    /// amount `next_action` reported; other rules ignore it.
+    pub fn tick(e: Env, user: Address, id: u32, route: Option<Bytes>) -> Option<Executed> {
         user.require_auth();
         let cfg = config(&e);
         let k = DataKey::Autopilot(user.clone(), id);
@@ -678,6 +1019,7 @@ impl KoulRouter {
         extend(&e, &k);
         let reads = Reads::new(&e, &cfg);
         let now = e.ledger().sequence();
+        let mut done = None;
         for (i, r) in ap.rules.iter().enumerate() {
             let idx = i as u32;
             if !ready(last_fired(&e, &user, id, idx), now, r.cooldown_ledgers) {
@@ -687,19 +1029,23 @@ impl KoulRouter {
             if !h {
                 continue;
             }
-            if let Some(ex) = reads.execute(&user, ap.account_id, idx, &r.action) {
-                let lk = DataKey::LastFired(user.clone(), id, idx);
-                e.storage().persistent().set(&lk, &now);
-                extend(&e, &lk);
-                let mut observed = Vec::new(&e);
-                for s in states.iter() {
-                    observed.push_back(s.observed);
-                }
-                Fired { user, autopilot_id: id, rule_index: idx, kind: ex.kind.clone(), amount: ex.amount, from_hub: ex.from_hub, to_hub: ex.to_hub, observed }.publish(&e);
-                return Some(ex);
+            let Some(plan) = reads.plan(&user, ap.account_id, &r.action) else { continue };
+            let ex = reads.run(&user, ap.account_id, id, idx, plan, &route);
+            let lk = DataKey::LastFired(user.clone(), id, idx);
+            e.storage().persistent().set(&lk, &now);
+            extend(&e, &lk);
+            let mut observed = Vec::new(&e);
+            for s in states.iter() {
+                observed.push_back(s.observed);
             }
+            Fired { user: user.clone(), autopilot_id: id, rule_index: idx, kind: ex.kind.clone(), amount: ex.amount, from_hub: ex.from_hub, to_hub: ex.to_hub, observed }.publish(&e);
+            done = Some(ex);
+            break;
         }
-        None
+        if let Some(policy) = instance_addr(&e, &DataKey::Policy) {
+            SessionClient::new(&e, &policy).end_session(&user);
+        }
+        done
     }
 }
 
@@ -831,7 +1177,7 @@ mod test {
         assert_eq!(c.try_clear_autopilot(&alice, &7), Err(Ok(soroban_sdk::Error::from_contract_error(RouterError::NoAutopilot as u32))));
         let bad = Autopilot { account_id: 1, rules: vec![&e] };
         assert_eq!(c.try_set_autopilot(&alice, &1, &bad), Err(Ok(soroban_sdk::Error::from_contract_error(RouterError::BadAutopilot as u32))));
-        assert_eq!(c.try_tick(&alice, &1), Err(Ok(soroban_sdk::Error::from_contract_error(RouterError::NoAutopilot as u32))));
+        assert_eq!(c.try_tick(&alice, &1, &None), Err(Ok(soroban_sdk::Error::from_contract_error(RouterError::NoAutopilot as u32))));
     }
 }
 
@@ -839,7 +1185,7 @@ mod test {
 mod tick_test {
     use super::*;
     use soroban_sdk::testutils::{Address as _, Events, Ledger};
-    use soroban_sdk::vec;
+    use soroban_sdk::{vec, xdr::ToXdr};
 
     #[contracttype]
     pub enum MK {
@@ -1016,13 +1362,13 @@ mod tick_test {
         w.router.set_autopilot(&w.user, &1, &shield(&e));
 
         // Rule 0 holds (hf 1.18 < 1.25) but the wallet is empty, so it resolves to nothing and rule 1 runs.
-        let ex = w.router.tick(&w.user, &1).unwrap();
+        let ex = w.router.tick(&w.user, &1, &None).unwrap();
         assert_eq!(e.events().all().filter_by_contract(&w.router.address).events().len(), 1);
         assert_eq!(ex, Executed { rule_index: 1, kind: Symbol::new(&e, "move_supply"), amount: 100 * USDC, from_hub: 1, to_hub: 2 });
         assert_eq!(w.controller.get_collateral_amount(&12, &HubAssetKey { asset: w.usdc.address.clone(), hub_id: 2 }), 100 * USDC);
 
         // Same ledger: rule 0 still empty, rule 1 cooling down, rule 2 price 0.021 is not below 0.020.
-        assert_eq!(w.router.tick(&w.user, &1), None);
+        assert_eq!(w.router.tick(&w.user, &1, &None), None);
         let st = w.router.check(&w.user, &1);
         assert_eq!(st.len(), 3);
         assert!(st.get(0).unwrap().holds && st.get(0).unwrap().ready);
@@ -1034,27 +1380,27 @@ mod tick_test {
 
         // Idle USDC arrives: rule 0 repays the whole debt rounded up one grain, capped by the wallet.
         w.usdc.mint(&w.user, &(15 * USDC));
-        let ex = w.router.tick(&w.user, &1).unwrap();
+        let ex = w.router.tick(&w.user, &1, &None).unwrap();
         assert_eq!(ex, Executed { rule_index: 0, kind: Symbol::new(&e, "repay_wallet"), amount: 15 * USDC, from_hub: 1, to_hub: 1 });
         assert_eq!(w.controller.get_borrow_amount(&12, &HubAssetKey { asset: w.usdc.address.clone(), hub_id: 1 }), 5 * USDC);
-        assert_eq!(w.router.tick(&w.user, &1), None);
+        assert_eq!(w.router.tick(&w.user, &1, &None), None);
 
         // Cooldown of rule 0 passes: the remaining 5 USDC + one grain is repaid.
         e.ledger().set_sequence_number(1010);
         e.ledger().set_timestamp(10_100);
-        let ex = w.router.tick(&w.user, &1).unwrap();
+        let ex = w.router.tick(&w.user, &1, &None).unwrap();
         assert_eq!(ex.amount, 5 * USDC + GRAIN);
 
         // FX shock, fresh price: rule 2 withdraws half of hub 2.
         e.ledger().set_sequence_number(1020);
         w.oracle.set_price(&1_900_000_000_000, &10_100);
-        let ex = w.router.tick(&w.user, &1).unwrap();
+        let ex = w.router.tick(&w.user, &1, &None).unwrap();
         assert_eq!(ex, Executed { rule_index: 2, kind: Symbol::new(&e, "withdraw"), amount: 50 * USDC, from_hub: 2, to_hub: 2 });
 
         // Stale price never matches even though the level is crossed.
         e.ledger().set_sequence_number(1040);
         e.ledger().set_timestamp(20_000);
-        assert_eq!(w.router.tick(&w.user, &1), None);
+        assert_eq!(w.router.tick(&w.user, &1, &None), None);
         let st = w.router.check(&w.user, &1);
         assert!(!st.get(2).unwrap().holds);
         assert_eq!(st.get(2).unwrap().conditions.get(0).unwrap().observed, 1_900_000_000_000);
@@ -1080,7 +1426,7 @@ mod tick_test {
         assert_eq!(st.get(0).unwrap().conditions.get(0).unwrap().observed, 300);
         assert!(!st.get(0).unwrap().holds, "300 bps is not at or above 500");
         assert!(st.get(1).unwrap().holds, "300 bps is at or above 250");
-        let ex = w.router.tick(&w.user, &4).unwrap();
+        let ex = w.router.tick(&w.user, &4, &None).unwrap();
         assert_eq!(ex.rule_index, 1);
         assert_eq!(ex.amount, 20 * USDC);
     }
@@ -1096,9 +1442,9 @@ mod tick_test {
         };
         w.router.set_autopilot(&w.user, &3, &ap);
         // Nothing in the wallet yet: the condition is false and the action has nothing to put to work.
-        assert_eq!(w.router.tick(&w.user, &3), None);
+        assert_eq!(w.router.tick(&w.user, &3, &None), None);
         w.usdc.mint(&w.user, &(25 * USDC));
-        let ex = w.router.tick(&w.user, &3).unwrap();
+        let ex = w.router.tick(&w.user, &3, &None).unwrap();
         assert_eq!(ex, Executed { rule_index: 0, kind: Symbol::new(&e, "supply"), amount: 25 * USDC, from_hub: 2, to_hub: 2 });
         assert_eq!(w.controller.get_collateral_amount(&12, &HubAssetKey { asset: w.usdc.address.clone(), hub_id: 2 }), 25 * USDC);
     }
@@ -1119,7 +1465,7 @@ mod tick_test {
         let st = w.router.check(&w.user, &2);
         assert!(!st.get(0).unwrap().holds);
         assert!(st.get(1).unwrap().holds);
-        let ex = w.router.tick(&w.user, &2).unwrap();
+        let ex = w.router.tick(&w.user, &2, &None).unwrap();
         assert_eq!(ex, Executed { rule_index: 1, kind: Symbol::new(&e, "repay_collateral"), amount: 8 * USDC, from_hub: 1, to_hub: 1 });
         let k = HubAssetKey { asset: w.usdc.address.clone(), hub_id: 1 };
         assert_eq!(w.controller.get_collateral_amount(&12, &k), 92 * USDC);
@@ -1135,12 +1481,192 @@ mod tick_test {
         let w = world(&e);
         w.pool.set_liquidity(&(30 * USDC), &(1_000 * USDC), &(900 * USDC));
         w.router.set_autopilot(&w.user, &1, &shield(&e));
-        let ex = w.router.tick(&w.user, &1).unwrap();
+        let ex = w.router.tick(&w.user, &1, &None).unwrap();
         assert_eq!(ex.rule_index, 1);
         assert_eq!(ex.amount, 30 * USDC - GRAIN);
         w.pool.set_liquidity(&(50 * USDC), &(1_000 * USDC), &(999 * USDC));
         w.controller.set(&(2 * WAD), &(100 * USDC), &0, &0, &0);
         e.ledger().set_sequence_number(2000);
-        assert_eq!(w.router.tick(&w.user, &1), None);
+        assert_eq!(w.router.tick(&w.user, &1, &None), None);
+    }
+
+    #[contract]
+    pub struct MockAggregator;
+
+    /// Pulls `total_in` of the route's input from the sender and pays `total_in * rate_ppm / 1e6` of its output.
+    #[contractimpl]
+    impl MockAggregator {
+        pub fn set_rate(e: Env, rate_ppm: i128) {
+            e.storage().instance().set(&MK::Price, &rate_ppm);
+        }
+        pub fn execute_strategy(e: Env, sender: Address, total_in: i128, swap_xdr: Bytes) -> i128 {
+            sender.require_auth();
+            let p = StrategyPayload::from_xdr(&e, &swap_xdr).unwrap();
+            let tin = p.assets.get(p.ops.get(1).unwrap() as u32).unwrap();
+            let tout = p.assets.get(p.ops.get(2).unwrap() as u32).unwrap();
+            let rate: i128 = e.storage().instance().get(&MK::Price).unwrap();
+            let me = e.current_contract_address();
+            token::TokenClient::new(&e, &tin).transfer(&sender, &me, &total_in);
+            let out = total_in * rate / 1_000_000;
+            token::TokenClient::new(&e, &tout).transfer(&me, &sender, &out);
+            out
+        }
+    }
+
+    #[contract]
+    pub struct MockPolicy;
+
+    #[contractimpl]
+    impl MockPolicy {
+        pub fn end_session(e: Env, _smart_account: Address) {
+            let n: u32 = e.storage().instance().get(&MK::Liq).unwrap_or(0);
+            e.storage().instance().set(&MK::Liq, &(n + 1));
+        }
+        pub fn ended(e: Env) -> u32 {
+            e.storage().instance().get(&MK::Liq).unwrap_or(0)
+        }
+    }
+
+    const XLM_PRICE: i128 = 17_000_000_000_000; // 0.17 USD
+
+    struct Swaps<'a> {
+        xlm: soroban_sdk::token::StellarAssetClient<'a>,
+        aggregator: MockAggregatorClient<'a>,
+        policy: MockPolicyClient<'a>,
+    }
+
+    fn swaps<'a>(e: &'a Env, w: &World<'a>) -> Swaps<'a> {
+        let xlm = e.register_stellar_asset_contract_v2(Address::generate(e)).address();
+        let s = Swaps {
+            xlm: soroban_sdk::token::StellarAssetClient::new(e, &xlm),
+            aggregator: MockAggregatorClient::new(e, &e.register(MockAggregator, ())),
+            policy: MockPolicyClient::new(e, &e.register(MockPolicy, ())),
+        };
+        w.router.set_feed(&w.usdc.address, &Feed { source: PriceSource::Fixed(PRICE_ONE), decimals: 7 });
+        w.router.set_feed(&xlm, &Feed { source: PriceSource::Fixed(XLM_PRICE), decimals: 7 });
+        w.router.set_aggregator(&s.aggregator.address);
+        w.router.set_policy(&s.policy.address);
+        w.usdc.mint(&s.aggregator.address, &(10_000 * USDC));
+        s.xlm.mint(&s.aggregator.address, &(10_000 * USDC));
+        s
+    }
+
+    /// A one-op route over `tin -> tout` in the aggregator's wire format; the router reads only the pair.
+    fn route(e: &Env, tin: &Address, tout: &Address) -> Bytes {
+        let ops = Bytes::from_array(e, &[1, 1, 2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2]);
+        let pool = Address::generate(e);
+        StrategyPayload { amounts: vec![e, 1], assets: vec![e, pool, tin.clone(), tout.clone()], ops }.to_xdr(e)
+    }
+
+    fn err<T>(code: RouterError) -> Result<T, Result<soroban_sdk::Error, soroban_sdk::InvokeError>> {
+        Err(Ok(soroban_sdk::Error::from_contract_error(code as u32)))
+    }
+
+    #[test]
+    fn floor_math() {
+        // 50 XLM at 0.17 USD into USDC at 1.00, 1% slippage: 8.5 USDC expected, 8.415 floor.
+        assert_eq!(swap_floor(50 * USDC, 7, XLM_PRICE, 7, PRICE_ONE, 100), 84_150_000);
+        // 10 USDC into XLM: 58.82 XLM expected, 2% below.
+        assert_eq!(swap_floor(10 * USDC, 7, PRICE_ONE, 7, XLM_PRICE, 200), 576_470_588);
+        // An 18-decimal output token.
+        assert_eq!(swap_floor(USDC, 7, PRICE_ONE, 18, 2 * PRICE_ONE, 0), 500_000_000_000_000_000);
+        assert_eq!(usd_value(5 * USDC, 7, XLM_PRICE), 85_000_000_000_000);
+        assert_eq!(grain_of(7), 100_000);
+        assert_eq!(grain_of(18), 10_000_000_000_000_000);
+    }
+
+    #[test]
+    fn swap_from_wallet_checks_the_route_and_its_own_floor() {
+        let e = Env::default();
+        let w = world(&e);
+        w.controller.set(&(2 * WAD), &0, &0, &0, &0);
+        let s = swaps(&e, &w);
+        let xlm = s.xlm.address.clone();
+        let ap = Autopilot {
+            account_id: 12,
+            rules: vec![&e, rule(&e, vec![&e, Condition::TokenBalance(xlm.clone(), Cmp::AtOrAbove, 10 * USDC)], true, Action::SwapFromWallet(xlm.clone(), w.usdc.address.clone(), Amount::All, 100), 10)],
+        };
+        w.router.set_autopilot(&w.user, &5, &ap);
+        assert_eq!(w.router.next_action(&w.user, &5), None);
+
+        s.xlm.mint(&w.user, &(50 * USDC + 12_345));
+        let planned = w.router.next_action(&w.user, &5).unwrap();
+        assert_eq!(planned, Planned { rule_index: 0, kind: Symbol::new(&e, "swap"), amount: 50 * USDC, needs_route: true, token_in: xlm.clone(), token_out: w.usdc.address.clone(), min_out: 84_150_000 });
+
+        assert_eq!(w.router.try_tick(&w.user, &5, &None), err(RouterError::RouteRequired));
+        assert_eq!(w.router.try_tick(&w.user, &5, &Some(route(&e, &w.usdc.address, &xlm))), err(RouterError::RouteMismatch));
+        // Bytes that are not XDR at all fail in the host's decoder; either way nothing moves.
+        assert!(w.router.try_tick(&w.user, &5, &Some(Bytes::from_array(&e, &[1, 2, 3]))).is_err());
+        let not_a_route = Symbol::new(&e, "route").to_xdr(&e);
+        assert_eq!(w.router.try_tick(&w.user, &5, &Some(not_a_route)), err(RouterError::RouteMismatch));
+        // A route paying 0.168 USDC per XLM is 1.2% under the oracle: the router refuses it whatever the route claims.
+        s.aggregator.set_rate(&168_000);
+        assert_eq!(w.router.try_tick(&w.user, &5, &Some(route(&e, &xlm, &w.usdc.address))), err(RouterError::BelowFloor));
+
+        s.aggregator.set_rate(&200_000);
+        let ex = w.router.tick(&w.user, &5, &Some(route(&e, &xlm, &w.usdc.address))).unwrap();
+        assert_eq!(ex, Executed { rule_index: 0, kind: Symbol::new(&e, "swap"), amount: 50 * USDC, from_hub: 0, to_hub: 0 });
+        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &xlm).balance(&w.user), 12_345);
+        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &w.usdc.address).balance(&w.user), 10 * USDC);
+        assert_eq!(s.policy.ended(), 1);
+        // Cooling down, and what is left is below the 0.01 grain: nothing more to do.
+        assert_eq!(w.router.tick(&w.user, &5, &None), None);
+        assert_eq!(s.policy.ended(), 2);
+    }
+
+    #[test]
+    fn withdraw_and_swap_moves_collateral_out_of_the_hub() {
+        let e = Env::default();
+        let w = world(&e);
+        w.controller.set(&(2 * WAD), &(100 * USDC), &0, &0, &0);
+        let s = swaps(&e, &w);
+        let xlm = s.xlm.address.clone();
+        let ap = Autopilot {
+            account_id: 12,
+            rules: vec![&e, rule(&e, vec![&e, Condition::TokenPrice(xlm.clone(), Cmp::Below, 20_000_000_000_000)], true, Action::WithdrawAndSwap(1, xlm.clone(), Amount::Percent(5_000), 200), 10)],
+        };
+        w.router.set_autopilot(&w.user, &6, &ap);
+        let st = w.router.check(&w.user, &6);
+        assert_eq!(st.get(0).unwrap().conditions.get(0).unwrap().observed, XLM_PRICE);
+        let planned = w.router.next_action(&w.user, &6).unwrap();
+        assert_eq!(planned.kind, Symbol::new(&e, "withdraw_swap"));
+        assert_eq!(planned.amount, 50 * USDC);
+        assert_eq!(planned.min_out, swap_floor(50 * USDC, 7, PRICE_ONE, 7, XLM_PRICE, 200));
+        // The mock controller only books the withdrawal; the wallet receives the USDC as the real one would pay it.
+        w.usdc.mint(&w.user, &(50 * USDC));
+        s.aggregator.set_rate(&6_000_000);
+        let ex = w.router.tick(&w.user, &6, &Some(route(&e, &w.usdc.address, &xlm))).unwrap();
+        assert_eq!(ex, Executed { rule_index: 0, kind: Symbol::new(&e, "withdraw_swap"), amount: 50 * USDC, from_hub: 1, to_hub: 0 });
+        assert_eq!(w.controller.get_collateral_amount(&12, &HubAssetKey { asset: w.usdc.address.clone(), hub_id: 1 }), 50 * USDC);
+        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &xlm).balance(&w.user), 300 * USDC);
+    }
+
+    #[test]
+    fn swap_rules_need_known_tokens_and_fresh_prices() {
+        let e = Env::default();
+        let w = world(&e);
+        let stranger = Address::generate(&e);
+        let swap = |t: &Address| Autopilot { account_id: 12, rules: vec![&e, rule(&e, vec![&e, Condition::IdleBalance(Cmp::AtOrAbove, 0)], true, Action::SwapFromWallet(t.clone(), w.usdc.address.clone(), Amount::All, 100), 10)] };
+        // No feeds and no aggregator yet.
+        assert_eq!(w.router.try_set_autopilot(&w.user, &7, &swap(&stranger)), err(RouterError::UnknownToken));
+        let s = swaps(&e, &w);
+        assert_eq!(w.router.try_set_autopilot(&w.user, &7, &swap(&stranger)), err(RouterError::UnknownToken));
+        let bad = Autopilot { account_id: 12, rules: vec![&e, rule(&e, vec![&e, Condition::IdleBalance(Cmp::AtOrAbove, 0)], true, Action::SwapFromWallet(s.xlm.address.clone(), s.xlm.address.clone(), Amount::All, 100), 10)] };
+        assert_eq!(w.router.try_set_autopilot(&w.user, &7, &bad), err(RouterError::BadAutopilot));
+
+        // An oracle feed older than its limit: the price condition is false and the swap plans nothing.
+        w.router.set_feed(&s.xlm.address, &Feed { source: PriceSource::Oracle(w.oracle.address.clone(), OracleAsset::Other(Symbol::new(&e, "XLM")), 300), decimals: 7 });
+        w.oracle.set_price(&XLM_PRICE, &9_000);
+        let ap = Autopilot { account_id: 12, rules: vec![&e, rule(&e, vec![&e, Condition::TokenPrice(s.xlm.address.clone(), Cmp::AtOrAbove, 1)], true, Action::SwapFromWallet(s.xlm.address.clone(), w.usdc.address.clone(), Amount::All, 100), 10)] };
+        w.router.set_autopilot(&w.user, &7, &ap);
+        s.xlm.mint(&w.user, &(50 * USDC));
+        assert!(!w.router.check(&w.user, &7).get(0).unwrap().holds);
+        w.oracle.set_price(&XLM_PRICE, &9_900);
+        assert!(w.router.check(&w.user, &7).get(0).unwrap().holds);
+        assert_eq!(w.router.next_action(&w.user, &7).unwrap().min_out, 84_150_000);
+        // Worth under 1 USD: nothing to do.
+        let ap = Autopilot { account_id: 12, rules: vec![&e, rule(&e, vec![&e, Condition::IdleBalance(Cmp::AtOrAbove, 0)], true, Action::SwapFromWallet(s.xlm.address.clone(), w.usdc.address.clone(), Amount::Fixed(5 * USDC), 100), 10)] };
+        w.router.set_autopilot(&w.user, &8, &ap);
+        assert_eq!(w.router.next_action(&w.user, &8), None);
     }
 }

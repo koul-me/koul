@@ -6,7 +6,7 @@ import type { KoulConfig } from "./read";
 import type { Autopilot } from "./schema";
 import { XOXNO_SWAP, type SwapQuote } from "./swap";
 
-export interface KoulWriteConfig extends KoulConfig { policy: string; ed25519Verifier: string; spoke: number }
+export interface KoulWriteConfig extends KoulConfig { policy: string; ed25519Verifier: string; spoke: number; aggregator?: string }
 type Call = (args: Record<string, unknown>) => Promise<contract.AssembledTransaction<unknown>>;
 type Controller = { supply: Call; withdraw: Call; borrow: Call };
 const sym = (s: string) => xdr.ScVal.scvSymbol(s);
@@ -31,7 +31,7 @@ export class KoulWriter {
   /** Returns the unsigned kit transaction. The frontend submits it with kit.signAndSubmit. */
   async buildGrantAgent(kit: SmartAccountKit, ap: Autopilot, agentRawPublicKey: Uint8Array, days: number, name: string, maxCalls = 40, windowLedgers = 2000): Promise<contract.AssembledTransaction<unknown>> {
     if (!Number.isInteger(days) || days < 1 || days > 30) throw new Error("days must be 1..30");
-    const perms = permissionsFor(ap, this.config);
+    const perms = permissionsFor(ap, { ...this.config, aggregator: this.config.aggregator ?? XOXNO_SWAP.router });
     const params = xdr.ScVal.scvMap([
       new xdr.ScMapEntry({ key: sym("account_id"), val: nativeToScVal(BigInt(ap.account_id), { type: "u64" }) }),
       new xdr.ScMapEntry({ key: sym("allowed_calls"), val: xdr.ScVal.scvVec(perms.allowedCalls.map(([id, fn]) => xdr.ScVal.scvVec([addr(id), sym(fn)]))) }),

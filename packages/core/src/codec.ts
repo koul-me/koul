@@ -1,4 +1,4 @@
-import { nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
+import { Address, nativeToScVal, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { autopilotSchema, type Action, type Amount, type Autopilot, type Cmp, type Condition } from "./schema";
 import { validateAutopilot } from "./validate";
 
@@ -11,6 +11,7 @@ const variant = (tag: string, values: xdr.ScVal[] = []) => vec([sym(tag), ...val
 const entry = (key: string, val: xdr.ScVal) => new xdr.ScMapEntry({ key: sym(key), val });
 const map = (entries: [string, xdr.ScVal][]) => xdr.ScVal.scvMap(entries.sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => entry(k, v)));
 const cmp = (value: Cmp) => variant(value);
+const addr = (s: string) => new Address(s).toScVal();
 
 function encodeAmount(amount: Amount): xdr.ScVal {
   switch (amount.type) {
@@ -26,6 +27,8 @@ function encodeCondition(condition: Condition): xdr.ScVal {
     case "SupplyRate": return variant("SupplyRate", [u32(condition.hub), variant(condition.cmp, []), u32(condition.bps)]);
     case "FxPrice": return variant("FxPrice", [sym(condition.asset), cmp(condition.cmp), i128(condition.level), u64(condition.max_age_secs)]);
     case "IdleBalance": return variant("IdleBalance", [cmp(condition.cmp), i128(condition.amount)]);
+    case "TokenPrice": return variant("TokenPrice", [addr(condition.token), cmp(condition.cmp), i128(condition.level)]);
+    case "TokenBalance": return variant("TokenBalance", [addr(condition.token), cmp(condition.cmp), i128(condition.amount)]);
   }
 }
 function encodeAction(action: Action): xdr.ScVal {
@@ -35,6 +38,8 @@ function encodeAction(action: Action): xdr.ScVal {
     case "RepayFromWallet": return variant("RepayFromWallet", [u32(action.hub), encodeAmount(action.amount)]);
     case "RepayWithCollateral": return variant("RepayWithCollateral", [u32(action.withdraw_hub), u32(action.repay_hub), encodeAmount(action.amount)]);
     case "WithdrawToWallet": return variant("WithdrawToWallet", [u32(action.hub), encodeAmount(action.amount)]);
+    case "SwapFromWallet": return variant("SwapFromWallet", [addr(action.token_in), addr(action.token_out), encodeAmount(action.amount), u32(action.max_slippage_bps)]);
+    case "WithdrawAndSwap": return variant("WithdrawAndSwap", [u32(action.hub), addr(action.token_out), encodeAmount(action.amount), u32(action.max_slippage_bps)]);
   }
 }
 
@@ -77,6 +82,8 @@ function decodeCondition(value: unknown): Condition {
     case "SupplyRate": return { type: v.tag, hub: asNumber(a[0]), cmp: decodeCmp(a[1]), bps: asNumber(a[2]) };
     case "FxPrice": return { type: v.tag, asset: asString(a[0]), cmp: decodeCmp(a[1]), level: asString(a[2]), max_age_secs: asString(a[3]) };
     case "IdleBalance": return { type: v.tag, cmp: decodeCmp(a[0]), amount: asString(a[1]) };
+    case "TokenPrice": return { type: v.tag, token: asString(a[0]), cmp: decodeCmp(a[1]), level: asString(a[2]) };
+    case "TokenBalance": return { type: v.tag, token: asString(a[0]), cmp: decodeCmp(a[1]), amount: asString(a[2]) };
     default: throw new Error(`Unknown condition ${v.tag}`);
   }
 }
@@ -88,6 +95,8 @@ function decodeAction(value: unknown): Action {
     case "RepayFromWallet": return { type: v.tag, hub: asNumber(a[0]), amount: decodeAmount(a[1]) };
     case "RepayWithCollateral": return { type: v.tag, withdraw_hub: asNumber(a[0]), repay_hub: asNumber(a[1]), amount: decodeAmount(a[2]) };
     case "WithdrawToWallet": return { type: v.tag, hub: asNumber(a[0]), amount: decodeAmount(a[1]) };
+    case "SwapFromWallet": return { type: v.tag, token_in: asString(a[0]), token_out: asString(a[1]), amount: decodeAmount(a[2]), max_slippage_bps: asNumber(a[3]) };
+    case "WithdrawAndSwap": return { type: v.tag, hub: asNumber(a[0]), token_out: asString(a[1]), amount: decodeAmount(a[2]), max_slippage_bps: asNumber(a[3]) };
     default: throw new Error(`Unknown action ${v.tag}`);
   }
 }
