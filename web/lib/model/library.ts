@@ -4,6 +4,7 @@
  * and fresh ids are minted on the way out, so a loaded set is always a new draft.
  */
 import { z } from "zod";
+import { TOKEN_SYMBOLS } from "@/lib/koul";
 import { createLocalStore } from "@/lib/data/store";
 import { makeRule, newId, type Rule } from "./autopilot";
 
@@ -18,15 +19,17 @@ export const library = createLocalStore<LibraryEntry[]>("koul.library", []);
 export const MAX_NAME = 40;
 
 const conditionSchema = z.object({
-  kind: z.enum(["rate_gap", "pool_rate", "health_factor", "fx_price", "idle_usdc", "xlm_price", "xlm_balance"]),
+  kind: z.enum(["rate_gap", "pool_rate", "health_factor", "fx_price", "idle_usdc", "token_price", "token_balance"]),
   comparator: z.enum(["gte", "lte"]),
   value: z.number().finite(),
   pool: z.enum(["A", "B"]).optional(),
+  token: z.enum(TOKEN_SYMBOLS).optional(),
 });
 const actionSchema = z.object({
-  kind: z.enum(["supply_from_wallet", "move_to_best_pool", "repay_from_wallet", "withdraw_to_wallet", "sell_xlm", "buy_xlm", "withdraw_to_xlm"]),
+  kind: z.enum(["supply_from_wallet", "move_to_best_pool", "repay_from_wallet", "withdraw_to_wallet", "sell_token", "buy_token", "withdraw_to_token"]),
   amount: z.union([z.literal("all"), z.number().positive().finite(), z.object({ percent: z.number().int().min(1).max(100) })]),
   pool: z.enum(["A", "B"]).optional(),
+  token: z.enum(TOKEN_SYMBOLS).optional(),
 });
 const portableRule = z.object({
   name: z.string().max(60).optional(),

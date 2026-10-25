@@ -23,7 +23,7 @@ export function describeParams(p: AgentParams | null): string {
   if (fns.has("withdraw")) can.push("bring USDC from that position back to your wallet");
   if (fns.has("repay")) can.push("repay its debt");
   const swaps = p.allowedCalls.some(([c, f]) => c === KOUL.aggregator && f === "execute_strategy");
-  if (swaps) can.push("swap between XLM and USDC in your wallet through XOXNO, never below the oracle price less 1%");
+  if (swaps) can.push("swap between USDC and the tokens your rules name, in your wallet through XOXNO, never below the oracle price less 1%");
   const ticks = p.allowedCalls.some(([c, f]) => c === KOUL.router && f === "tick");
   const first = can.length ? `Koul acts for you with a limited key. It can only ${can.join(", ")} on account ${p.accountId}` : ticks ? "Koul acts for you with a limited key that can only run your rules" : "Koul acts for you with a limited key";
   const toPool = p.transferRecipients.includes(XOXNO.pool), toAggregator = p.transferRecipients.includes(KOUL.aggregator);

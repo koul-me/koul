@@ -22,7 +22,7 @@ function Conditions({ r }: { r: LiveRule }) {
     <div className="divide-y divide-line">
       {r.rule.conditions.map((c, k) => {
         const state = r.conditions[k];
-        const observed = state ? observedLabel(c.kind, state.observed) : null;
+        const observed = state ? observedLabel(c, state.observed) : null;
         return (
           <KeyValue
             key={k}

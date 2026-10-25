@@ -570,3 +570,39 @@ Web, keeper workflow, README and the smoke script point at the new router and po
 again on the new router (the old one keeps its state but nothing ticks it any more); arming grants the new policy.
 The keeper workflow lives in `atahanyild/koul`, which holds `KEEPER_SECRET` and `AGENT_SECRET`; it now checks out
 `koul-me/koul` and runs that keeper, so the code ships from one repo.
+
+## Seven more swap tokens, and no rounding on wallet swaps (2026-10-25)
+
+Feeds on the production router `CD5VSBUX...`, each Reflector CEX `CCYOZJCO...` with a 900 s limit, picked because
+XOXNO's testnet aggregator routes them to USDC (testnet carries several copies of most coins; these are the deepest):
+
+| Token | Contract | Decimals | Reflector | set_feed tx |
+|---|---|---|---|---|
+| ETH | `CAEXCVZUCB6FGYKU6YAEUJMVCLS74SPSQ2TTEOLJ27A3C6C627OQON47` | 7 | ETH | `7d22aa45290c786c4fc29a9d681252798ce527ce419c617170f6366f71c97bde` |
+| SOL | `CBVJ6GYJJ55ALTHN32OJEFGUZWWTMDFGIBCM42SPYQ4GWLKX2XARAP2N` | 7 | SOL | `126f0b00e3269f3e7d72df6f9d21b74cb5cf55f28d9a6fba4c881efbe11d85de` |
+| XRP | `CBSUHSWWZS5MEAGET6ES7UWI5A4QEVABXP6XJXB4XIUMRKMBIN7MJZ5D` | 7 | XRP | `52583177ec0dd943fbfa6de4015e401e36cd6f1f545ddac41d67cf8562f53dfd` |
+| wBTC | `CBWPLT4YJFXFNDCZFUMCZZQ7UBM2FDIAXQNCM24NZODJDSJNUNMQ63PF` | 8 | BTC | `ddf332b151ceef5ce2da9701948e92707f19498fe79247bf79d1b3c641035103` |
+| BTC | `CAOWDS3FQ4RKAY3LP7EBRAN7QO2ZFPNXH2ITT47FSTEXPDZRNQHEQFS2` | 7 | BTC | `069c430b35f1e5f2f78f417b7045254958dadddc84b71f1b132cea9d62710673` |
+| USDT | `CDWFJXIZZFJ2CVGSAPZ5GWVEYCGDYE65XD2R7S4PWEDP2NFDWKNL4SWD` | 7 | USDT | `9172a773d2088a09aceefbe0afaa79bca1261b74ee6b6e3fbeb2a439d6d3d308` |
+| EURC | `CCIMRLN4JLJTGU62FG7IQUP4X5IIAFPBTJQ5AHBM7QQJDVXBJGN632PZ` | 7 | EURC | `3f05c1c4b19d4be5065379a54ce2732b91599b41808d7d3ec040919dd7caf127` |
+
+Measured against Reflector, what a 3-hop route paid for about 10 USD: ETH, SOL, XRP and wBTC above the oracle both
+ways; BTC (85%), USDT (92%) and EURC (96%) under it for a purchase, so the router's 1% floor refuses buying them and the
+app says so; selling them works. AQUA routes well but has no Reflector price. XOXNO's own lending-market BTC and ETH sit
+only in Curve pools with no route to USDC.
+
+Fix: the router snapped a wallet swap down to 0.01 of the token. That suits XLM, but 0.01 ETH is 23 USD and 0.01 BTC is
+800 USD, so a 0.0016 ETH balance planned nothing. Only interest-bearing positions need snapping; a wallet balance is
+the same at quote and at tick. Wasm `263641f17e9d3b322002773c89bf44f0b67e05f502dde2aa3e64a1d6d103f296` (upload
+`57ead1ed...`) drops it and keeps the 1 USD minimum; production upgraded in place (`df2f0925...`), staging too
+(`f5fcc9b5...`).
+
+On the staging router with an ETH feed (`18df66be...`), the keeper bought ETH and sold it back, agent-signed:
+
+| Tick | Tx | Result |
+|---|---|---|
+| 1 USDC -> ETH, Soroswap CCBX3N > CDPBZ6 > CBLKPK | `53406eeae61a30df57357c93472fe81d69655e3dc067386d654098ad2bebf40c` | 0.0015641 ETH, floor 0.0004249 |
+| 0.0015641 ETH -> USDC, after the fix (re-grant `ebc493a4...` adds the ETH transfer) | `0cca7a17c2f1e401035156adde9b7e152d0d66b068e4bb8f7b43ef05421a61dc` | 6.19 USDC, floor 3.61 |
+
+The web app's rules now take a token: `token_price` and `token_balance` conditions, `sell_token`, `buy_token` and
+`withdraw_to_token` actions, with a picker over the list in `web/lib/koul.ts` (`SWAP_TOKENS`).

@@ -6,8 +6,9 @@
 import { usePasskeyWallet } from "@sembol/passkey-react";
 import type { PositionNft } from "@koul/core";
 import { usePoll } from "@/lib/data/store";
-import { readChainAutopilots, readWalletPortfolio, type ChainAutopilot } from "@/lib/data/live";
+import { readChainAutopilots, readTokenHoldings, readWalletPortfolio, type ChainAutopilot } from "@/lib/data/live";
 import type { Health, Positions } from "@/lib/data/types";
+import type { TokenSymbol } from "@/lib/koul";
 import { useWallet } from "./use-wallet";
 
 export interface ChainAutopilotsState { list: ChainAutopilot[]; loading: boolean; error: Error | null; refresh: () => Promise<void> }
@@ -38,6 +39,14 @@ export interface PortfolioState {
 
 export const EMPTY_POSITIONS: Positions = { idleUsdc: 0, idleXlm: 0, supplied: { A: 0, B: 0 }, borrowed: { A: 0, B: 0 }, accountId: null };
 export const EMPTY_HEALTH: Health = { factor: null, hasLoan: false, minimum: 1.25, liquidationAt: 1 };
+
+/** The wallet's balance of every swap token, whole units; empty until the first read lands. */
+export function useTokenHoldings(): Partial<Record<TokenSymbol, number>> {
+  const w = useWallet();
+  const key = w.isConnected && w.address ? `holdings:${w.address}` : null;
+  const p = usePoll(key, () => readTokenHoldings(w.address!), { intervalMs: 60_000, enabled: w.isConnected, deps: [w.txEpoch] });
+  return p.data ?? {};
+}
 
 export function usePortfolio(): PortfolioState {
   const w = useWallet();

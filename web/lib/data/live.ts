@@ -6,7 +6,7 @@ import { contract } from "@stellar/stellar-sdk";
 import { KoulReader, type Autopilot as CoreAutopilot, type FiredEvent, type PositionNft, type RuleState } from "@koul/core";
 import type { ContextRule } from "smart-account-kit";
 import { MARKETS, type Market } from "./markets";
-import { KOUL, MAX_PRICE_AGE_SECS, READ_CONFIG, XOXNO, usdPerTryToTryPerUsd } from "@/lib/koul";
+import { KOUL, MAX_PRICE_AGE_SECS, READ_CONFIG, SWAP_TOKENS, XOXNO, usdPerTryToTryPerUsd, type TokenSymbol } from "@/lib/koul";
 import { fromUnits } from "@/lib/format";
 import { POOLS, poolByHub, type PoolId } from "@/lib/model/autopilot";
 import type { ActivityItem, FxPrice, Health, Pool, Positions } from "./types";
@@ -102,12 +102,30 @@ export async function readWalletPortfolio(address: string): Promise<WalletPortfo
 }
 
 export interface TokenPrice { usd: number; timestamp: number; ageSec: number; stale: boolean }
+export type TokenPrices = Partial<Record<TokenSymbol, TokenPrice>>;
 
-/** XLM in USD on Reflector's testnet feed, with the staleness limit the router's feed uses. */
-export async function readXlmPrice(): Promise<TokenPrice> {
-  const o = await reader.readOracle("XLM", KOUL.priceOracle);
-  if (!o) throw new Error("Reflector has no XLM price");
-  return { usd: Number(o.price) / 10 ** o.decimals, timestamp: Number(o.timestamp), ageSec: o.ageSeconds, stale: o.ageSeconds > MAX_PRICE_AGE_SECS };
+/**
+ * Every swap token in USD on Reflector's testnet feed, the one the router's floor reads, with the staleness limit the
+ * router's feeds use. One read per Reflector symbol; a feed that fails is left out rather than failing the rest.
+ */
+export async function readTokenPrices(): Promise<TokenPrices> {
+  const feeds = [...new Set(SWAP_TOKENS.map((t) => t.feed))];
+  const read = await Promise.all(feeds.map((f) => reader.readOracle(f, KOUL.priceOracle).catch(() => null)));
+  const byFeed = new Map(feeds.map((f, i) => [f, read[i]] as const));
+  const out: TokenPrices = {};
+  for (const t of SWAP_TOKENS) {
+    const o = byFeed.get(t.feed);
+    if (o) out[t.symbol] = { usd: Number(o.price) / 10 ** o.decimals, timestamp: Number(o.timestamp), ageSec: o.ageSeconds, stale: o.ageSeconds > MAX_PRICE_AGE_SECS };
+  }
+  return out;
+}
+
+/** What the wallet holds of each swap token, whole units. A balance that fails to read is left out. */
+export async function readTokenHoldings(address: string): Promise<Partial<Record<TokenSymbol, number>>> {
+  const read = await Promise.all(SWAP_TOKENS.map((t) => reader.readTokenBalance(t.id, address).catch(() => null)));
+  const out: Partial<Record<TokenSymbol, number>> = {};
+  SWAP_TOKENS.forEach((t, i) => { const b = read[i]; if (b !== null && b !== undefined) out[t.symbol] = Number(b) / 10 ** t.decimals; });
+  return out;
 }
 
 /** USD/TRY read directly from the mock oracle; the admin write lives in the oracle-admin app. */

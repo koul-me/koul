@@ -38,7 +38,7 @@ export function RulesList({ rules, now, onEdit, onOpen, stopped }: { rules: Live
                 rule={r.rule}
                 current={r.current}
                 ranAgo={r.current && r.lastRunAt ? agoShort(r.lastRunAt, now) : null}
-                now={observedLabel(r.rule.conditions[0]!.kind, r.observed)}
+                now={observedLabel(r.rule.conditions[0]!, r.observed)}
                 dimmed={!r.rule.enabled || stopped}
                 trailing={<span className={cn(r.rule.enabled ? "text-accent-text" : "text-muted")}>{r.rule.enabled ? "ON" : "OFF"}</span>}
               />

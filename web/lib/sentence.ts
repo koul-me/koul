@@ -93,7 +93,7 @@ export function parseSentence(input: string): ParseResult {
   }
 
   // The router evaluates health, then rates, then FX. Keep that order so the adapter maps one to one.
-  const order: Record<ConditionKind, number> = { health_factor: 0, pool_rate: 1, rate_gap: 2, fx_price: 3, xlm_price: 4, xlm_balance: 5, idle_usdc: 6 };
+  const order: Record<ConditionKind, number> = { health_factor: 0, pool_rate: 1, rate_gap: 2, fx_price: 3, token_price: 4, token_balance: 5, idle_usdc: 6 };
   rules.sort((a, b) => order[a.conditions[0].kind] - order[b.conditions[0].kind]);
 
   const name = rules.length === 3 ? "Lira shield" : rules.length === 1 ? rules[0].name : rules.length ? "My autopilot" : "Untitled autopilot";

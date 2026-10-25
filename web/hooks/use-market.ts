@@ -2,7 +2,7 @@
 
 /** Market reads: pool rates and the USD/TRY price, polled from testnet. */
 import { usePoll } from "@/lib/data/store";
-import { readFx, readMarkets, readPools, readXlmPrice, type MarketReading, type TokenPrice } from "@/lib/data/live";
+import { readFx, readMarkets, readPools, readTokenPrices, type MarketReading, type TokenPrices } from "@/lib/data/live";
 import type { FxPrice, Pool } from "@/lib/data/types";
 import { MAX_PRICE_AGE_SECS } from "@/lib/koul";
 
@@ -35,12 +35,12 @@ export function useFx(): FxState {
   return { fx: p.data ?? NO_FX, loading, error: p.error, refresh: p.refresh };
 }
 
-export interface XlmPriceState { price: TokenPrice | null; loading: boolean; error: Error | null }
+export interface TokenPricesState { prices: TokenPrices; loading: boolean; error: Error | null }
 
-/** XLM in USD from Reflector, the feed the router's swap floor and XLM price rules read. */
-export function useXlmPrice(): XlmPriceState {
-  const p = usePoll<TokenPrice>("xlm-price", readXlmPrice, { intervalMs: 60_000 });
-  return { price: p.data ?? null, loading: p.data === undefined && !p.error, error: p.error };
+/** Every swap token in USD from Reflector, the feed the router's swap floor and price rules read. */
+export function useTokenPrices(): TokenPricesState {
+  const p = usePoll<TokenPrices>("token-prices", readTokenPrices, { intervalMs: 60_000 });
+  return { prices: p.data ?? {}, loading: p.data === undefined && !p.error, error: p.error };
 }
 
 export const poolById = (pools: Pool[], id: "A" | "B") => pools.find((p) => p.id === id) ?? null;

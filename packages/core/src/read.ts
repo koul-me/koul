@@ -136,6 +136,11 @@ export class KoulReader {
     return { asset, price: price.price, timestamp: price.timestamp, decimals, ageSeconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(price.timestamp)) };
   }
 
+  /** Any token contract's balance of `owner`, in its base units. */
+  async readTokenBalance(token: string, owner: string): Promise<bigint> {
+    return BigInt(await this.raw(token, "balance", [new Address(owner).toScVal()]) as bigint);
+  }
+
   async latestLedger(): Promise<number> {
     return (await this.server.getLatestLedger()).sequence;
   }

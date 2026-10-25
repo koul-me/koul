@@ -19,7 +19,9 @@ Deployed, all from this repo on `master`, every push redeploys:
 deploy, admin `GCCIYVPB...` with its secret in keeper/.env as ROUTER_ADMIN_SECRET) with SwapFromWallet, WithdrawAndSwap,
 TokenPrice, TokenBalance, Reflector feeds for XLM and USDC, `next_action`, `tick(user, id, route)`. Policy `CAKEUMCI...`
 with tick sessions. Keeper quotes routes; web has XLM price/balance conditions and sell XLM, buy XLM, swap supplied USDC
-into XLM. Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
+into XLM, generalized the same day to a token picker over XLM, ETH, SOL, XRP, wBTC, BTC, USDT and EURC (feeds on the
+router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` since then (no rounding on wallet swaps).
+Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
 2026-10-25 (waitlist): the app is behind a waitlist, the landing stays open. `NEXT_PUBLIC_KOUL_WAITLIST=1` makes

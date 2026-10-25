@@ -10,7 +10,7 @@ import { useMemo } from "react";
 import { usePasskeyWallet } from "@sembol/passkey-react";
 import { usePoll } from "@/lib/data/store";
 import { loadEventsSnapshot, readWalletEvents, type WalletEvent } from "@/lib/data/events";
-import { XOXNO } from "@/lib/koul";
+import { XOXNO, tokenById } from "@/lib/koul";
 import { walletCreatedAt } from "./use-wallet";
 
 export type ActivityWho = "auto" | "you";
@@ -46,8 +46,8 @@ export interface ActivityState {
 const usdc = (v: unknown) => Number(BigInt(String(v ?? 0))) / 1e7;
 const hub = (h: unknown) => `Hub ${Number(h)}`;
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-/** Both tokens Koul swaps have 7 decimals. */
-const tokenName = (t: unknown) => (t === XOXNO.xlm ? "XLM" : t === XOXNO.usdc ? "USDC" : `${String(t).slice(0, 4)}…`);
+const tokenOf = (t: unknown) => (t === XOXNO.usdc ? { symbol: "USDC", decimals: 7 } : tokenById(String(t)) ?? { symbol: `${String(t).slice(0, 4)}…`, decimals: 7 });
+const units = (v: unknown, decimals: number) => Number(BigInt(String(v ?? 0))) / 10 ** decimals;
 
 function fromFired(e: WalletEvent, swap?: Record<string, unknown>): ActivityRow {
   const v = e.value;
@@ -55,11 +55,11 @@ function fromFired(e: WalletEvent, swap?: Record<string, unknown>): ActivityRow 
   const amount = usdc(v.amount);
   const base = { id: e.id, kind: "run" as const, who: "auto" as const, at: e.at, txHash: e.txHash, autopilotId: Number(v.autopilot_id), ruleIndex: Number(v.rule_index), amount };
   if ((kind === "swap" || kind === "withdraw_swap") && swap) {
-    const tin = tokenName(swap.token_in), tout = tokenName(swap.token_out);
-    const ain = usdc(swap.amount_in), aout = usdc(swap.amount_out);
+    const tin = tokenOf(swap.token_in), tout = tokenOf(swap.token_out);
+    const ain = units(swap.amount_in, tin.decimals), aout = units(swap.amount_out, tout.decimals);
     const from = kind === "withdraw_swap" ? ` from ${hub(v.from_hub)}` : "";
     // The USDC side is the amount the row shows.
-    return { ...base, amount: tin === "USDC" ? ain : aout, title: `Swapped ${n2(ain)} ${tin}${from} into ${n2(aout)} ${tout}` };
+    return { ...base, amount: tin.symbol === "USDC" ? ain : aout, title: `Swapped ${n2(ain)} ${tin.symbol}${from} into ${n2(aout)} ${tout.symbol}` };
   }
   switch (kind) {
     case "move_supply": return { ...base, title: `Moved ${hub(v.from_hub)} to ${hub(v.to_hub)}` };
