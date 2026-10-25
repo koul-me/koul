@@ -18,7 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { IconButton, InlineConfirm, Label, Tile, TickSlider } from "@/components/signal";
 import { RuleLine } from "@/components/rules/rule-line";
 import { POOLS, SWAP_ACTIONS, amountUnit, tokenOf, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
-import { SWAP_TOKENS, tokenBySymbol, type TokenSymbol } from "@/lib/koul";
+import { SWAP_TOKENS, type TokenSymbol } from "@/lib/koul";
 import { ACTION_CHOICES, CONDITION_SUBJECTS, agoShort, cooldownShort, liveLabel, observedLabel } from "@/lib/model/labels";
 import type { LiveRule } from "@/hooks/use-autopilot-live";
 import type { Editor } from "./use-editor";
@@ -132,7 +132,6 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
   const ctx = action.kind === "sell_token" ? { all: `all the ${tokenOf(action)} in the wallet`, have: live.holdings[tokenOf(action)] ?? null } : base;
   const unit = amountUnit(action);
   const swap = SWAP_ACTIONS.has(action.kind);
-  const buysRefused = (action.kind === "buy_token" || action.kind === "withdraw_to_token") && !tokenBySymbol(tokenOf(action)).buys;
   // USDC amounts start at 1; a sale may be a fraction of a coin (0.01 wBTC), the router skips anything under 1 USD.
   const minAmount = action.kind === "sell_token" ? 0.0001 : MIN_AMOUNT_USDC;
   const have = ctx.have === null ? null : ctx.have.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -204,9 +203,6 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
       )}
       {typeof action.amount === "number" && ctx.have !== null && action.amount > ctx.have && (
         <Label tone="lime" className="basis-full normal-case">More than you hold now ({have}). The rule runs when you have it.</Label>
-      )}
-      {buysRefused && (
-        <Label tone="lime" className="basis-full normal-case">On testnet every route pays under the oracle for {tokenOf(action)}, so the router would refuse this buy. Selling {tokenOf(action)} works.</Label>
       )}
     </div>
     </div>
