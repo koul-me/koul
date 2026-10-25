@@ -3,7 +3,7 @@
  * Conditions are mono ("USD/TRY > 50.00"), actions are plain words with the amount in them ("Withdraw 50 USDC to
  * wallet", "Supply 50% of idle to Hub 1").
  */
-import { POOLS, amountUnit, fmtPrice, type Action, type Condition, type Rule } from "@/lib/model/autopilot";
+import { POOLS, amountUnit, fmtPrice, tokenOf, type Action, type Condition, type Rule } from "@/lib/model/autopilot";
 import { isPercent } from "@/lib/model/capital";
 
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -19,8 +19,8 @@ export function describeCondition(c: Condition): string {
     case "health_factor": return `health ${op(c)} ${n2(c.value)}`;
     case "fx_price": return `USD/TRY ${op(c)} ${n2(c.value)}`;
     case "idle_usdc": return `wallet ${op(c)} ${n0(c.value)} USDC`;
-    case "xlm_price": return `XLM ${op(c)} $${fmtPrice(c.value)}`;
-    case "xlm_balance": return `wallet ${op(c)} ${n0(c.value)} XLM`;
+    case "token_price": return `${tokenOf(c)} ${op(c)} $${fmtPrice(c.value)}`;
+    case "token_balance": return `wallet ${op(c)} ${n0(c.value)} ${tokenOf(c)}`;
   }
 }
 
@@ -28,7 +28,7 @@ export function describeConditions(rule: Pick<Rule, "conditions" | "match">): st
   return rule.conditions.map(describeCondition).join(rule.match === "all" ? " AND " : " OR ");
 }
 
-/** "everything" → nothing said, a share → "50%", a fixed amount → "50 USDC" (or "50 XLM" for a sale of XLM). */
+/** "everything" → nothing said, a share → "50%", a fixed amount → "50 USDC" (or "50 XLM" for a sale of a token). */
 export function describeAmount(a: Action["amount"], unit = "USDC"): string | null {
   if (a === "all") return null;
   if (isPercent(a)) return `${a.percent}%`;
@@ -36,7 +36,8 @@ export function describeAmount(a: Action["amount"], unit = "USDC"): string | nul
 }
 
 export function describeAction(a: Action): string {
-  const amt = describeAmount(a.amount, amountUnit(a.kind));
+  const amt = describeAmount(a.amount, amountUnit(a));
+  const t = tokenOf(a);
   const share = isPercent(a.amount);
   switch (a.kind) {
     case "repay_from_wallet": return amt ? (share ? `Repay ${amt} of debt` : `Repay ${amt}`) : "Repay debt";
@@ -46,9 +47,9 @@ export function describeAction(a: Action): string {
       const hub = `Hub ${POOLS[a.pool ?? "B"].hub}`;
       return amt ? (share ? `Supply ${amt} of idle to ${hub}` : `Supply ${amt} to ${hub}`) : `Supply idle to ${hub}`;
     }
-    case "sell_xlm": return amt ? (share ? `Sell ${amt} of XLM for USDC` : `Sell ${amt} for USDC`) : "Sell all XLM for USDC";
-    case "buy_xlm": return amt ? (share ? `Buy XLM with ${amt} of idle` : `Buy XLM with ${amt}`) : "Buy XLM with idle USDC";
-    case "withdraw_to_xlm": return amt ? `Swap ${amt} of supplied into XLM` : "Swap supplied USDC into XLM";
+    case "sell_token": return amt ? (share ? `Sell ${amt} of ${t} for USDC` : `Sell ${amt} for USDC`) : `Sell all ${t} for USDC`;
+    case "buy_token": return amt ? (share ? `Buy ${t} with ${amt} of idle` : `Buy ${t} with ${amt}`) : `Buy ${t} with idle USDC`;
+    case "withdraw_to_token": return amt ? `Swap ${amt} of supplied into ${t}` : `Swap supplied USDC into ${t}`;
   }
 }
 

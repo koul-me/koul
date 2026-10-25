@@ -17,7 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { IconButton, InlineConfirm, Label, Tile, TickSlider } from "@/components/signal";
 import { RuleLine } from "@/components/rules/rule-line";
-import { POOLS, amountUnit, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
+import { POOLS, SWAP_ACTIONS, amountUnit, tokenOf, type Action, type Comparator, type Condition, type ConditionKind, type LiveValues, type Rule } from "@/lib/model/autopilot";
+import { SWAP_TOKENS, tokenBySymbol, type TokenSymbol } from "@/lib/koul";
 import { ACTION_CHOICES, CONDITION_SUBJECTS, agoShort, cooldownShort, liveLabel, observedLabel } from "@/lib/model/labels";
 import type { LiveRule } from "@/hooks/use-autopilot-live";
 import type { Editor } from "./use-editor";
@@ -39,12 +40,24 @@ function defaultsFor(kind: ConditionKind): Condition {
     case "rate_gap": return { kind, comparator: "gte", value: 1 };
     case "idle_usdc": return { kind, comparator: "gte", value: 100 };
     case "pool_rate": return { kind, comparator: "lte", value: 2, pool: "B" };
-    case "xlm_price": return { kind, comparator: "lte", value: 0.15 };
-    case "xlm_balance": return { kind, comparator: "gte", value: 100 };
+    case "token_price": return { kind, comparator: "lte", value: 0.15, token: "XLM" };
+    case "token_balance": return { kind, comparator: "gte", value: 100, token: "XLM" };
   }
 }
 
 export { pairingProblem };
+
+const TOKEN_ITEMS = SWAP_TOKENS.map((t) => ({ value: t.symbol, label: t.symbol }));
+
+/** The token a price, balance or swap names. */
+function TokenPicker({ value, onChange, label }: { value: TokenSymbol; onChange: (t: TokenSymbol) => void; label: string }) {
+  return (
+    <Select value={value} onValueChange={(v) => v && onChange(v as TokenSymbol)} items={TOKEN_ITEMS}>
+      <SelectTrigger className={pill} aria-label={label}><SelectValue /></SelectTrigger>
+      <SelectContent className={popup}>{SWAP_TOKENS.map((t) => <SelectItem key={t.symbol} value={t.symbol} className={item}>{t.symbol}</SelectItem>)}</SelectContent>
+    </Select>
+  );
+}
 
 export function ruleTemplate(): Rule {
   return { id: `r_${Date.now().toString(36)}`, name: "Rule", conditions: [defaultsFor("fx_price")], match: "all", action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600, inferred: [], enabled: true };
@@ -52,7 +65,7 @@ export function ruleTemplate(): Rule {
 
 function ConditionPickers({ c, i, onChange }: { c: Condition; i: number; onChange: (next: Condition) => void }) {
   const isGap = c.kind === "rate_gap";
-  const unit = CONDITION_SUBJECTS.find((s) => s.kind === c.kind)?.unit ?? "";
+  const unit = c.kind === "token_balance" ? tokenOf(c) : CONDITION_SUBJECTS.find((s) => s.kind === c.kind)?.unit ?? "";
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select value={c.kind} onValueChange={(v) => v && onChange(defaultsFor(v as ConditionKind))} items={CONDITION_SUBJECTS.map((s) => ({ value: s.kind, label: s.label }))}>
@@ -65,6 +78,7 @@ function ConditionPickers({ c, i, onChange }: { c: Condition; i: number; onChang
           <SelectContent className={popup}>{(["A", "B"] as const).map((p) => <SelectItem key={p} value={p} className={item}>{`hub ${POOLS[p].hub}`}</SelectItem>)}</SelectContent>
         </Select>
       )}
+      {(c.kind === "token_price" || c.kind === "token_balance") && <TokenPicker value={tokenOf(c)} onChange={(token) => onChange({ ...c, token })} label="Which token" />}
       <Select value={c.comparator} onValueChange={(v) => v && onChange({ ...c, comparator: v as Comparator })} items={[{ value: "gte", label: ">" }, { value: "lte", label: "<" }]} disabled={isGap}>
         <SelectTrigger className={cn(pill, "min-w-[68px]")} aria-label="Comparison"><SelectValue /></SelectTrigger>
         <SelectContent className={popup}><SelectItem value="gte" className={item}>&gt;</SelectItem><SelectItem value="lte" className={item}>&lt;</SelectItem></SelectContent>
@@ -94,9 +108,9 @@ function amountContext(kind: Action["kind"], live: LiveValues): { all: string; h
     case "repay_from_wallet": return { all: "the whole debt, from the wallet", have: live.idleUsdc };
     case "withdraw_to_wallet": return { all: "everything supplied", have: supplied };
     case "move_to_best_pool": return { all: "everything supplied", have: supplied };
-    case "sell_xlm": return { all: "all the XLM in the wallet", have: live.idleXlm };
-    case "buy_xlm": return { all: "every idle USDC in the wallet", have: live.idleUsdc };
-    case "withdraw_to_xlm": return { all: "everything supplied", have: supplied };
+    case "sell_token": return { all: "all of it in the wallet", have: null };
+    case "buy_token": return { all: "every idle USDC in the wallet", have: live.idleUsdc };
+    case "withdraw_to_token": return { all: "everything supplied", have: supplied };
   }
 }
 
@@ -113,16 +127,23 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
     setSeen(action.amount);
     if (isFixed(action.amount) && parseAmount(text) !== action.amount) setText(String(action.amount));
   }
-  const ctx = amountContext(action.kind, live);
-  const unit = amountUnit(action.kind);
+  const base = amountContext(action.kind, live);
+  // A sale is measured against what the wallet holds of that token.
+  const ctx = action.kind === "sell_token" ? { all: `all the ${tokenOf(action)} in the wallet`, have: live.holdings[tokenOf(action)] ?? null } : base;
+  const unit = amountUnit(action);
+  const swap = SWAP_ACTIONS.has(action.kind);
+  const buysRefused = (action.kind === "buy_token" || action.kind === "withdraw_to_token") && !tokenBySymbol(tokenOf(action)).buys;
+  // USDC amounts start at 1; a sale may be a fraction of a coin (0.01 wBTC), the router skips anything under 1 USD.
+  const minAmount = action.kind === "sell_token" ? 0.0001 : MIN_AMOUNT_USDC;
   const have = ctx.have === null ? null : ctx.have.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <div className="grid gap-2">
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={action.kind} onValueChange={(v) => v && onChange({ kind: v as Action["kind"], amount: action.amount, ...(v === "supply_from_wallet" ? { pool: "B" as const } : {}) })} items={ACTION_CHOICES.map((a) => ({ value: a.kind, label: a.label }))}>
+      <Select value={action.kind} onValueChange={(v) => v && onChange({ kind: v as Action["kind"], amount: action.amount, ...(v === "supply_from_wallet" ? { pool: "B" as const } : {}), ...(SWAP_ACTIONS.has(v as Action["kind"]) ? { token: tokenOf(action) } : {}) })} items={ACTION_CHOICES.map((a) => ({ value: a.kind, label: a.label }))}>
         <SelectTrigger className={pill} aria-label="What to do"><SelectValue /></SelectTrigger>
         <SelectContent className={popup}>{ACTION_CHOICES.map((a) => <SelectItem key={a.kind} value={a.kind} className={item}>{a.label}</SelectItem>)}</SelectContent>
       </Select>
+      {swap && <TokenPicker value={tokenOf(action)} onChange={(token) => onChange({ ...action, token })} label="Which token" />}
       {action.kind === "supply_from_wallet" && (
         <Select value={action.pool ?? "B"} onValueChange={(v) => v && onChange({ ...action, pool: v as "A" | "B" })} items={[{ value: "A", label: `Hub ${POOLS.A.hub}` }, { value: "B", label: `Hub ${POOLS.B.hub}` }]}>
           <SelectTrigger className={pill} aria-label="Which hub"><SelectValue /></SelectTrigger>
@@ -131,7 +152,7 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
       )}
     </div>
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={mode} onValueChange={(v) => v && onChange({ ...action, amount: v === "all" ? "all" : v === "share" ? { percent: 50 } : Math.max(MIN_AMOUNT_USDC, parseAmount(text) || (ctx.have && ctx.have >= MIN_AMOUNT_USDC ? Math.floor(ctx.have) : 10)) })} items={AMOUNT_MODES}>
+      <Select value={mode} onValueChange={(v) => v && onChange({ ...action, amount: v === "all" ? "all" : v === "share" ? { percent: 50 } : Math.max(minAmount, parseAmount(text) || (ctx.have && ctx.have >= MIN_AMOUNT_USDC ? Math.floor(ctx.have) : action.kind === "sell_token" ? 1 : 10)) })} items={AMOUNT_MODES}>
         <SelectTrigger className={pill} aria-label="How much"><SelectValue /></SelectTrigger>
         <SelectContent className={popup}>{AMOUNT_MODES.map((m) => <SelectItem key={m.value} value={m.value} className={item}>{m.label}</SelectItem>)}</SelectContent>
       </Select>
@@ -141,7 +162,7 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
           <input
             value={text}
             onChange={(e) => { const s = sanitizeAmount(e.target.value); setText(s); const n = parseAmount(s); if (n > 0) onChange({ ...action, amount: n }); }}
-            onBlur={() => { const n = parseAmount(text); if (!(n >= MIN_AMOUNT_USDC)) { setText(String(MIN_AMOUNT_USDC)); onChange({ ...action, amount: MIN_AMOUNT_USDC }); } }}
+            onBlur={() => { const n = parseAmount(text); if (!(n >= minAmount)) { const m = action.kind === "sell_token" ? 1 : MIN_AMOUNT_USDC; setText(String(m)); onChange({ ...action, amount: m }); } }}
             inputMode="decimal"
             autoComplete="off"
             size={6}
@@ -184,6 +205,9 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
       {typeof action.amount === "number" && ctx.have !== null && action.amount > ctx.have && (
         <Label tone="lime" className="basis-full normal-case">More than you hold now ({have}). The rule runs when you have it.</Label>
       )}
+      {buysRefused && (
+        <Label tone="lime" className="basis-full normal-case">On testnet every route pays under the oracle for {tokenOf(action)}, so the router would refuse this buy. Selling {tokenOf(action)} works.</Label>
+      )}
     </div>
     </div>
   );
@@ -217,7 +241,7 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
   const first = rule.conditions[0]!;
   const problem = pairingProblem(rule);
   // A rule copied from the chain keeps its live reading; a new or changed one reads the app's live values.
-  const nowText = lr && lr.observed !== null ? observedLabel(first.kind, lr.observed) : liveLabel(first, live);
+  const nowText = lr && lr.observed !== null ? observedLabel(first, lr.observed) : liveLabel(first, live);
   const count = editor.rules.length;
   // When the per-move pill reads Mixed, every row says its own share so the odd one out is visible.
   const mixed = capitalOf(editor.rules) === "mixed";

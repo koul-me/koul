@@ -4,18 +4,22 @@
  * else is `unsupported`.
  */
 import { z } from "zod";
+import { TOKEN_SYMBOLS } from "@/lib/koul";
 
 export const conditionSchema = z.object({
-  kind: z.enum(["fx_price", "health_factor", "rate_gap", "idle_usdc", "pool_rate", "xlm_price", "xlm_balance"]),
+  kind: z.enum(["fx_price", "health_factor", "rate_gap", "idle_usdc", "pool_rate", "token_price", "token_balance"]),
   comparator: z.enum(["gte", "lte"]),
   value: z.number().finite().positive(),
   pool: z.enum(["A", "B"]).optional(),
+  token: z.enum(TOKEN_SYMBOLS).optional(),
 }).strict();
 
 export const actionSchema = z.object({
-  kind: z.enum(["withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool", "supply_from_wallet", "sell_xlm", "buy_xlm", "withdraw_to_xlm"]),
-  amount: z.union([z.literal("all"), z.number().finite().min(1), z.object({ percent: z.number().int().min(1).max(100) }).strict()]),
+  kind: z.enum(["withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool", "supply_from_wallet", "sell_token", "buy_token", "withdraw_to_token"]),
+  // A sale is counted in the token sold, so it may be a fraction (0.01 wBTC); pairing checks the USDC minimum.
+  amount: z.union([z.literal("all"), z.number().finite().positive(), z.object({ percent: z.number().int().min(1).max(100) }).strict()]),
   pool: z.enum(["A", "B"]).optional(),
+  token: z.enum(TOKEN_SYMBOLS).optional(),
 }).strict();
 
 export const ruleSchema = z.object({
@@ -46,7 +50,7 @@ export const chatReplySchema = z.object({
 
 export type ChatReplyWire = z.infer<typeof chatReplySchema>;
 
-/** The readings the assistant may quote: TRY per USD, loan health, hub rates as APY percent, idle USDC, XLM in USD and XLM held. */
+/** The readings the assistant may quote: TRY per USD, loan health, hub rates as APY percent, idle USDC, token prices in USD and tokens held. */
 export const liveContextSchema = z.object({
   fx: z.number().nullable(),
   healthFactor: z.number().nullable(),
@@ -54,8 +58,8 @@ export const liveContextSchema = z.object({
   rateA: z.number().nullable(),
   rateB: z.number().nullable(),
   idleUsdc: z.number().nullable(),
-  xlmPrice: z.number().nullable(),
-  idleXlm: z.number().nullable(),
+  prices: z.record(z.string(), z.number()),
+  holdings: z.record(z.string(), z.number()),
 });
 export type LiveContext = z.infer<typeof liveContextSchema>;
 

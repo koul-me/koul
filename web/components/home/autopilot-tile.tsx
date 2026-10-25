@@ -54,7 +54,7 @@ export function AutopilotTile({ ap, now }: { ap: AutopilotLiveState; now: number
         </div>
         <div className="divide-y divide-line">
           {ap.rules.slice(0, SHOWN).map((r) => (
-            <RuleLine key={r.rule.id} index={r.index} rule={r.rule} current={r.current} ranAgo={r.current && r.lastRunAt ? agoShort(r.lastRunAt, now) : null} now={observedLabel(r.rule.conditions[0]!.kind, r.observed)} />
+            <RuleLine key={r.rule.id} index={r.index} rule={r.rule} current={r.current} ranAgo={r.current && r.lastRunAt ? agoShort(r.lastRunAt, now) : null} now={observedLabel(r.rule.conditions[0]!, r.observed)} />
           ))}
           {more > 0 && (
             <div className={cn("flex items-center justify-between pt-4")}>

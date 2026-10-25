@@ -18,14 +18,14 @@ const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, 
 const ORDINAL = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
 
 /** The router walks rules in order; protection first, then exits, then yield moves. New rules slot in by that order. */
-const RANK: Record<ConditionKind, number> = { health_factor: 0, fx_price: 1, xlm_price: 2, xlm_balance: 3, idle_usdc: 4, rate_gap: 5, pool_rate: 6 };
+const RANK: Record<ConditionKind, number> = { health_factor: 0, fx_price: 1, token_price: 2, token_balance: 3, idle_usdc: 4, rate_gap: 5, pool_rate: 6 };
 const insertionIndex = (rules: Rule[], rule: Rule): number => {
   const rank = RANK[rule.conditions[0]!.kind];
   const i = rules.findIndex((r) => RANK[r.conditions[0]!.kind] > rank);
   return i < 0 ? rules.length : i;
 };
 
-export const UNSUPPORTED = "Koul cannot do that. It can watch loan health, hub rates, USD/TRY, the XLM price and your wallet, and it can repay, move between hubs, supply, withdraw, or swap between XLM and USDC.";
+export const UNSUPPORTED = "Koul cannot do that. It can watch loan health, hub rates, USD/TRY, token prices and your wallet, and it can repay, move between hubs, supply, withdraw, or swap between USDC and XLM, ETH, SOL, XRP, BTC, USDT or EURC.";
 
 function subjectOf(c: Condition): string {
   switch (c.kind) {
@@ -34,8 +34,8 @@ function subjectOf(c: Condition): string {
     case "rate_gap": return "rate gap";
     case "idle_usdc": return "wallet";
     case "pool_rate": return "hub APY";
-    case "xlm_price": return "XLM price";
-    case "xlm_balance": return "XLM balance";
+    case "token_price": return `${c.token ?? "XLM"} price`;
+    case "token_balance": return `${c.token ?? "XLM"} balance`;
   }
 }
 
@@ -47,8 +47,8 @@ function choicesFor(c: Condition, live: LiveContext): string[] {
     case "rate_gap": return ["0.50", "1.00", "2.00"];
     case "idle_usdc": return ["50", "100", "500"];
     case "pool_rate": return ["2.00", "5.00", "10.00"];
-    case "xlm_price": { const p = live.xlmPrice ?? 0.15; return [p * 0.9, p, p * 1.1].map((v) => v.toFixed(4)); }
-    case "xlm_balance": return ["50", "100", "500"];
+    case "token_price": { const p = live.prices[c.token ?? "XLM"] ?? 0.15; return [p * 0.9, p, p * 1.1].map((v) => v.toFixed(p < 1 ? 4 : 2)); }
+    case "token_balance": return ["50", "100", "500"];
   }
 }
 
@@ -59,8 +59,8 @@ function readingFor(c: Condition, live: LiveContext): string | null {
     case "rate_gap": return live.rateA !== null && live.rateB !== null ? `The gap is ${n2(Math.abs(live.rateB - live.rateA))}% now.` : null;
     case "idle_usdc": return live.idleUsdc !== null ? `You have ${n2(live.idleUsdc)} USDC idle now.` : null;
     case "pool_rate": return null;
-    case "xlm_price": return live.xlmPrice !== null ? `XLM is $${live.xlmPrice.toFixed(4)} now.` : null;
-    case "xlm_balance": return live.idleXlm !== null ? `You have ${n2(live.idleXlm)} XLM now.` : null;
+    case "token_price": { const t = c.token ?? "XLM"; const p = live.prices[t]; return p !== undefined ? `${t} is $${p.toFixed(p < 1 ? 4 : 2)} now.` : null; }
+    case "token_balance": { const t = c.token ?? "XLM"; const h = live.holdings[t]; return h !== undefined ? `You have ${n2(h)} ${t} now.` : null; }
   }
 }
 

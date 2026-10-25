@@ -408,15 +408,6 @@ fn pow10(n: u32) -> i128 {
     10i128.pow(n)
 }
 
-/// 0.01 of a token in its base units, the swap counterpart of `GRAIN`.
-pub fn grain_of(decimals: u32) -> i128 {
-    if decimals >= 2 { pow10(decimals - 2) } else { 1 }
-}
-
-pub fn floor_to(x: i128, grain: i128) -> i128 {
-    if x <= 0 { 0 } else { x - x % grain }
-}
-
 /// USD value of `amount` base units at `price` (14 decimals), in 14 decimals.
 pub fn usd_value(amount: i128, decimals: u32, price: i128) -> i128 {
     amount / pow10(decimals) * price + amount % pow10(decimals) * price / pow10(decimals)
@@ -675,11 +666,11 @@ impl<'a> Reads<'a> {
         token::TokenClient::new(self.e, token).balance(user)
     }
 
-    /// The swap half of a plan: amount snapped to 0.01 of the token, worth at least 1 USD, with the router's floor.
+    /// The swap half of a plan: worth at least 1 USD, with the router's floor. A wallet balance earns nothing between the
+    /// keeper's quote and the tick, so unlike a position it needs no snapping; a withdrawal arrives already snapped.
     fn plan_swap(&self, tin: &Address, tout: &Address, amount: i128, slip: u32, withdraw_hub: Option<u32>) -> Option<Plan> {
         let (pin, din) = self.price(tin)?;
         let (pout, dout) = self.price(tout)?;
-        let amount = floor_to(amount, grain_of(din));
         if amount <= 0 || usd_value(amount, din, pin) < PRICE_ONE {
             return None;
         }
@@ -1571,8 +1562,8 @@ mod tick_test {
         // An 18-decimal output token.
         assert_eq!(swap_floor(USDC, 7, PRICE_ONE, 18, 2 * PRICE_ONE, 0), 500_000_000_000_000_000);
         assert_eq!(usd_value(5 * USDC, 7, XLM_PRICE), 85_000_000_000_000);
-        assert_eq!(grain_of(7), 100_000);
-        assert_eq!(grain_of(18), 10_000_000_000_000_000);
+        // 0.0016 ETH at 2338 USD is 3.74 USD: worth swapping, though far under 0.01 ETH.
+        assert_eq!(usd_value(16_000, 7, 233_800_000_000_000_000), 374_080_000_000_000);
     }
 
     #[test]
@@ -1591,7 +1582,8 @@ mod tick_test {
 
         s.xlm.mint(&w.user, &(50 * USDC + 12_345));
         let planned = w.router.next_action(&w.user, &5).unwrap();
-        assert_eq!(planned, Planned { rule_index: 0, kind: Symbol::new(&e, "swap"), amount: 50 * USDC, needs_route: true, token_in: xlm.clone(), token_out: w.usdc.address.clone(), min_out: 84_150_000 });
+        // The whole balance, to the stroop: nothing snapped off a wallet swap.
+        assert_eq!(planned, Planned { rule_index: 0, kind: Symbol::new(&e, "swap"), amount: 50 * USDC + 12_345, needs_route: true, token_in: xlm.clone(), token_out: w.usdc.address.clone(), min_out: swap_floor(50 * USDC + 12_345, 7, XLM_PRICE, 7, PRICE_ONE, 100) });
 
         assert_eq!(w.router.try_tick(&w.user, &5, &None), err(RouterError::RouteRequired));
         assert_eq!(w.router.try_tick(&w.user, &5, &Some(route(&e, &w.usdc.address, &xlm))), err(RouterError::RouteMismatch));
@@ -1605,11 +1597,11 @@ mod tick_test {
 
         s.aggregator.set_rate(&200_000);
         let ex = w.router.tick(&w.user, &5, &Some(route(&e, &xlm, &w.usdc.address))).unwrap();
-        assert_eq!(ex, Executed { rule_index: 0, kind: Symbol::new(&e, "swap"), amount: 50 * USDC, from_hub: 0, to_hub: 0 });
-        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &xlm).balance(&w.user), 12_345);
-        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &w.usdc.address).balance(&w.user), 10 * USDC);
+        assert_eq!(ex, Executed { rule_index: 0, kind: Symbol::new(&e, "swap"), amount: 50 * USDC + 12_345, from_hub: 0, to_hub: 0 });
+        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &xlm).balance(&w.user), 0);
+        assert_eq!(soroban_sdk::token::TokenClient::new(&e, &w.usdc.address).balance(&w.user), (50 * USDC + 12_345) / 5);
         assert_eq!(s.policy.ended(), 1);
-        // Cooling down, and what is left is below the 0.01 grain: nothing more to do.
+        // Cooling down, and the wallet holds no more XLM: nothing more to do.
         assert_eq!(w.router.tick(&w.user, &5, &None), None);
         assert_eq!(s.policy.ended(), 2);
     }

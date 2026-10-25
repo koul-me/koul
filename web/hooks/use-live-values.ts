@@ -3,13 +3,14 @@
 /** Everything a rule condition can be checked against right now, assembled from the market and portfolio hooks. */
 import { useMemo } from "react";
 import type { LiveValues } from "@/lib/model/autopilot";
-import { useFx, usePools, useXlmPrice, poolById } from "./use-market";
-import { usePortfolio } from "./use-portfolio";
+import { useFx, usePools, useTokenPrices, poolById } from "./use-market";
+import { usePortfolio, useTokenHoldings } from "./use-portfolio";
 
 export function useLiveValues(): { live: LiveValues; loading: boolean; fxUpdatedAt: number } {
   const pools = usePools();
   const fx = useFx();
-  const xlm = useXlmPrice();
+  const tokens = useTokenPrices();
+  const holdings = useTokenHoldings();
   const pf = usePortfolio();
   const live = useMemo<LiveValues>(() => ({
     // The router compares the pool's raw annualised rates, so rules are evaluated against APR, not the compounded APY.
@@ -22,9 +23,8 @@ export function useLiveValues(): { live: LiveValues; loading: boolean; fxUpdated
     idleUsdc: pf.positions ? pf.positions.idleUsdc : null,
     suppliedA: pf.positions ? pf.positions.supplied.A : null,
     suppliedB: pf.positions ? pf.positions.supplied.B : null,
-    xlmPrice: xlm.price?.usd ?? null,
-    xlmStale: xlm.price?.stale ?? true,
-    idleXlm: pf.positions ? pf.positions.idleXlm : null,
-  }), [pools.pools, pf.health, pf.positions, fx.fx, fx.loading, xlm.price]);
+    prices: Object.fromEntries(Object.entries(tokens.prices).map(([s, p]) => [s, { usd: p!.usd, stale: p!.stale }])),
+    holdings,
+  }), [pools.pools, pf.health, pf.positions, fx.fx, fx.loading, tokens.prices, holdings]);
   return { live, loading: pools.loading || fx.loading || pf.loading, fxUpdatedAt: fx.fx.timestamp * 1000 };
 }
