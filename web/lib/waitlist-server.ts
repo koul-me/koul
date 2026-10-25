@@ -16,13 +16,13 @@ function store(): Redis | null {
   return url && token ? new Redis({ url, token }) : null;
 }
 
-/** Adds an email to the waitlist. False when no store is configured. */
-export async function joinWaitlist(email: string, from: string): Promise<boolean> {
+/** Adds an email to the waitlist: "added" the first time, "exists" after that, null when no store is configured. */
+export async function joinWaitlist(email: string, from: string): Promise<{ result: "added" | "exists"; count: number } | null> {
   const redis = store();
-  if (!redis) return false;
-  await Promise.all([
+  if (!redis) return null;
+  const [added] = await Promise.all([
     redis.zadd(LIST, { nx: true }, { score: Date.now(), member: email }),
     redis.hsetnx(FROM, email, from),
   ]);
-  return true;
+  return { result: added ? "added" : "exists", count: await redis.zcard(LIST) };
 }

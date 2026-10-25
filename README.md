@@ -317,7 +317,9 @@ rules in `web/lib/app-host.ts`) and the landing's Open app becomes an email fiel
 parameter; taking a code out of the list revokes it. `cd web && pnpm invite-codes 5 judge` makes five new codes with
 their links and the value to append on Vercel (Production), then redeploy. Signups go to Upstash Redis through `POST /api/waitlist` (`KV_REST_API_URL` and
 `KV_REST_API_TOKEN`, or the `UPSTASH_REDIS_REST_*` names), as the sorted set `koul:waitlist` scored by join time,
-with the source in the hash `koul:waitlist:from`; read the list in the Upstash console's Data Browser. The flag is read at build time, so changing it needs a redeploy.
+with the source in the hash `koul:waitlist:from`; read the list in the Upstash console's Data Browser. A new
+signup sends two emails through Resend (`RESEND_API_KEY`, from the Vercel integration, sending domain koul.me): a
+confirmation to the person, and a notice to `WAITLIST_NOTIFY_TO`. A repeat signup sends nothing. The flag is read at build time, so changing it needs a redeploy.
 
 **Contracts.**
 
