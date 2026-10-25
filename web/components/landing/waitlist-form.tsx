@@ -70,7 +70,7 @@ export function WaitlistForm({ tone = "dark", from, className }: { tone?: "dark"
         type="email"
         required
         autoComplete="email"
-        placeholder="you@email.com"
+        placeholder="Your email"
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `waitlist-${from}-error` : undefined}
         className={cn("h-14 min-w-0 flex-1 rounded-full px-5 text-[17px]", ring, t.input)}
