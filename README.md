@@ -313,8 +313,9 @@ secrets; `ROUTER_V1`, `KOUL_POLICY`, `MOCK_FX` are the addresses above. `web/.en
 
 **Waitlist.** `NEXT_PUBLIC_KOUL_WAITLIST=1` closes the app: every app page shows the waitlist in place (`web/proxy.ts`,
 rules in `web/lib/app-host.ts`) and the landing's Open app becomes an email field. The landing stays open.
-`KOUL_INVITE_CODE` is the way in: `app.koul.me/?invite=<code>` sets a 90-day cookie and drops the parameter; changing
-the code revokes every invite. Signups go to Upstash Redis through `POST /api/waitlist` (`KV_REST_API_URL` and
+`KOUL_INVITE_CODES` (comma-separated) are the way in: `app.koul.me/?invite=<code>` sets a 90-day cookie and drops the
+parameter; taking a code out of the list revokes it. `cd web && pnpm invite-codes 5 judge` makes five new codes with
+their links and the value to append on Vercel (Production), then redeploy. Signups go to Upstash Redis through `POST /api/waitlist` (`KV_REST_API_URL` and
 `KV_REST_API_TOKEN`, or the `UPSTASH_REDIS_REST_*` names), as the sorted set `koul:waitlist` scored by join time,
 with the source in the hash `koul:waitlist:from`; read the list in the Upstash console's Data Browser. The flag is read at build time, so changing it needs a redeploy.
 

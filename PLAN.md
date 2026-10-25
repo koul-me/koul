@@ -17,10 +17,10 @@ Deployed, all from this repo on `master`, every push redeploys:
 
 2026-10-25 (waitlist): the app is behind a waitlist, the landing stays open. `NEXT_PUBLIC_KOUL_WAITLIST=1` makes
 `web/proxy.ts` rewrite every app page to `/waitlist` unless the browser holds the invite cookie, which
-`?invite=<KOUL_INVITE_CODE>` sets (`gateFor` in `web/lib/app-host.ts`, tested). The landing's Open app buttons become an
+`?invite=<code>` sets for any code in `KOUL_INVITE_CODES` (`gateFor` in `web/lib/app-host.ts`, tested). The landing's Open app buttons become an
 email field (`components/landing/waitlist-form.tsx`). Signups: `POST /api/waitlist` into Upstash Redis
 (`lib/waitlist-server.ts`). To go live: add the Upstash integration to Vercel project `koul`, set
-`NEXT_PUBLIC_KOUL_WAITLIST=1` and `KOUL_INVITE_CODE`, redeploy. API routes are not gated.
+`NEXT_PUBLIC_KOUL_WAITLIST=1` and `KOUL_INVITE_CODES` (`pnpm invite-codes`), redeploy. API routes are not gated.
 
 2026-09-22 (hosts): the landing is https://koul.me and the app is https://app.koul.me (added to Vercel project `koul`,
 DNS on Vercel). One project serves both: `web/proxy.ts` with the rules in `web/lib/app-host.ts` (tested). On app.koul.me

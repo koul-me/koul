@@ -6,7 +6,7 @@ const INVITE_MAX_AGE = 60 * 60 * 24 * 90;
 
 /**
  * app.koul.me serves the app, koul.me the landing; the rules live in lib/app-host.ts. While the waitlist is on,
- * app pages show the waitlist unless the browser holds an invite (KOUL_INVITE_CODE, through ?invite=CODE).
+ * app pages show the waitlist unless the browser holds an invite (one of KOUL_INVITE_CODES, through ?invite=CODE).
  */
 export function proxy(request: NextRequest) {
   const url = request.nextUrl;
@@ -16,7 +16,7 @@ export function proxy(request: NextRequest) {
   if (rendersApp(route, url.pathname)) {
     const gate = gateFor(url.pathname, url.search, {
       on: WAITLIST_ON,
-      code: process.env.KOUL_INVITE_CODE,
+      codes: process.env.KOUL_INVITE_CODES,
       cookie: request.cookies.get(INVITE_COOKIE)?.value,
     });
     if (gate.kind === "waitlist") return NextResponse.rewrite(new URL("/waitlist", url));

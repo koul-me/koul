@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appBaseFor, appHrefFor, appPathFor, gateFor, rendersApp, routeFor } from "./app-host";
+import { appBaseFor, appHrefFor, appPathFor, gateFor, parseInviteCodes, rendersApp, routeFor } from "./app-host";
 
 describe("routeFor", () => {
   it("serves the app at the root of app.koul.me", () => {
@@ -53,30 +53,36 @@ describe("app links", () => {
 });
 
 describe("waitlist gate", () => {
-  const on = { on: true, code: "early" };
+  const on = { on: true, codes: "judge-abc, team-def\nfriend-ghi" };
 
   it("lets everyone in when the waitlist is off", () => {
-    expect(gateFor("/autopilot", "", { on: false, code: "early" })).toEqual({ kind: "open" });
+    expect(gateFor("/autopilot", "", { on: false, codes: "judge-abc" })).toEqual({ kind: "open" });
   });
 
-  it("shows the waitlist without the cookie, or with a wrong one", () => {
+  it("shows the waitlist without the cookie, or with a revoked one", () => {
     expect(gateFor("/", "", on)).toEqual({ kind: "waitlist" });
-    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "old" })).toEqual({ kind: "waitlist" });
+    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "old-code" })).toEqual({ kind: "waitlist" });
     expect(gateFor("/", "?invite=wrong", on)).toEqual({ kind: "waitlist" });
   });
 
-  it("lets the cookie through", () => {
-    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "early" })).toEqual({ kind: "open" });
+  it("lets any listed code's cookie through", () => {
+    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "team-def" })).toEqual({ kind: "open" });
+    expect(gateFor("/", "", { ...on, cookie: "friend-ghi" })).toEqual({ kind: "open" });
   });
 
-  it("admits a valid invite and drops only the invite parameter", () => {
-    expect(gateFor("/", "?invite=early", on)).toEqual({ kind: "admit", to: "/", code: "early" });
-    expect(gateFor("/app/autopilot", "?load=abc&invite=early", on)).toEqual({ kind: "admit", to: "/app/autopilot?load=abc", code: "early" });
+  it("admits a listed invite in any case and drops only the invite parameter", () => {
+    expect(gateFor("/", "?invite=judge-abc", on)).toEqual({ kind: "admit", to: "/", code: "judge-abc" });
+    expect(gateFor("/app/autopilot", "?load=abc&invite=TEAM-DEF", on)).toEqual({ kind: "admit", to: "/app/autopilot?load=abc", code: "team-def" });
   });
 
-  it("has no way in when no code is set", () => {
+  it("has no way in when no codes are set", () => {
     expect(gateFor("/", "?invite=", { on: true, cookie: "" })).toEqual({ kind: "waitlist" });
-    expect(gateFor("/", "?invite=", { on: true, code: "  ", cookie: "" })).toEqual({ kind: "waitlist" });
+    expect(gateFor("/", "?invite=", { on: true, codes: " , ", cookie: "" })).toEqual({ kind: "waitlist" });
+  });
+
+  it("splits the code list on commas, spaces and new lines", () => {
+    expect(parseInviteCodes(" A-1, b-2\n c-3 ,,")).toEqual(["a-1", "b-2", "c-3"]);
+    expect(parseInviteCodes(undefined)).toEqual([]);
   });
 
   it("only gates requests that render the app", () => {

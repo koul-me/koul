@@ -51,25 +51,29 @@ export function appPathFor(base: string, pathname: string): string {
   return pathname.slice(base.length) || "/";
 }
 
-/** The cookie an invite link sets. It holds the code itself, so changing KOUL_INVITE_CODE revokes every invite. */
+/** The cookie an invite link sets. It holds the code itself, so taking a code out of KOUL_INVITE_CODES revokes it. */
 export const INVITE_COOKIE = "koul_invite";
+
+/** KOUL_INVITE_CODES as a list: separated by commas, spaces or new lines, compared in lower case. */
+export const parseInviteCodes = (raw = "") => raw.toLowerCase().split(/[\s,]+/).filter(Boolean);
 
 export type Gate = { kind: "open" } | { kind: "admit"; to: string; code: string } | { kind: "waitlist" };
 
 /**
  * While the waitlist is on, whether an app page opens. `path` and `search` are what the browser asked for, after
- * routeFor's redirects. `?invite=CODE` with the right code sets the cookie and comes back to the same page without
+ * routeFor's redirects. `?invite=CODE` with a listed code sets the cookie and comes back to the same page without
  * the parameter; anyone else sees the waitlist in place (a rewrite, never a redirect a browser could cache).
  */
-export function gateFor(path: string, search: string, gate: { on: boolean; code?: string; cookie?: string }): Gate {
+export function gateFor(path: string, search: string, gate: { on: boolean; codes?: string; cookie?: string }): Gate {
   if (!gate.on) return { kind: "open" };
-  const code = gate.code?.trim();
-  if (code && gate.cookie === code) return { kind: "open" };
+  const codes = parseInviteCodes(gate.codes);
+  if (gate.cookie && codes.includes(gate.cookie)) return { kind: "open" };
   const params = new URLSearchParams(search);
-  if (code && params.get("invite") === code) {
+  const invite = params.get("invite")?.trim().toLowerCase();
+  if (invite && codes.includes(invite)) {
     params.delete("invite");
     const rest = params.toString();
-    return { kind: "admit", to: `${path}${rest ? `?${rest}` : ""}`, code };
+    return { kind: "admit", to: `${path}${rest ? `?${rest}` : ""}`, code: invite };
   }
   return { kind: "waitlist" };
 }
