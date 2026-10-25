@@ -606,3 +606,19 @@ On the staging router with an ETH feed (`18df66be...`), the keeper bought ETH an
 
 The web app's rules now take a token: `token_price` and `token_balance` conditions, `sell_token`, `buy_token` and
 `withdraw_to_token` actions, with a picker over the list in `web/lib/koul.ts` (`SWAP_TOKENS`).
+
+## Wallet creation failed: SDF's relayer stopped sponsoring this account build (2026-10-25)
+
+Creating a wallet failed with "transaction could not be submitted" (kit error 3004). The SDF relayer proxy answered
+`403 {"success":false,"error":"Deploy WASM hash is not allowlisted"}`: the same day, smart-account-kit 0.9 and the
+relayer moved to stellar-accounts v0.8.0 (account wasm `c514d35e...`), and Koul deploys `1b5f4534...`. Passkey-signed
+calls on existing wallets were unaffected.
+
+Fix: `web/app/api/relay` is the kit's `relayerUrl`. A `{ func, auth }` that deploys `1b5f4534...` is submitted there
+with the keeper account as source and fee payer (`web/lib/relay-server.ts`, `KEEPER_SECRET` on Vercel); everything
+else is forwarded to SDF's relayer unchanged. Checked locally: a new wallet `CA3U2VID...` deployed through the relay
+(`e9fbb78116f46778a0385079c2494092759bff90612ff2f4f9e8e42ff53808e9`), and a passkey-signed transfer from an existing
+wallet went through to SDF and confirmed (`67d8cc63d974c84feb578ed2bc07614b3a5d7846eaaa013e6d3dc256bf595a84`).
+
+Later: moving to stellar-accounts v0.8.0 means smart-account-kit 0.9 across web, keeper and SDK, and rebuilding
+`koul_agent_policy` against the v0.8.0 interfaces; the relay can then go.

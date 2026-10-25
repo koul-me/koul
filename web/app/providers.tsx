@@ -15,8 +15,15 @@ import { Toaster } from "@/components/ui/sonner";
 const host = typeof window === "undefined" ? "" : window.location.hostname;
 const rpId = host === "koul.me" || host.endsWith(".koul.me") ? "koul.me" : undefined;
 
+/**
+ * Koul's own relay (app/api/relay) pays for wallet deploys, which SDF's relayer no longer sponsors for this account
+ * build, and passes every other request on to SDF's relayer.
+ */
+const relayerUrl = typeof window === "undefined" ? SEMBOL_TESTNET_ARTIFACTS.relayerUrl : `${window.location.origin}/api/relay`;
+
 const config: SembolConfig = {
   ...SEMBOL_TESTNET_ARTIFACTS,
+  relayerUrl,
   appName: "Koul",
   webAuthnHints: ["client-device", "hybrid"],
   ...(rpId ? { rpId } : {}),
