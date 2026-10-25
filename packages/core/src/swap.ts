@@ -49,7 +49,9 @@ export async function quoteSwap(req: SwapRequest, d: SwapDeployment = XOXNO_SWAP
   if (req.from === req.to) throw new Error("from and to must differ");
   if (req.amountIn <= 0n) throw new Error("amountIn must be positive");
   if (!(req.slippage > 0 && req.slippage < 0.5)) throw new Error("slippage must be in (0, 0.5)");
-  const q: StellarQuoteResponse = await getStellarAggregatorQuote({ from: req.from, to: req.to, amountIn: req.amountIn.toString(), slippage: req.slippage, maxHops: req.maxHops, maxSplits: req.maxSplits, fresh: true }, { baseUrl: d.quoteUrl });
+  // Soroban routes only. The server's default, `all`, may answer with a classic DEX path payment, which a smart account
+  // cannot make and which has no route for the aggregator.
+  const q: StellarQuoteResponse = await getStellarAggregatorQuote({ from: req.from, to: req.to, amountIn: req.amountIn.toString(), slippage: req.slippage, maxHops: req.maxHops, maxSplits: req.maxSplits, platform: "aggregator", fresh: true }, { baseUrl: d.quoteUrl });
   if (!q.routeXdr || !q.amountOutMin) throw new Error("Quote has no executable route");
   if (q.from !== req.from || q.to !== req.to || q.amountIn !== req.amountIn.toString()) throw new Error("Quote does not match the request");
   const accepted = req.minOut ?? BigInt(q.amountOutMin);

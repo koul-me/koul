@@ -517,3 +517,37 @@ venues must be chosen so the oracle and the pool agree.
 resource fee above 5 XLM unless `--max-fee` raises it. A two-hop quote (`max_hops=2`) returned no `routeXdr`.
 `koul_router` and `koul_agent_policy` instances report a live-until ledger of 0 (archived); their next transaction
 restores them, which at normal fees is cheap.
+
+## Swap rules and the agent session, proven on a staging router (2026-10-25)
+
+Router (wasm `54d4f5b48b822b5fac4c462c8d1b1f5ddc13ca28eeacbbe58abf30aac516dc01`) gains two actions,
+`SwapFromWallet(token_in, token_out, amount, max_slippage_bps)` and `WithdrawAndSwap(hub, token_out, amount,
+max_slippage_bps)`, two conditions, `TokenPrice(token, cmp, level)` and `TokenBalance(token, cmp, amount)`, an admin
+feed registry (`set_feed`: Reflector oracle asset with a staleness limit, or a fixed price), `set_aggregator`,
+`set_policy`, and a `next_action` view. `tick` takes `route: Option<Bytes>`. For a swap the router reads the route's
+token pair and rejects a mismatch (7209), sets the input amount itself, measures what the wallet received and reverts
+below its own floor (7210): the oracle-implied output less the rule's slippage. A swap without a route is 7208.
+
+Policy (wasm `136b671b879d2d6688b0edd291c5e89d464d155dc79992f5fe63e5dde2ee4e89`), deployed at
+`CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ` (upload `4aeaea55...`, deploy `43683cc0...`): an
+allowlisted `tick` opens a session for the smart account and ledger, every other call needs it (7110), and the router
+closes it with `end_session`; `execute_strategy` must name the wallet as sender (7111).
+
+Staging router `CDWXYQFKEUHRWAPKPN3RSWFU5FLMU2NXLHR5YUCBUSZ2Q3KGBSUJME3S` (admin: the swap deployer), feeds XLM and
+USDC on Reflector CEX testnet `CCYOZJCO...` with a 900 s limit, aggregator `CDNTWMWW...`, policy `CAKEUMCI...`.
+`pnpm swap-rules` on the swap wallet, then the real keeper:
+
+| Step | Tx | Result |
+|---|---|---|
+| supply 2 USDC to hub 1 (XOXNO account 106) | `8f1df96c072457d614d8f59bebc2de0ff2910157f22e701e1ce8f25da1d65b37` | |
+| grant the agent under the new policy, aggregator allowlisted | `26248b5316607b28ae06950541bdb0b749880e47388eec4834c09becd6fed5cb` | |
+| set_autopilot: sell 20 XLM at 100+ XLM held; withdraw 1 USDC from hub 1 into XLM | `5d86af9fd8198e8449e2d15405a34d4a1dee75f66e51e68d6eb031069138062b` | |
+| keeper tick, rule 0, agent-signed, `tick > execute_strategy > transfer` | `a676b4822fde88c2abd82ed85113f8a2d424411c296b75968c1b18413fa08848` | 20 XLM -> 17.15 USDC (floor 3.28), 0.17 XLM fee |
+| keeper tick, rule 1, `tick > withdraw > execute_strategy > transfer` | `29a8aa974fa1ca3df2b24458c9e79854a6c5c4cd102e62bfc5ca08db37da064e` | 1 USDC from hub 1 -> 124.65 XLM (floor 5.73) |
+
+`pnpm session-deny`: the same agent key sending `execute_strategy`, `controller.withdraw` to the wallet and
+`usdc.transfer` to the aggregator straight at the contracts, all allowlisted calls, was rejected with 7110 each time.
+So the session holds with a real smart account: the policy sees `tick` first.
+
+Quote server: its default `platform` is now `all`, which can answer with a classic DEX path payment (`hops: []`,
+`platform: "sdex"`, no `routeXdr`) that a contract cannot make. `quoteSwap` asks for `platform=aggregator`.

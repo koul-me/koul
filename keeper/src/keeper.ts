@@ -67,7 +67,9 @@ const router = (await contract.Client.from({ contractId: ROUTER, networkPassphra
 
 const stamp = () => new Date().toISOString();
 const tag = (user: string, id: number) => `${user.slice(0, 8)}#${id}`;
-const describe = (x: Executed) => `${x.kind} rule ${x.rule_index} amount ${(Number(x.amount) / 1e7).toFixed(2)} USDC hub ${x.from_hub} -> ${x.to_hub}`;
+const describe = (x: Executed) => x.kind.endsWith("swap")
+  ? `${x.kind} rule ${x.rule_index} amount ${x.amount} of the input token${x.from_hub ? ` from hub ${x.from_hub}` : ""}`
+  : `${x.kind} rule ${x.rule_index} amount ${(Number(x.amount) / 1e7).toFixed(2)} USDC hub ${x.from_hub} -> ${x.to_hub}`;
 const describeState = (st: RuleState[]) => st.map((r, i) => `r${i}${r.ready ? "" : " cooling"}${r.holds ? " HOLDS" : ""}[${r.conditions.map((c) => `${c.holds ? "+" : "-"}${c.observed}`).join(" ")}]`).join(" ");
 
 async function tickOne(user: string, id: number, agentRuleId: number, kit: ReturnType<typeof makeKit>, selected: Awaited<ReturnType<typeof kit.multiSigners.buildSelectedSigners>>): Promise<void> {

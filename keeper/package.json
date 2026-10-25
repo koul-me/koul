@@ -20,6 +20,8 @@
     "policy-deny": "tsx scripts/policy-deny.ts",
     "swap": "tsx scripts/swap.ts",
     "swap-diag": "tsx scripts/swap-diag.ts",
+    "swap-rules": "tsx scripts/swap-rules.ts",
+    "session-deny": "tsx scripts/session-deny.ts",
     "tx-diag": "tsx scripts/tx-diag.ts",
     "anchor:withdraw": "tsx scripts/anchor-withdraw.ts"
   },
