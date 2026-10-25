@@ -551,3 +551,22 @@ So the session holds with a real smart account: the policy sees `tick` first.
 
 Quote server: its default `platform` is now `all`, which can answer with a classic DEX path payment (`hops: []`,
 `platform: "sdex"`, no `routeXdr`) that a contract cannot make. `quoteSwap` asks for `platform=aggregator`.
+
+## Production router with swaps: a fresh deploy (2026-10-25)
+
+The old router `CBHRTWXA...` can only be upgraded by its admin, the keeper account, and that secret is not on this
+machine (Vercel and GitHub keep it write-only). So the new wasm went to a fresh router, as the team chose. Its admin is
+a new account, `GCCIYVPBXI32GMYEHOVSELTNUKVKXKC37ACZJQ3HKJQAG4WOQEHLBYG4`, whose secret is `ROUTER_ADMIN_SECRET` in
+`keeper/.env` (gitignored; keep a copy).
+
+| Step | Result |
+|---|---|
+| deploy wasm `54d4f5b4...` | router `CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D`, same controller, pool, USDC, mock FX oracle and spoke 3 |
+| `set_feed` XLM and USDC | Reflector CEX `CCYOZJCO...`, `Other(XLM)` / `Other(USDC)`, 900 s limit, 7 decimals |
+| `set_aggregator` | `CDNTWMWW...` |
+| `set_policy` | `CAKEUMCI...` |
+
+Web, keeper workflow, README and the smoke script point at the new router and policy. Every wallet saves its rules
+again on the new router (the old one keeps its state but nothing ticks it any more); arming grants the new policy.
+The keeper workflow lives in `atahanyild/koul`, which holds `KEEPER_SECRET` and `AGENT_SECRET`; it now checks out
+`koul-me/koul` and runs that keeper, so the code ships from one repo.
