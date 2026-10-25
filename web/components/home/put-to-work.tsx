@@ -12,6 +12,7 @@ import { usePositionActions } from "@/hooks/use-position-actions";
 import { fmtPct, fmtUsdc } from "@/lib/format";
 import type { Pool } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
+import { hubName } from "@/lib/model/hubs";
 
 export function PutToWorkDialog({ open, onOpenChange, idle, pool }: { open: boolean; onOpenChange: (o: boolean) => void; idle: number; pool: Pool | null }) {
   const actions = usePositionActions();
@@ -52,7 +53,7 @@ export function PutToWorkDialog({ open, onOpenChange, idle, pool }: { open: bool
           />
           <div className="rounded-[var(--radius-group)] bg-surface-2 px-4">
             <KeyValue label="Stays idle" value={`${fmtUsdc(Math.max(0, idle - amount))} USDC`} />
-            <KeyValue label="To" value={pool ? `Hub ${pool.hub} · ${fmtPct(pool.supplyApy)}` : "—"} />
+            <KeyValue label="To" value={pool ? `${hubName(pool.hub)} · ${fmtPct(pool.supplyApy)}` : "—"} />
           </div>
           {tooSmall && <Label tone="danger">At least 1 USDC</Label>}
           <PillButton size="lg" full onClick={() => void confirm()} disabled={busy || !pool || tooSmall} aria-busy={busy}>

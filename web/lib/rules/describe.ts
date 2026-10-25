@@ -5,6 +5,7 @@
  */
 import { POOLS, amountUnit, fmtPrice, tokenOf, type Action, type Condition, type Rule } from "@/lib/model/autopilot";
 import { isPercent } from "@/lib/model/capital";
+import { hubName } from "@/lib/model/hubs";
 
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const n0 = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -15,7 +16,7 @@ const op = (c: Condition) => (c.comparator === "gte" ? ">" : "<");
 export function describeCondition(c: Condition): string {
   switch (c.kind) {
     case "rate_gap": return `rate gap > ${n2(c.value)}%`;
-    case "pool_rate": return `hub ${POOLS[c.pool ?? "B"].hub} APY ${op(c)} ${n2(c.value)}%`;
+    case "pool_rate": return `${hubName(POOLS[c.pool ?? "B"].hub)} APY ${op(c)} ${n2(c.value)}%`;
     case "health_factor": return `health ${op(c)} ${n2(c.value)}`;
     case "fx_price": return `USD/TRY ${op(c)} ${n2(c.value)}`;
     case "idle_usdc": return `wallet ${op(c)} ${n0(c.value)} USDC`;
@@ -44,7 +45,7 @@ export function describeAction(a: Action): string {
     case "withdraw_to_wallet": return amt ? `Withdraw ${amt} to wallet` : "Withdraw to wallet";
     case "move_to_best_pool": return amt ? `Move ${amt} to the better hub` : "Move to the better hub";
     case "supply_from_wallet": {
-      const hub = `Hub ${POOLS[a.pool ?? "B"].hub}`;
+      const hub = hubName(POOLS[a.pool ?? "B"].hub);
       return amt ? (share ? `Supply ${amt} of idle to ${hub}` : `Supply ${amt} to ${hub}`) : `Supply idle to ${hub}`;
     }
     case "sell_token": return amt ? (share ? `Sell ${amt} of ${t} for USDC` : `Sell ${amt} for USDC`) : `Sell all ${t} for USDC`;

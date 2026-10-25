@@ -28,6 +28,7 @@ import { describeAmount } from "@/lib/rules/describe";
 import { parseAmount, sanitizeAmount } from "@/components/flows/amount-input";
 import type { RuleChange } from "@/lib/chat/diff";
 import { cn } from "@/lib/utils";
+import { hubName } from "@/lib/model/hubs";
 
 const pill = "h-11 rounded-full border-0 bg-surface-2 px-4 mono text-text data-[size=default]:h-11 hover:brightness-110 [&_svg]:text-muted";
 const popup = "rounded-[var(--radius-group)] border border-line bg-surface p-1 shadow-none ring-0";
@@ -73,9 +74,9 @@ function ConditionPickers({ c, i, onChange }: { c: Condition; i: number; onChang
         <SelectContent className={popup}>{CONDITION_SUBJECTS.map((s) => <SelectItem key={s.kind} value={s.kind} className={item}>{s.label}</SelectItem>)}</SelectContent>
       </Select>
       {c.kind === "pool_rate" && (
-        <Select value={c.pool ?? "B"} onValueChange={(v) => v && onChange({ ...c, pool: v as "A" | "B" })} items={[{ value: "A", label: `hub ${POOLS.A.hub}` }, { value: "B", label: `hub ${POOLS.B.hub}` }]}>
+        <Select value={c.pool ?? "B"} onValueChange={(v) => v && onChange({ ...c, pool: v as "A" | "B" })} items={[{ value: "A", label: hubName(POOLS.A.hub) }, { value: "B", label: hubName(POOLS.B.hub) }]}>
           <SelectTrigger className={pill} aria-label="Which hub"><SelectValue /></SelectTrigger>
-          <SelectContent className={popup}>{(["A", "B"] as const).map((p) => <SelectItem key={p} value={p} className={item}>{`hub ${POOLS[p].hub}`}</SelectItem>)}</SelectContent>
+          <SelectContent className={popup}>{(["A", "B"] as const).map((p) => <SelectItem key={p} value={p} className={item}>{hubName(POOLS[p].hub)}</SelectItem>)}</SelectContent>
         </Select>
       )}
       {(c.kind === "token_price" || c.kind === "token_balance") && <TokenPicker value={tokenOf(c)} onChange={(token) => onChange({ ...c, token })} label="Which token" />}
@@ -144,9 +145,9 @@ function ActionPickers({ action, live, onChange }: { action: Action; live: LiveV
       </Select>
       {swap && <TokenPicker value={tokenOf(action)} onChange={(token) => onChange({ ...action, token })} label="Which token" />}
       {action.kind === "supply_from_wallet" && (
-        <Select value={action.pool ?? "B"} onValueChange={(v) => v && onChange({ ...action, pool: v as "A" | "B" })} items={[{ value: "A", label: `Hub ${POOLS.A.hub}` }, { value: "B", label: `Hub ${POOLS.B.hub}` }]}>
+        <Select value={action.pool ?? "B"} onValueChange={(v) => v && onChange({ ...action, pool: v as "A" | "B" })} items={[{ value: "A", label: hubName(POOLS.A.hub) }, { value: "B", label: hubName(POOLS.B.hub) }]}>
           <SelectTrigger className={pill} aria-label="Which hub"><SelectValue /></SelectTrigger>
-          <SelectContent className={popup}>{(["A", "B"] as const).map((p) => <SelectItem key={p} value={p} className={item}>{`Hub ${POOLS[p].hub}`}</SelectItem>)}</SelectContent>
+          <SelectContent className={popup}>{(["A", "B"] as const).map((p) => <SelectItem key={p} value={p} className={item}>{hubName(POOLS[p].hub)}</SelectItem>)}</SelectContent>
         </Select>
       )}
     </div>

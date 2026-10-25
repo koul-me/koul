@@ -15,6 +15,7 @@ import type { Pool, Positions, Health } from "@/lib/data/types";
 import { fmtFx, fmtHealth, fmtPct, fmtUsdc } from "@/lib/format";
 import { POOLS, type ActionKind, type Condition, type PoolId } from "@/lib/model/autopilot";
 import { cn } from "@/lib/utils";
+import { hubName } from "@/lib/model/hubs";
 
 export type CellKey = "wallet" | "hubA" | "hubB" | "health" | "fx" | "key";
 
@@ -89,7 +90,7 @@ export function Holdings({ positions, health, pools, fx, xlm, access, loading, f
   const b = hub("B");
   const gap = a.pool && b.pool ? Math.abs(b.pool.supplyApr - a.pool.supplyApr) : null;
   const healthTone = !health.hasLoan ? "dim" : health.factor !== null && health.factor < health.minimum ? "danger" : "text";
-  const oneLine = [`${fmtUsdc(positions.idleUsdc)} USDC idle`, a.pool ? `Hub ${POOLS.A.hub} ${fmtPct(a.pool.supplyApy)}` : null, b.pool ? `Hub ${POOLS.B.hub} ${fmtPct(b.pool.supplyApy)}` : null, health.hasLoan ? `health ${fmtHealth(health.factor)}` : null, fx.tryPerUsd && fx.tryPerUsd > 0 ? `USD/TRY ${fmtFx(fx.tryPerUsd)}` : null].filter(Boolean).join(" · ");
+  const oneLine = [`${fmtUsdc(positions.idleUsdc)} USDC idle`, a.pool ? `${hubName(POOLS.A.hub)} ${fmtPct(a.pool.supplyApy)}` : null, b.pool ? `${hubName(POOLS.B.hub)} ${fmtPct(b.pool.supplyApy)}` : null, health.hasLoan ? `health ${fmtHealth(health.factor)}` : null, fx.tryPerUsd && fx.tryPerUsd > 0 ? `USD/TRY ${fmtFx(fx.tryPerUsd)}` : null].filter(Boolean).join(" · ");
   const isLinked = (k: CellKey) => linked.includes(k);
 
   if (collapsed && !opened) {
@@ -117,8 +118,8 @@ export function Holdings({ positions, health, pools, fx, xlm, access, loading, f
       ) : (
         <div ref={strip} className="-mx-2 flex snap-x snap-mandatory gap-3 overflow-x-auto px-2 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0 md:pb-0 [&::-webkit-scrollbar]:hidden">
           <Cell id="wallet" linked={isLinked("wallet")} flash={flash} label="Wallet · idle" value={`${fmtUsdc(positions.idleUsdc)} USDC`} sub={xlm !== null ? `${xlm.toLocaleString("en-US", { maximumFractionDigits: 2 })} XLM for fees` : undefined} reads="wallet" />
-          <Cell id="hubA" linked={isLinked("hubA")} flash={flash} label={`Hub ${POOLS.A.hub} · supplied`} value={`${fmtUsdc(a.supplied)} USDC`} sub={a.sub} reads="hub APY · rate gap" />
-          <Cell id="hubB" linked={isLinked("hubB")} flash={flash} label={`Hub ${POOLS.B.hub} · supplied`} value={`${fmtUsdc(b.supplied)} USDC`} sub={b.sub} reads="hub APY · rate gap" />
+          <Cell id="hubA" linked={isLinked("hubA")} flash={flash} label={`${hubName(POOLS.A.hub)} · supplied`} value={`${fmtUsdc(a.supplied)} USDC`} sub={a.sub} reads="hub APY · rate gap" />
+          <Cell id="hubB" linked={isLinked("hubB")} flash={flash} label={`${hubName(POOLS.B.hub)} · supplied`} value={`${fmtUsdc(b.supplied)} USDC`} sub={b.sub} reads="hub APY · rate gap" />
           <Cell id="health" linked={isLinked("health")} flash={flash} label="Loan health" value={health.hasLoan ? fmtHealth(health.factor) : "No debt"} sub={health.hasLoan ? `liquidation at ${fmtHealth(health.liquidationAt)}` : "nothing borrowed, nothing to repay"} tone={healthTone} reads="health" />
           <Cell id="fx" linked={isLinked("fx")} flash={flash} label="USD/TRY" value={fx.tryPerUsd && fx.tryPerUsd > 0 ? fmtFx(fx.tryPerUsd) : "No reading"} sub={fx.stale ? "stale: the oracle has not published lately" : gap !== null ? `rate gap between the hubs ${fmtPct(gap)}` : undefined} tone={fx.stale ? "dim" : "text"} reads="USD/TRY" />
           <Cell id="key" linked={false} flash={flash} label="Koul's key" value={!access.loaded ? "…" : access.active ? (access.daysLeft === null ? "Active" : `${access.daysLeft}D left`) : "Not given"} sub={access.active ? "revoke any time from the chip above" : "given with your first start"} tone={access.active ? "lime" : "dim"} />

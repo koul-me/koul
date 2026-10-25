@@ -5,14 +5,15 @@
  */
 import type { Action as CoreAction, Amount as CoreAmount, Autopilot as CoreAutopilot, Condition as CoreCondition, Rule as CoreRule } from "@koul/core";
 import { LEDGER_SECONDS, MAX_PRICE_AGE_SECS, SWAP_SLIPPAGE_BPS, XOXNO, tokenById, tokenBySymbol, tryPerUsdToUsdPerTry, usdPerTryToTryPerUsd, type TokenSymbol } from "@/lib/koul";
+import { hubName } from "@/lib/model/hubs";
 
 // ---------------------------------------------------------------- pools
 
 export type PoolId = "A" | "B";
 /** Plain names for the user; the hub id is the protocol detail shown in tooltips. */
-export const POOLS: Record<PoolId, { id: PoolId; name: string; hub: number; technical: string }> = {
-  A: { id: "A", name: "USDC · Main hub", hub: 1, technical: "XOXNO market USDC on hub 1 (Main), spoke 3" },
-  B: { id: "B", name: "USDC · Secondary hub", hub: 2, technical: "XOXNO market USDC_HUB2 on hub 2 (Secondary), spoke 3" },
+export const POOLS: Record<PoolId, { id: PoolId; readonly name: string; hub: number; readonly technical: string }> = {
+  A: { id: "A", hub: 1, get name() { return `USDC · ${hubName(1)}`; }, get technical() { return `XOXNO market USDC on hub 1 (${hubName(1)}), spoke 3`; } },
+  B: { id: "B", hub: 2, get name() { return `USDC · ${hubName(2)}`; }, get technical() { return `XOXNO market USDC_HUB2 on hub 2 (${hubName(2)}), spoke 3`; } },
 };
 export const poolByHub = (hub: number): PoolId => (hub === 2 ? "B" : "A");
 

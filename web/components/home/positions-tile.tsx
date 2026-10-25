@@ -5,6 +5,7 @@ import { fmtPct, fmtUsdc } from "@/lib/format";
 import type { Pool, Positions } from "@/lib/data/types";
 import { POOLS, type PoolId } from "@/lib/model/autopilot";
 import { cn } from "@/lib/utils";
+import { hubName } from "@/lib/model/hubs";
 
 /** Where the USDC sits right now: one row per hub with its APY, the idle wallet, and any debt. */
 export function positionRows(positions: Positions, pools: Pool[]): { key: string; title: string; value: string }[] {
@@ -13,9 +14,9 @@ export function positionRows(positions: Positions, pools: Pool[]): { key: string
     const supplied = positions.supplied[id];
     const pool = pools.find((p) => p.id === id);
     const rate = pool ? ` · ${fmtPct(pool.supplyApy)}` : "";
-    rows.push({ key: `hub-${id}`, title: `Hub ${POOLS[id].hub}${rate}`, value: fmtUsdc(supplied), sort: supplied });
+    rows.push({ key: `hub-${id}`, title: `${hubName(POOLS[id].hub)}${rate}`, value: fmtUsdc(supplied), sort: supplied });
     const debt = positions.borrowed[id];
-    if (debt > 0) rows.push({ key: `debt-${id}`, title: `Hub ${POOLS[id].hub} · debt`, value: `−${fmtUsdc(debt)}`, sort: -1 });
+    if (debt > 0) rows.push({ key: `debt-${id}`, title: `${hubName(POOLS[id].hub)} · debt`, value: `−${fmtUsdc(debt)}`, sort: -1 });
   }
   rows.sort((a, b) => b.sort - a.sort);
   rows.push({ key: "wallet", title: "Wallet · idle", value: fmtUsdc(positions.idleUsdc), sort: 0 });
