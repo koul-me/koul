@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appBaseFor, appHrefFor, appPathFor, routeFor } from "./app-host";
+import { appBaseFor, appHrefFor, appPathFor, gateFor, rendersApp, routeFor } from "./app-host";
 
 describe("routeFor", () => {
   it("serves the app at the root of app.koul.me", () => {
@@ -49,5 +49,45 @@ describe("app links", () => {
     expect(appPathFor("/app", "/app/account")).toBe("/account");
     expect(appPathFor("", "/account")).toBe("/account");
     expect(appPathFor("/app", "/applesauce")).toBe("/applesauce");
+  });
+});
+
+describe("waitlist gate", () => {
+  const on = { on: true, code: "early" };
+
+  it("lets everyone in when the waitlist is off", () => {
+    expect(gateFor("/autopilot", "", { on: false, code: "early" })).toEqual({ kind: "open" });
+  });
+
+  it("shows the waitlist without the cookie, or with a wrong one", () => {
+    expect(gateFor("/", "", on)).toEqual({ kind: "waitlist" });
+    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "old" })).toEqual({ kind: "waitlist" });
+    expect(gateFor("/", "?invite=wrong", on)).toEqual({ kind: "waitlist" });
+  });
+
+  it("lets the cookie through", () => {
+    expect(gateFor("/autopilot", "?load=abc", { ...on, cookie: "early" })).toEqual({ kind: "open" });
+  });
+
+  it("admits a valid invite and drops only the invite parameter", () => {
+    expect(gateFor("/", "?invite=early", on)).toEqual({ kind: "admit", to: "/", code: "early" });
+    expect(gateFor("/app/autopilot", "?load=abc&invite=early", on)).toEqual({ kind: "admit", to: "/app/autopilot?load=abc", code: "early" });
+  });
+
+  it("has no way in when no code is set", () => {
+    expect(gateFor("/", "?invite=", { on: true, cookie: "" })).toEqual({ kind: "waitlist" });
+    expect(gateFor("/", "?invite=", { on: true, code: "  ", cookie: "" })).toEqual({ kind: "waitlist" });
+  });
+
+  it("only gates requests that render the app", () => {
+    const at = (host: string, path: string) => rendersApp(routeFor(host, path), path);
+    expect(at("app.koul.me", "/")).toBe(true);
+    expect(at("app.koul.me", "/deposit")).toBe(true);
+    expect(at("localhost:3200", "/app/account")).toBe(true);
+    expect(at("koul.me", "/")).toBe(false);
+    expect(at("localhost:3200", "/")).toBe(false);
+    expect(at("app.koul.me", "/waitlist")).toBe(false);
+    expect(at("koul.me", "/waitlist")).toBe(false);
+    expect(at("app.koul.me", "/opengraph-image")).toBe(false);
   });
 });

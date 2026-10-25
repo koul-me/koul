@@ -1,12 +1,41 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { routeFor } from "@/lib/app-host";
+import { gateFor, INVITE_COOKIE, rendersApp, routeFor } from "@/lib/app-host";
+import { WAITLIST_ON } from "@/lib/waitlist";
 
-/** app.koul.me serves the app, koul.me the landing; the rules live in lib/app-host.ts. */
+const INVITE_MAX_AGE = 60 * 60 * 24 * 90;
+
+/**
+ * app.koul.me serves the app, koul.me the landing; the rules live in lib/app-host.ts. While the waitlist is on,
+ * app pages show the waitlist unless the browser holds an invite (KOUL_INVITE_CODE, through ?invite=CODE).
+ */
 export function proxy(request: NextRequest) {
   const url = request.nextUrl;
   const route = routeFor(request.headers.get("host") ?? "", url.pathname, url.search);
-  if (route.kind === "rewrite") return NextResponse.rewrite(new URL(route.to, url));
   if (route.kind === "redirect") return NextResponse.redirect(new URL(route.to, url), route.status);
+
+  if (rendersApp(route, url.pathname)) {
+    const gate = gateFor(url.pathname, url.search, {
+      on: WAITLIST_ON,
+      code: process.env.KOUL_INVITE_CODE,
+      cookie: request.cookies.get(INVITE_COOKIE)?.value,
+    });
+    if (gate.kind === "waitlist") return NextResponse.rewrite(new URL("/waitlist", url));
+    if (gate.kind === "admit") {
+      const response = NextResponse.redirect(new URL(gate.to, url), 307);
+      response.cookies.set({
+        name: INVITE_COOKIE,
+        value: gate.code,
+        path: "/",
+        maxAge: INVITE_MAX_AGE,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: url.protocol === "https:",
+      });
+      return response;
+    }
+  }
+
+  if (route.kind === "rewrite") return NextResponse.rewrite(new URL(route.to, url));
   return NextResponse.next();
 }
 

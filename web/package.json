@@ -19,6 +19,7 @@
     "@sembol/passkey-react": "0.4.0",
     "@stellar/stellar-sdk": "16.0.1",
     "@tailwindcss/postcss": "^4.3.3",
+    "@upstash/redis": "^1.39.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "class-variance-authority": "^0.7.1",

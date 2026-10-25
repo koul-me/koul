@@ -50,3 +50,29 @@ export function appPathFor(base: string, pathname: string): string {
   if (base === "" || !(pathname === base || pathname.startsWith(`${base}/`))) return pathname;
   return pathname.slice(base.length) || "/";
 }
+
+/** The cookie an invite link sets. It holds the code itself, so changing KOUL_INVITE_CODE revokes every invite. */
+export const INVITE_COOKIE = "koul_invite";
+
+export type Gate = { kind: "open" } | { kind: "admit"; to: string; code: string } | { kind: "waitlist" };
+
+/**
+ * While the waitlist is on, whether an app page opens. `path` and `search` are what the browser asked for, after
+ * routeFor's redirects. `?invite=CODE` with the right code sets the cookie and comes back to the same page without
+ * the parameter; anyone else sees the waitlist in place (a rewrite, never a redirect a browser could cache).
+ */
+export function gateFor(path: string, search: string, gate: { on: boolean; code?: string; cookie?: string }): Gate {
+  if (!gate.on) return { kind: "open" };
+  const code = gate.code?.trim();
+  if (code && gate.cookie === code) return { kind: "open" };
+  const params = new URLSearchParams(search);
+  if (code && params.get("invite") === code) {
+    params.delete("invite");
+    const rest = params.toString();
+    return { kind: "admit", to: `${path}${rest ? `?${rest}` : ""}`, code };
+  }
+  return { kind: "waitlist" };
+}
+
+/** True when a request that routeFor did not redirect renders an app page on this host. */
+export const rendersApp = (route: Route, path: string) => route.kind === "rewrite" || underApp(path) !== null;

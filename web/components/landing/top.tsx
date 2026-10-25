@@ -10,7 +10,9 @@ import { Moon, Sun } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/analytics";
+import { WAITLIST_ON } from "@/lib/waitlist";
 import { APP_PATH } from "./shell";
+import { focusWaitlist } from "./waitlist-form";
 import { KoulMark } from "@/components/brand/koul-mark";
 
 /** True once the page is running in the browser; before that next-themes has not read the stored choice. */
@@ -47,6 +49,8 @@ const NAV = [
   { href: "#safety", label: "Safety" },
 ];
 
+const headerPill = "label inline-flex h-11 items-center rounded-full bg-lime px-4 text-on-lime transition-[filter] hover:brightness-105";
+
 export function TopBar() {
   const { scrollY } = useScroll();
   const [past, setPast] = React.useState(false);
@@ -61,7 +65,12 @@ export function TopBar() {
                 <a key={n.href} href={n.href} className="label inline-flex h-11 items-center rounded-full px-4 text-muted transition-colors hover:text-text">{n.label}</a>
               ))}
             </nav>
-            <a href={APP_PATH} onClick={() => track("open_app", { from: "header" })} className="label inline-flex h-11 items-center rounded-full bg-lime px-4 text-on-lime transition-[filter] hover:brightness-105">Open app</a>
+            {WAITLIST_ON ? (
+              // Jumps to the hero's field instead of opening one in the header.
+              <button type="button" onClick={focusWaitlist} className={headerPill}>Join waitlist</button>
+            ) : (
+              <a href={APP_PATH} onClick={() => track("open_app", { from: "header" })} className={headerPill}>Open app</a>
+            )}
             <ThemeToggle />
           </div>
         </div>

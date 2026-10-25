@@ -10,6 +10,8 @@ import { Label } from "@/components/signal";
 import { track } from "@/lib/analytics";
 import { DUR, tween } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { WAITLIST_ON } from "@/lib/waitlist";
+import { WaitlistForm } from "./waitlist-form";
 
 /**
  * The app lives on its own host (app.koul.me). "/app" gets there from any host: the proxy sends koul.me to
@@ -23,12 +25,16 @@ const TONES = {
   onLime: { main: "bg-on-lime text-lime hover:opacity-90", note: "onLime" },
 } as const;
 
-/** One way in: the app. No wallet steps on the landing. */
+/** One way in: the app, or the waitlist while it is on. No wallet steps on the landing. */
 export function StartButtons({ tone = "dark", from, className }: { tone?: "dark" | "onLime"; from: string; className?: string }) {
   const t = TONES[tone];
   return (
     <div className={cn("flex flex-wrap items-center gap-x-6 gap-y-3", className)}>
-      <a href={APP_PATH} onClick={() => track("open_app", { from })} className={cn(pill, t.main)}>Open app</a>
+      {WAITLIST_ON ? (
+        <WaitlistForm tone={tone} from={from} className="w-full md:w-[480px]" />
+      ) : (
+        <a href={APP_PATH} onClick={() => track("open_app", { from })} className={cn(pill, t.main)}>Open app</a>
+      )}
       <Label tone={t.note}>Stellar testnet</Label>
     </div>
   );

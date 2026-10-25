@@ -7,6 +7,7 @@ import { isAppHost } from "@/lib/app-host";
  */
 export type KoulEvent =
   | "open_app"
+  | "waitlist_joined"
   | "wallet_created"
   | "wallet_connected"
   | "autopilot_started"
