@@ -15,6 +15,14 @@ Deployed, all from this repo on `master`, every push redeploys:
 - Keeper: `.github/workflows/keeper.yml`, every five minutes and on demand, with `KEEPER_SECRET` and `AGENT_SECRET`
   as GitHub repository secrets. `loadEnv` falls back to the process environment, so no `.env` file is needed there.
 
+2026-10-25 (swaps, branch `feat/xoxno-swap`, not pushed): swap rules through the XOXNO aggregator. Router wasm
+`54d4f5b4...` (SwapFromWallet, WithdrawAndSwap, TokenPrice, TokenBalance, feeds, `next_action`, `tick(user, id, route)`),
+policy `CAKEUMCI...` with tick sessions, keeper quotes routes, web has XLM price/balance conditions and sell XLM, buy
+XLM, swap supplied USDC into XLM. Proven end to end on staging router `CDWXYQFK...` (docs/build-log.md). Still to do:
+upgrade the live router `CBHRTWXA...` in place (needs the keeper admin key in keeper/.env), then `set_feed` XLM and
+USDC on Reflector `CCYOZJCO...` (900 s), `set_aggregator CDNTWMWW...`, `set_policy CAKEUMCI...`; merge so the keeper
+and the web app on master move with it; existing wallets re-grant to get the new policy and swap permissions.
+
 2026-10-25 (waitlist): the app is behind a waitlist, the landing stays open. `NEXT_PUBLIC_KOUL_WAITLIST=1` makes
 `web/proxy.ts` rewrite every app page to `/waitlist` unless the browser holds the invite cookie, which
 `?invite=<code>` sets for any code in `KOUL_INVITE_CODES` (`gateFor` in `web/lib/app-host.ts`, tested). The landing's Open app buttons become an
