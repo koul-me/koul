@@ -11,16 +11,29 @@ import { toastTx } from "@/hooks/use-passkey-action";
 import { Switch } from "@/components/ui/switch";
 import { CopyAction, KeyValue, Label, Loadable, PillButton, Row, RowList, Sk, SkRows, Tile, TileLabel } from "@/components/signal";
 import { useWallet } from "@/hooks/use-wallet";
-import { usePortfolio } from "@/hooks/use-portfolio";
+import { usePortfolio, useTokenHoldings } from "@/hooks/use-portfolio";
+import { useTokenPrices } from "@/hooks/use-market";
+import { SWAP_TOKENS } from "@/lib/koul";
 import { fmtUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DEMO_ON, DemoSection } from "@/components/account/demo";
 import { useAppHref } from "@/lib/app-base";
 
+/** Two decimals from one coin up; below that, enough to show a swap's worth of ETH or BTC (0.006421). */
+const fmtCoin = (n: number) => n.toLocaleString("en-US", n >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 });
+
 export default function AccountPage() {
   const appHref = useAppHref();
   const w = useWallet();
   const pf = usePortfolio();
+  const holdings = useTokenHoldings();
+  const prices = useTokenPrices();
+  // Every other coin the wallet holds, from swaps or anywhere else: whole units, with the dollar value at Reflector's price.
+  const coins = SWAP_TOKENS.filter((t) => t.symbol !== "XLM" && (holdings[t.symbol] ?? 0) > 0).map((t) => {
+    const amount = holdings[t.symbol]!;
+    const usd = prices.prices[t.symbol]?.usd;
+    return { symbol: t.symbol, name: t.name, amount, value: usd === undefined ? null : amount * usd };
+  });
   const { resolvedTheme, setTheme } = useTheme();
   const [funding, setFunding] = React.useState(false);
   const address = w.address ?? "";
@@ -80,6 +93,9 @@ export default function AccountPage() {
               {debt > 0 && <Row title="USDC" sub="In XOXNO · debt" value={`−${fmtUsdc(debt)}`} />}
               <Row title="USDC" sub="In wallet · idle" value={fmtUsdc(pf.positions.idleUsdc)} />
               <Row title="XLM" sub="In wallet · testnet" value={fmtUsdc(pf.positions.idleXlm)} />
+              {coins.map((c) => (
+                <Row key={c.symbol} title={c.symbol} sub={`${c.name} · in wallet${c.value === null ? "" : ` · ≈ $${fmtUsdc(c.value)}`}`} value={fmtCoin(c.amount)} />
+              ))}
             </RowList>
           </Loadable>
         </Tile>
