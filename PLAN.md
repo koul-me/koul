@@ -35,8 +35,8 @@ confirmation to the person and a notice to `WAITLIST_NOTIFY_TO` through Resend (
 records on Vercel with a DMARC p=none). Approving: the owner's notice has an Approve link (confirm page, then POST)
 that makes a personal `inv-` code in Redis and emails the invite; "Have a code?" on the landing and the waitlist page.
 `WAITLIST_SECRET` is set for Production. API routes are not gated.
-2026-10-26: Production runs `NEXT_PUBLIC_KOUL_WAITLIST=open` for now (emails collected, app open to anyone); set it
-to `closed` and redeploy to require invites again.
+2026-10-26: `NEXT_PUBLIC_KOUL_WAITLIST` is unset on Production for now: no waitlist on the landing (Open app is back),
+the app is open to anyone. Set it to `open` (collect emails) or `closed` (invites only) and redeploy to bring it back.
 
 2026-09-22 (hosts): the landing is https://koul.me and the app is https://app.koul.me (added to Vercel project `koul`,
 DNS on Vercel). One project serves both: `web/proxy.ts` with the rules in `web/lib/app-host.ts` (tested). On app.koul.me
