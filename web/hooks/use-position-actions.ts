@@ -22,7 +22,8 @@ const USDC_UNIT = 1e7;
 /** Withdrawals are snapped down to 0.01 USDC (100000 units). */
 const WITHDRAW_STEP_UNITS = 100_000n;
 
-export const toUsdcUnits = (usdc: number): bigint => BigInt(Math.round(usdc * USDC_UNIT));
+/** An amount still being typed (NaN) is zero units, which the builders refuse with a message instead of a crash. */
+export const toUsdcUnits = (usdc: number): bigint => (Number.isFinite(usdc) ? BigInt(Math.round(usdc * USDC_UNIT)) : 0n);
 export const fromUsdcUnits = (units: bigint): number => Number(units) / USDC_UNIT;
 
 /**

@@ -7,8 +7,9 @@ import { POOLS, amountUnit, fmtPrice, tokenOf, type Action, type Condition, type
 import { isPercent } from "@/lib/model/capital";
 import { hubName } from "@/lib/model/hubs";
 
-const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const n0 = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+// A level still being typed (an empty field is NaN) reads as a dash, not "NaN".
+const n2 = (v: number) => (Number.isFinite(v) ? v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
+const n0 = (v: number) => (Number.isFinite(v) ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : "—");
 
 /** `gte` reads as ">" and `lte` as "<", the way the design writes conditions. */
 const op = (c: Condition) => (c.comparator === "gte" ? ">" : "<");
