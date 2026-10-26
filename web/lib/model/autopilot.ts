@@ -183,9 +183,9 @@ export interface AutopilotEval {
   firing: RuleEval | null;
 }
 
-const fmt2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt2 = (n: number) => (Number.isFinite(n) ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
 /** Prices show four decimals under a dollar (XLM trades in fractions of a cent) and two above. */
-export const fmtPrice = (n: number) => n.toLocaleString("en-US", n < 1 ? { minimumFractionDigits: 4, maximumFractionDigits: 4 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const fmtPrice = (n: number) => !Number.isFinite(n) ? "—" : n.toLocaleString("en-US", n < 1 ? { minimumFractionDigits: 4, maximumFractionDigits: 4 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function evaluateCondition(c: Condition, live: LiveValues): ConditionEval {
   let now: number | null = null;
@@ -456,6 +456,9 @@ export function toCoreAutopilot(ap: Pick<Autopilot, "rules">, accountId: bigint)
   const unsupported: Rule[] = [];
   for (const r of ap.rules) {
     if (!r.enabled) continue;
+    // A level or amount being typed (an empty field is NaN) has no contract form yet: the rule waits, the page stays.
+    const amountOk = typeof r.action.amount !== "number" || (Number.isFinite(r.action.amount) && r.action.amount > 0);
+    if (!amountOk || r.conditions.some((c) => !Number.isFinite(c.value) || c.value <= 0)) { unsupported.push(r); continue; }
     const mapped = r.conditions.map(toCoreConditions);
     if (mapped.some((m) => m.unsupported) || mapped.length === 0) { unsupported.push(r); continue; }
     const gapIndex = r.conditions.findIndex((c) => c.kind === "rate_gap");
