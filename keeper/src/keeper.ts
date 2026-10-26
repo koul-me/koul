@@ -24,6 +24,7 @@ const ROUTER = env.ROUTER_V1!;
 const ORACLE = env.MOCK_FX;
 const POLICY = env.KOUL_POLICY;
 const FEED_MAX_AGE = 600;
+const PARALLEL = 4;
 const keeper = keeperKeypair(env);
 
 /**
@@ -174,8 +175,10 @@ do {
   let users: string[] = [];
   try { users = (await router.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
   if (users.length === 0) console.log(`${stamp()} no users registered on the router`);
-  for (const u of users) {
-    try { await tickUser(u); } catch (err) { console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); }
+  // A few wallets at a time keeps a pass short as users grow. Most ticks only simulate; when two submissions race on
+  // the keeper's sequence, the loser fails and the next pass tries again.
+  for (let i = 0; i < users.length; i += PARALLEL) {
+    await Promise.all(users.slice(i, i + PARALLEL).map((u) => tickUser(u).catch((err) => console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`))));
   }
   if (!once) await new Promise((r) => setTimeout(r, interval * 1000));
 } while (!once);

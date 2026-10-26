@@ -646,3 +646,13 @@ SDF (`e45dbed2...`), then `set_autopilot` refused by SDF and paid by the relay
   route expecting 0.0642111.
 - GitHub runs the five-minute schedule far apart (21:37, 21:54, 23:52, 01:55): for a demo, trigger it by hand
   (`gh workflow run keeper.yml -R atahanyild/koul`) or run `pnpm keeper -- --interval 30` with the keeper secrets.
+
+## Starting USDC for new wallets, and a keeper that ticks every 15 seconds (2026-10-26)
+
+- A new wallet gets 100 test USDC right after creation, in the background (`web/lib/welcome-usdc.ts`, the existing
+  `/api/faucet/test-usdc`: friendbot XLM bought into USDC on the testnet DEX, nothing from the keeper). Checked live:
+  `de01078eccc8b7cb8ff3071a799f66a84fa855c4c00a327bf166c0a0ceafa432`, 14.5 s.
+- Keeper: one Actions job loops every 15 seconds for 5h40m, started hourly; a scheduled run that fires meanwhile waits
+  in the concurrency queue and takes over. Wallets are ticked four at a time. The router makes any interval safe
+  (decisions and cooldowns are on-chain, two keepers cannot double-fire); what caps a wallet is the policy's rate
+  limit, 40 calls per 2000 ledgers with 3 or 4 per swap tick.

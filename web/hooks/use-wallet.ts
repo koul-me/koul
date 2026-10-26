@@ -5,6 +5,7 @@ import { usePasskeyWallet, useCreateWallet, useConnectWallet, toSembolError, typ
 import { shortAddress } from "@/lib/format";
 import { invalidate } from "@/lib/data/store";
 import { track } from "@/lib/analytics";
+import { giveWelcomeUsdc } from "@/lib/welcome-usdc";
 
 /**
  * The connected passkey wallet. Thin wrapper over Sembol so pages import one thing. Balances come from the one
@@ -63,6 +64,8 @@ export function useWalletOnboarding() {
         const res = await create.createWallet({ userName: "Koul wallet", nickname: "Koul" });
         rememberWalletCreated(res.contractId);
         track("wallet_created");
+        // Starting USDC, in the background: the wallet is usable before it lands.
+        void giveWelcomeUsdc(res.contractId);
         setPhase("success");
         return res;
       }
