@@ -9,6 +9,7 @@ import * as React from "react";
 import { Check } from "lucide-react";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
+import { WAITLIST_GATED } from "@/lib/waitlist";
 
 const TONES = {
   dark: { input: "bg-surface text-text placeholder:text-muted", button: "bg-lime text-on-lime hover:brightness-95", error: "text-danger" },
@@ -89,6 +90,7 @@ export function WaitlistForm({ tone = "dark", from, className, codeTarget, initi
   const field = cn("h-14 min-w-0 flex-1 rounded-full px-5 text-[17px]", ring, t.input);
   const button = cn("inline-flex h-14 shrink-0 items-center justify-center rounded-full px-6 text-[17px] font-bold whitespace-nowrap transition-[filter,opacity] disabled:opacity-70", ring, t.button);
   const described = error ? errorId : undefined;
+  const hint = cn("shrink-0 underline underline-offset-4 opacity-80 transition-opacity hover:opacity-100", ring);
 
   return (
     <div className={className}>
@@ -114,9 +116,14 @@ export function WaitlistForm({ tone = "dark", from, className, codeTarget, initi
       )}
       {/* One line under the row, always there, so switching or an error never moves the page. */}
       <p className="mt-3 flex h-5 items-center gap-x-4 px-5 text-[14px] whitespace-nowrap">
-        <button type="button" onClick={() => switchTo(mode === "email" ? "code" : "email")} className={cn("shrink-0 underline underline-offset-4 opacity-80 transition-opacity hover:opacity-100", ring)}>
-          {mode === "email" ? "Have a code?" : "Join waitlist"}
-        </button>
+        {WAITLIST_GATED ? (
+          <button type="button" onClick={() => switchTo(mode === "email" ? "code" : "email")} className={hint}>
+            {mode === "email" ? "Have a code?" : "Join waitlist"}
+          </button>
+        ) : (
+          // The app is open while the waitlist collects emails: no code needed.
+          <a href={codeTarget ?? "/app"} onClick={() => track("open_app", { from })} className={hint}>Or open the app</a>
+        )}
         {error && <span id={errorId} role="alert" title={error} className={cn("min-w-0 truncate", t.error)}>{error}</span>}
       </p>
     </div>

@@ -10,7 +10,7 @@ import { Moon, Sun } from "lucide-react";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { cn } from "@/lib/utils";
 import { track } from "@/lib/analytics";
-import { WAITLIST_ON } from "@/lib/waitlist";
+import { WAITLIST_GATED } from "@/lib/waitlist";
 import { APP_PATH } from "./shell";
 import { focusWaitlist } from "./waitlist-form";
 import { KoulMark } from "@/components/brand/koul-mark";
@@ -65,7 +65,7 @@ export function TopBar() {
                 <a key={n.href} href={n.href} className="label inline-flex h-11 items-center rounded-full px-4 text-muted transition-colors hover:text-text">{n.label}</a>
               ))}
             </nav>
-            {WAITLIST_ON ? (
+            {WAITLIST_GATED ? (
               // Jumps to the hero's field instead of opening one in the header.
               <button type="button" onClick={focusWaitlist} className={headerPill}>Join waitlist</button>
             ) : (

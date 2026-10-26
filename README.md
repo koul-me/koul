@@ -313,7 +313,8 @@ secrets; `ROUTER_V1`, `KOUL_POLICY`, `MOCK_FX` are the addresses above. `web/.en
 `OPENAI_API_KEY` for the sentence parser, `KEEPER_SECRET` for the demo funds routes. `oracle-admin` needs
 `ORACLE_ADMIN_SECRET`. Nothing secret is ever exposed under a `NEXT_PUBLIC_` name.
 
-**Waitlist.** `NEXT_PUBLIC_KOUL_WAITLIST=1` closes the app: every app page shows the waitlist in place (`web/proxy.ts`,
+**Waitlist.** `NEXT_PUBLIC_KOUL_WAITLIST=open` collects emails on the landing (email field, with Open app beside it)
+and leaves the app open to anyone. `NEXT_PUBLIC_KOUL_WAITLIST=closed` (or `1`) also closes the app: every app page shows the waitlist in place (`web/proxy.ts`,
 rules in `web/lib/app-host.ts`) and the landing's Open app becomes an email field. The landing stays open.
 `KOUL_INVITE_CODES` (comma-separated) are the way in: `app.koul.me/?invite=<code>` sets a 90-day cookie and drops the
 parameter; taking a code out of the list revokes it. `cd web && pnpm invite-codes 5 judge` makes five new codes with

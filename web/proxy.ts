@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { gateFor, INVITE_COOKIE, rendersApp, routeFor, type GateInput } from "@/lib/app-host";
 import { personalCodeExists, signInvite, verifyInvite } from "@/lib/invite";
-import { WAITLIST_ON } from "@/lib/waitlist";
+import { WAITLIST_GATED } from "@/lib/waitlist";
 
 const INVITE_MAX_AGE = 60 * 60 * 24 * 90;
 
@@ -13,7 +13,7 @@ function personal(): GateInput["personal"] {
 }
 
 /**
- * app.koul.me serves the app, koul.me the landing; the rules live in lib/app-host.ts. While the waitlist is on,
+ * app.koul.me serves the app, koul.me the landing; the rules live in lib/app-host.ts. While the waitlist is closed,
  * app pages show the waitlist unless the browser holds an invite: one of KOUL_INVITE_CODES, or a personal code from an
  * approved signup, through ?invite=CODE.
  */
@@ -24,7 +24,7 @@ export async function proxy(request: NextRequest) {
 
   if (rendersApp(route, url.pathname)) {
     const gate = await gateFor(url.pathname, url.search, {
-      on: WAITLIST_ON,
+      on: WAITLIST_GATED,
       codes: process.env.KOUL_INVITE_CODES,
       cookie: request.cookies.get(INVITE_COOKIE)?.value,
       personal: personal(),
