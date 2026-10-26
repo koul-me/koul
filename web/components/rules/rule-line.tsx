@@ -22,6 +22,8 @@ export interface RuleLineProps {
   ranAgo?: string | null;
   /** A tick would run this rule now. */
   current?: boolean;
+  /** How many times the rule ran since the rules were last saved; shown as "3×" beside the action. */
+  runs?: number;
   /** Overrides the right column entirely (the ON / OFF word on the Autopilot page). */
   trailing?: React.ReactNode;
   /** Overrides the NOW column, e.g. "IN BEST HUB" or the CHANGED · UNDO mark. */
@@ -47,7 +49,7 @@ export function RuleNumber({ index, current, className, markerId = "current-rule
   );
 }
 
-export function RuleLine({ index, rule, now, ranAgo, current, trailing, nowOverride, strike, dimmed, hideNumber, className }: RuleLineProps) {
+export function RuleLine({ index, rule, now, ranAgo, current, runs, trailing, nowOverride, strike, dimmed, hideNumber, className }: RuleLineProps) {
   const status = nowOverride ?? (ranAgo ? `RAN ${ranAgo} AGO` : now ? `NOW ${now}` : null);
   const statusTone = ranAgo && !nowOverride ? "text-accent-text" : "text-muted";
   const compact = conditionsCompact(rule);
@@ -66,6 +68,7 @@ export function RuleLine({ index, rule, now, ranAgo, current, trailing, nowOverr
       <div className="flex items-center gap-2 pl-9 md:contents md:pl-0">
         <ArrowRight className="size-4 shrink-0 text-accent-text" aria-hidden />
         <span className="min-w-0 truncate text-[16px] font-bold">{actionShort(rule.action)}</span>
+        {runs ? <span className="mono shrink-0 text-muted" title={`Ran ${runs} ${runs === 1 ? "time" : "times"} since the rules were last saved`}>{runs}×</span> : null}
         <span className={cn("mono hidden shrink-0 text-right md:inline", statusTone)}>{typeof status === "string" ? <Rolling text={status} /> : status}</span>
         <span className="mono hidden shrink-0 md:inline">{trailing}</span>
       </div>
