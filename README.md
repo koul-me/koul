@@ -140,8 +140,8 @@ sequenceDiagram
 
 | Component | Where | Responsibility |
 |---|---|---|
-| **`koul_router`** | `contracts/koul_router` | The rule engine. Stores an ordered `Autopilot` per user and id, evaluates conditions against live reads, and executes at most one action per tick. `set_autopilot` and `clear_autopilot` need the user's auth; `tick` needs the user's auth, which the agent key satisfies through the policy; `check` is a read-only view the UI uses for live evaluation. Upgradeable by its admin so the address, and therefore every user's policy allowlist, stays stable. |
-| **`koul_agent_policy`** | `contracts/koul_agent_policy` | Implements OpenZeppelin's `Policy` trait. Attached to the agent's context rule, it runs on the root call and on every sub-invocation: the `(contract, function)` pair must be allowlisted, `transfer` recipients must be allowlisted, XOXNO calls must name the user's own pinned account id, `withdraw` must send to the smart account itself, and a rolling window rate limit caps how often the key may be used. |
+| **`koul_router`** | `contracts/koul_router` | The rule engine. Stores an ordered `Autopilot` per user and id, evaluates conditions against live reads, and executes at most one action per tick. Actions include swaps through the XOXNO aggregator, from the wallet or from XOXNO collateral, with the route supplied by the keeper and checked by the router: token pair, input amount, and a floor of the Reflector price less the rule's slippage. `set_autopilot` and `clear_autopilot` need the user's auth; `tick` needs the user's auth, which the agent key satisfies through the policy; `check` is a read-only view the UI uses for live evaluation, and `next_action` tells the keeper when a tick needs a swap route. Upgradeable by its admin so the address, and therefore every user's policy allowlist, stays stable. |
+| **`koul_agent_policy`** | `contracts/koul_agent_policy` | Implements OpenZeppelin's `Policy` trait. Attached to the agent's context rule, it runs on the root call and on every sub-invocation: the `(contract, function)` pair must be allowlisted, `transfer` recipients must be allowlisted, XOXNO calls must name the user's own pinned account id, `withdraw` must send to the smart account itself, a swap must name the smart account as sender, and a rolling window rate limit caps how often the key may be used. The key acts only inside a router tick: `tick` opens a session for that ledger, every other call needs it, and the router closes it before returning, so the agent key cannot call XOXNO, a token or the aggregator directly. |
 | **`koul_mock_fx`** | `contracts/koul_mock_fx` | Reflector's read interface (`lastprice`) plus an admin `set_price`, because no Reflector testnet feed carries TRY. One `set_oracle` call on the router swaps it for the real Reflector contract on mainnet. |
 | **User smart account** | deployed per user | OpenZeppelin smart account, the same wasm Sembol and smart-account-kit deploy (`1b5f4534…`). Rule 0 holds the user's WebAuthn passkey. A second context rule holds Koul's Ed25519 agent key bound to `koul_agent_policy` with an expiry. Revoking that rule stops everything instantly. |
 | **Keeper** | `keeper/` | The only off-chain moving part. Enumerates users with `list_users`, their autopilots with `list_ids`, simulates `tick`, and submits only when the contract returns an action, signing with the agent key and passing one context rule id per auth context. It also republishes the mock oracle price on testnet. It holds no user funds and makes no decisions. |
@@ -356,7 +356,7 @@ cd contracts/koul_router && cargo test    # rule evaluation, ordering, cooldowns
 cd packages/core && pnpm test             # 14: codec round trips, validation, templates, parser boundaries
 cd packages/core && pnpm parse-test       # live: four sentences, one of them impossible
 cd packages/core && pnpm smoke            # live reads and unsigned writes against testnet
-cd keeper && pnpm test && pnpm policy-deny # landing accounts; policy rejections with the agent key
+cd keeper && pnpm test && pnpm session-deny # landing accounts; the agent key rejected outside a tick
 cd web && npx tsc --noEmit && npx next build
 ```
 
@@ -386,10 +386,12 @@ was created on, so create a wallet on the domain rather than expecting a local o
    words with the observed values and a link to the transaction on stellar.expert. To force the lira exit, open the
    oracle admin at https://koul-oracle.vercel.app/oracle and press *50.25 (lira shock)*: within a pass, the rule
    withdraws to your wallet.
-6. **See an out-of-policy action rejected.** In the repo, `cd keeper && pnpm policy-deny` sends four agent-signed
-   calls straight at XOXNO: a withdrawal to a foreign account (rejected, `7109`), a repayment on somebody else's
-   XOXNO account (`7108`), a `borrow`, which no rule needs and the allowlist therefore omits (`7103`), and one
-   allowed withdrawal to the user's own wallet as a control. The rejections come from the chain, not from our code.
+6. **See an out-of-policy action rejected.** In the repo, `cd keeper && pnpm session-deny` sends three agent-signed
+   calls straight at the contracts, each one an allowlisted call a tick makes: a swap on the aggregator, a withdrawal
+   from XOXNO to the wallet, and a USDC transfer to the aggregator. Each is rejected with `7110 NoSession`, because the
+   key only acts inside a router tick. Inside a tick the policy still checks every call: a `borrow` is not allowlisted
+   (`7103`), a withdrawal must go to the wallet (`7109`), XOXNO calls must name the user's own account (`7108`). The
+   rejections come from the chain, not from our code.
 7. **Take lira out.** *Funds → Withdraw lira* with an IBAN. One passkey confirmation moves USDC to the landing
    account; the anchor pays out and the account cleans itself up. Cashing out is never something the agent can do.
 8. **Read the rules yourself.** Everything is on-chain: `check(user, id)` returns per-condition truth and the live

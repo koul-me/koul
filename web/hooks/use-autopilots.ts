@@ -9,7 +9,8 @@ import { useCallback, useMemo } from "react";
 import { usePasskeyWallet } from "@sembol/passkey-react";
 import { KoulReader, KoulWriter, validateAutopilot, type Autopilot as CoreAutopilot } from "@koul/core";
 import { createLocalStore } from "@/lib/data/store";
-import type { ChainAutopilot } from "@/lib/data/live";
+import { readAgentParams, type ChainAutopilot } from "@/lib/data/live";
+import { grantCovers } from "@/lib/model/access";
 import { READ_CONFIG, WRITE_CONFIG } from "@/lib/koul";
 import { fmtUsdc } from "@/lib/format";
 import { fromCoreAutopilot, newId, toCoreAutopilot, type Autopilot, type Rule } from "@/lib/model/autopilot";
@@ -150,7 +151,9 @@ export function useArmAutopilot() {
     if (m.errors.length) return { ok: false, step: "rules", reason: m.errors.join("; "), toasted: false, errors: m.errors };
     const core: CoreAutopilot = { ...m.autopilot, account_id: accountId.toString() };
     let grantHash: string | null = null;
-    if (!agent.active) {
+    // A key already given may not allow what these rules need (a new action, another account): grant again then.
+    const covered = agent.active !== null && grantCovers(await readAgentParams(address, agent.active.ruleId).catch(() => null), core);
+    if (!covered) {
       const g = await agent.grant(opts.days, core);
       if (!g) return { ok: false, step: "grant", reason: `Access was not given: ${agent.action.lastFailure() ?? "the transaction did not go through"}`, toasted: true };
       grantHash = g.hash;
