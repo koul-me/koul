@@ -15,8 +15,8 @@ import { fmtFx } from "@/lib/format";
 import { KOUL } from "@/lib/koul";
 
 export const DEMO_ON = process.env.NEXT_PUBLIC_KOUL_DEMO === "1" && KOUL.networkPassphrase === "Test SDF Network ; September 2015";
-/** The keeper's cron: every five minutes on the clock. */
-const KEEPER_PERIOD_S = 300;
+/** The keeper's pass, every 15 seconds (.github/workflows/keeper.yml). */
+const KEEPER_PERIOD_S = 15;
 
 const PRESETS: { label: string; tryPerUsd: number; stale?: boolean }[] = [
   { label: "Calm 48.79", tryPerUsd: 48.79 },

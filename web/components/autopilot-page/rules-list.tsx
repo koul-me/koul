@@ -37,6 +37,7 @@ export function RulesList({ rules, now, onEdit, onOpen, stopped }: { rules: Live
                 index={r.index}
                 rule={r.rule}
                 current={r.current}
+                runs={r.runs}
                 ranAgo={r.current && r.lastRunAt ? agoShort(r.lastRunAt, now) : null}
                 now={observedLabel(r.rule.conditions[0]!, r.observed)}
                 dimmed={!r.rule.enabled || stopped}

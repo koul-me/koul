@@ -12,6 +12,7 @@ import { usePoll } from "@/lib/data/store";
 import { READ_CONFIG } from "@/lib/koul";
 import { readCheck, type ChainAutopilot } from "@/lib/data/live";
 import { foldCoreRules, type Rule } from "@/lib/model/autopilot";
+import { tallyRuns } from "@/lib/model/runs";
 import { useChainAutopilots } from "./use-portfolio";
 import { useAgentAccess } from "./use-agent-access";
 import { useActivity, type ActivityRow } from "./use-activity";
@@ -36,6 +37,10 @@ export interface LiveRule {
   lastRunAt: number | null;
   /** The Activity row of the last run: what moved and how much. */
   lastRun: ActivityRow | null;
+  /** How many times the rule ran since the rules were last saved, as far back as the node keeps events. */
+  runs: number;
+  /** USDC moved by those runs (the USDC side of a swap). */
+  movedUsdc: number;
   /** This is the rule a tick would run now. */
   current: boolean;
 }
@@ -51,6 +56,8 @@ export interface AutopilotLiveState {
   nowOn: number | null;
   /** Ledger states straight from `check`, per contract rule. */
   states: RuleState[] | null;
+  /** Where the run counts start: the last save, or the oldest event the node still has when that save is older. */
+  countsSince: { at: number; fromSave: boolean } | null;
   access: { active: boolean; daysLeft: number | null; ruleId: number | null; loaded: boolean };
   refresh: () => Promise<void>;
 }
@@ -70,18 +77,12 @@ export function useAutopilotLive(): AutopilotLiveState {
     const access = { active: agent.active !== null, daysLeft: agent.daysLeft, ruleId: agent.active?.ruleId ?? null, loaded: agent.loaded };
     const refresh = async () => { await Promise.all([chain.refresh(), check.refresh(), tick.refresh(), agent.refresh()]); };
     if (!primary) {
-      return { status: "off" as const, loading: chain.loading, error: chain.error, chainId: null, chain: null, rules: [], nowOn: null, states: null, access, refresh };
+      return { status: "off" as const, loading: chain.loading, error: chain.error, chainId: null, chain: null, rules: [], nowOn: null, states: null, countsSince: null, access, refresh };
     }
     const { rules, contractToUi } = foldCoreRules(primary.autopilot);
     const states = check.data ?? null;
-    const lastRun = new Map<number, ActivityRow>();
-    for (const row of activity.rows) {
-      if (row.kind !== "run" || row.autopilotId !== primary.id || row.ruleIndex === undefined) continue;
-      const ui = contractToUi[row.ruleIndex];
-      if (ui === undefined) continue;
-      const seen = lastRun.get(ui);
-      if (!seen || row.at > seen.at) lastRun.set(ui, row);
-    }
+    const { byCard, savedAt } = tallyRuns(activity.rows, primary.id, contractToUi);
+    const countsSince = savedAt !== null ? { at: savedAt, fromSave: true } : activity.since !== null ? { at: activity.since, fromSave: false } : null;
     let nowOnUi: number | null = null;
     if (tick.data) nowOnUi = contractToUi[tick.data.rule_index] ?? null;
     else if (states) {
@@ -101,12 +102,14 @@ export function useAutopilotLive(): AutopilotLiveState {
         holds: mine.some((s) => s.holds),
         observed: voice?.conditions[0]?.observed ?? null,
         conditions: rule.conditions.map((_, k) => ({ holds: voice?.conditions[k]?.holds ?? false, observed: voice?.conditions[k]?.observed ?? null })),
-        lastRunAt: lastRun.get(ui)?.at ?? null,
-        lastRun: lastRun.get(ui) ?? null,
+        lastRunAt: byCard.get(ui)?.last.at ?? null,
+        lastRun: byCard.get(ui)?.last ?? null,
+        runs: byCard.get(ui)?.n ?? 0,
+        movedUsdc: byCard.get(ui)?.usdc ?? 0,
         current: nowOnUi === ui,
       };
     });
     const status: AutopilotStatus = agent.active ? "live" : "paused";
-    return { status, loading: chain.loading || (check.data === undefined && !check.error), error: chain.error ?? check.error, chainId: primary.id, chain: primary, rules: live, nowOn: nowOnUi === null ? null : nowOnUi + 1, states, access, refresh };
+    return { status, loading: chain.loading || (check.data === undefined && !check.error), error: chain.error ?? check.error, chainId: primary.id, chain: primary, rules: live, nowOn: nowOnUi === null ? null : nowOnUi + 1, states, countsSince, access, refresh };
   }, [primary, chain, check, tick, agent, activity.rows]);
 }

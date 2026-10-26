@@ -14,8 +14,9 @@ import { actionShort, agoShort, conditionCompact, cooldownShort, observedLabel, 
 import { capitalOf } from "@/lib/model/capital";
 import { cn } from "@/lib/utils";
 
-/** The keeper ticks every five minutes. */
-const CHECK_EVERY = "5 min";
+/** The keeper's pass, every 15 seconds (.github/workflows/keeper.yml). */
+const CHECK_EVERY = "15 s";
+const usdc2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Conditions({ r }: { r: LiveRule }) {
   return (
@@ -42,6 +43,10 @@ export function Running({ ap, now, actions }: { ap: AutopilotLiveState; now: num
   const on = ap.rules.filter((r) => r.rule.enabled).length;
   const capital = capitalOf(ap.rules.map((r) => r.rule));
   const lastRun = ap.rules.map((r) => r.lastRun).filter((r): r is NonNullable<typeof r> => r !== null).sort((a, b) => b.at - a.at)[0] ?? null;
+  const totalRuns = ap.rules.reduce((n, r) => n + r.runs, 0);
+  const totalMoved = ap.rules.reduce((n, r) => n + r.movedUsdc, 0);
+  // The node keeps about a week of events: counts start at the last save, or at the oldest event still there.
+  const since = ap.countsSince?.fromSave ? "since saved" : "in the last 7 days";
   return (
     <Tile className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-8">
       <div>
@@ -52,6 +57,7 @@ export function Running({ ap, now, actions }: { ap: AutopilotLiveState; now: num
           <Label>{paused ? "Nothing runs until you start it again" : `Checked every ${CHECK_EVERY}`}</Label>
           {capital !== null && <Label>{capital === "mixed" ? "Moves use a different share per rule" : capital >= 100 ? "Each move uses everything that rule can see" : `Each move uses up to ${capital}% of what that rule can see`}</Label>}
           {ap.access.active && ap.access.daysLeft !== null && <Label>Access {ap.access.daysLeft}D left</Label>}
+          <Label>{totalRuns === 0 ? `No runs ${since}` : `Ran ${totalRuns} ${totalRuns === 1 ? "time" : "times"} ${since} · ${usdc2(totalMoved)} USDC moved`}</Label>
         </div>
         {actions && <div className="mt-5 flex flex-wrap gap-2">{actions}</div>}
       </div>
@@ -69,6 +75,7 @@ export function Running({ ap, now, actions }: { ap: AutopilotLiveState; now: num
               <span className="text-[18px] font-bold">{actionShort(current.rule.action)}</span>
               {current.lastRunAt && <span className="mono ml-auto text-accent-text">RAN {agoShort(current.lastRunAt, now)} AGO</span>}
             </div>
+            {current.runs > 0 && <Label>This rule ran {current.runs} {current.runs === 1 ? "time" : "times"} {since} · {usdc2(current.movedUsdc)} USDC moved</Label>}
           </>
         ) : (
           <div className="grid gap-2 py-2">

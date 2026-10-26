@@ -96,7 +96,7 @@ export function toRows(events: WalletEvent[], wallet: string): ActivityRow[] {
       case "fired": rows.push(fromFired(e, swaps.get(e.txHash))); break;
       // The chain counts its own rules, and one rule in the app can be two there (one per hub, or one per
       // direction), so the count would mislead. The event only says the autopilot was saved.
-      case "autopilot_set": rows.push({ id: e.id, kind: "rules_saved", who: "you", at: e.at, txHash: e.txHash, title: "Autopilot saved" }); break;
+      case "autopilot_set": rows.push({ id: e.id, kind: "rules_saved", who: "you", at: e.at, txHash: e.txHash, title: "Autopilot saved", autopilotId: Number(e.value.autopilot_id) }); break;
       case "autopilot_cleared": rows.push({ id: e.id, kind: "rules_cleared", who: "you", at: e.at, txHash: e.txHash, title: "Rules cleared" }); break;
       case "koul_installed": rows.push({ id: e.id, kind: "access_given", who: "you", at: e.at, txHash: e.txHash, title: "Access given" }); break;
       case "context_rule_removed": if (koulRules.has(Number(e.value.rule))) rows.push({ id: e.id, kind: "access_revoked", who: "you", at: e.at, txHash: e.txHash, title: "Access revoked" }); break;

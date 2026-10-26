@@ -262,6 +262,7 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
             index={shownIndex + 1}
             rule={rule}
             current={lr?.current}
+            runs={lr?.runs}
             ranAgo={lr?.current && lr.lastRunAt ? agoShort(lr.lastRunAt, now) : null}
             now={nowText}
             nowOverride={change ? <span className="text-accent-text">CHANGED · <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); onUndo?.(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); onUndo?.(); } }} className="cursor-pointer underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-accent-text rounded">UNDO</span></span> : undefined}
