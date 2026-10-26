@@ -10,6 +10,8 @@ import * as React from "react";
 import { AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { useAgentParams } from "@/hooks/use-agent-access";
+import { grantCovers } from "@/lib/model/access";
 import { useAutopilotLive } from "@/hooks/use-autopilot-live";
 import { useLiveValues } from "@/hooks/use-live-values";
 import { bestPool, usePools } from "@/hooks/use-market";
@@ -114,7 +116,10 @@ export default function AutopilotPage() {
   const [deleteDone, setDeleteDone] = React.useState({ clear: false, revoke: false });
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [savingToLibrary, setSavingToLibrary] = React.useState(false);
-  const nextPlan = React.useMemo(() => planSteps({ needsPosition, hasAccess: live.access.active }), [needsPosition, live.access.active]);
+  // Access counts only when the key on the wallet already allows what this draft needs; otherwise saving grants again.
+  const params = useAgentParams(live.access.ruleId);
+  const covered = React.useMemo(() => live.access.active && pf.accountId !== null && grantCovers(params.params, { ...toCoreAutopilot({ rules }, pf.accountId).autopilot }), [live.access.active, pf.accountId, params.params, rules]);
+  const nextPlan = React.useMemo(() => planSteps({ needsPosition, hasAccess: covered }), [needsPosition, covered]);
   const confirmations = rules.length === 0 ? 1 : nextPlan.length;
   const progress = React.useMemo<SaveStep[] | null>(() => {
     if (!plan) return null;
@@ -128,13 +133,13 @@ export default function AutopilotPage() {
       : null;
     const done = {
       open: completed || !needsPosition || armer.openAction.phase === "success" || (!deleting && later),
-      grant: completed || live.access.active || armer.grantAction.phase === "success",
+      grant: completed || covered || armer.grantAction.phase === "success",
       rules: completed || armer.rulesAction.phase === "success",
       clear: completed || deleteDone.clear,
       revoke: completed || deleteDone.revoke,
     };
     return saveSteps({ plan, done, active, failed: failedStep, labels: stepLabels });
-  }, [plan, stepLabels, armer.openAction.busy, armer.openAction.phase, armer.grantAction.busy, armer.grantAction.phase, armer.rulesAction.busy, armer.rulesAction.phase, waitingForId, completed, needsPosition, live.access.active, failedStep, deleteDone]);
+  }, [plan, stepLabels, armer.openAction.busy, armer.openAction.phase, armer.grantAction.busy, armer.grantAction.phase, armer.rulesAction.busy, armer.rulesAction.phase, waitingForId, completed, needsPosition, covered, failedStep, deleteDone]);
   const clearProgress = React.useCallback(() => { setPlan(null); setFailedStep(null); setCompleted(false); setDeleteDone({ clear: false, revoke: false }); flow.current = "save"; }, []);
 
   const [justSaved, setJustSaved] = React.useState(false);

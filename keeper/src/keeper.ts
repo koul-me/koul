@@ -22,6 +22,7 @@ const intervalArg = process.argv.indexOf("--interval");
 const interval = intervalArg > 0 ? Number(process.argv[intervalArg + 1]) : 30;
 const ROUTER = env.ROUTER_V1!;
 const ORACLE = env.MOCK_FX;
+const POLICY = env.KOUL_POLICY;
 const FEED_MAX_AGE = 600;
 const keeper = keeperKeypair(env);
 
@@ -151,8 +152,15 @@ async function tickUser(user: string): Promise<void> {
   await kit.connectWallet({ credentialId: "koul-keeper", contractId: user });
   kit.externalSigners.addEd25519FromSecret(env.AGENT_SECRET!);
   const rules = await kit.rules.list();
-  const agentRules = rules.filter((r) => r.signers.some((s) => s.tag === "External" && s.values[0] === TESTNET.ed25519VerifierAddress));
-  if (agentRules.length === 0) { log("agent not granted on this wallet, skipping"); return; }
+  // The newest live grant under the current policy: a wallet can still carry an older, narrower or expired one, and
+  // a grant under the previous policy allowlists the previous router.
+  const latest = (await kit.rpc.getLatestLedger()).sequence;
+  const agentRules = rules
+    .filter((r) => r.signers.some((s) => s.tag === "External" && s.values[0] === TESTNET.ed25519VerifierAddress))
+    .filter((r) => !POLICY || r.policies.map(String).includes(POLICY))
+    .filter((r) => !r.valid_until || Number(r.valid_until) > latest)
+    .sort((x, y) => Number(x.id) - Number(y.id));
+  if (agentRules.length === 0) { log("no live agent grant under the current policy, skipping"); return; }
   const agentRuleId = Number(agentRules[agentRules.length - 1]!.id);
   const selected = kit.multiSigners.buildSelectedSigners(await kit.multiSigners.getAvailableSigners(), null).filter((s) => s.type === "ed25519");
   if (selected.length !== 1) { log("agent key is not a signer on this wallet, skipping"); return; }

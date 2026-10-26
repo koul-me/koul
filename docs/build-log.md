@@ -630,3 +630,19 @@ one of Koul's own contracts (router, policy, aggregator, XOXNO controller, USDC 
 the keeper account. Checked locally end to end on a wallet created through the relay: grant with the policy through
 SDF (`e45dbed2...`), then `set_autopilot` refused by SDF and paid by the relay
 (`d272802d15e915afa733261af434a92c7481c0b9d316186eb51b5fd767062df7`).
+
+## Scan after the router change (2026-10-26)
+
+- Leases: router `CD5VSBUX...`, policy `CAKEUMCI...` and mock FX `CB6VNXAD...` (instances and wasm) had about 6 days left;
+  extended to ledger 8,391,2xx (about 173 days) from the router admin, with the Ed25519 verifier `CAAVTMCB...` (24 days).
+  The XOXNO controller (149 days), aggregator (112), WebAuthn verifier (143) and Reflector feed (29) were fine.
+- Re-grants: saving rules granted access only when the wallet had none, so adding a swap to an autopilot granted for
+  yield moves would have left a key the policy rejects on every tick (7103). Saving now compares what the rules need
+  with the installed key's `get_params` (`web/lib/model/access.ts`) and grants again when anything is missing; the save
+  sheet's steps follow the same check. The app and the keeper both take the newest live grant under the current
+  policy; the keeper skips expired ones and ones under the old policy.
+- Production check: a keeper run ticked a user wallet `CC7EE3G2...` on the new router with the real agent key, a swap
+  rule of 40 USDC into ETH (`5ce0a9032f454ab87a8f26aa5c5010a05925fe145f564d003bc9112d07872a6e`), floor 0.0171712 ETH,
+  route expecting 0.0642111.
+- GitHub runs the five-minute schedule far apart (21:37, 21:54, 23:52, 01:55): for a demo, trigger it by hand
+  (`gh workflow run keeper.yml -R atahanyild/koul`) or run `pnpm keeper -- --interval 30` with the keeper secrets.

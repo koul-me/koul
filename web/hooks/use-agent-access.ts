@@ -59,7 +59,9 @@ export function useAgentAccess() {
       return { ruleId: Number(r.id), name: r.name, policies: r.policies.map(String), validUntil, secondsLeft: left, expired: left !== null && left <= 0, restricted: r.policies.map(String).includes(KOUL.policy) };
     });
   }, [p.data, config.ed25519VerifierAddress]);
-  const active = grants.find((g) => !g.expired && g.restricted) ?? null;
+  // The newest live grant, the one the keeper signs with (it takes the last agent rule): an earlier, narrower grant
+  // stays on the wallet after a re-grant until it expires or is revoked.
+  const active = [...grants].reverse().find((g) => !g.expired && g.restricted) ?? null;
   const daysLeft = active ? (active.secondsLeft === null ? null : Math.max(0, Math.ceil(active.secondsLeft / 86400))) : null;
   const loaded = p.data !== undefined;
 
