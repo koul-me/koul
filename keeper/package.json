@@ -25,7 +25,8 @@
     "tx-diag": "tsx scripts/tx-diag.ts",
     "anchor:withdraw": "tsx scripts/anchor-withdraw.ts",
     "leases": "tsx scripts/leases.ts",
-    "competition": "tsx scripts/competition.ts"
+    "competition": "tsx scripts/competition.ts",
+    "channels": "tsx scripts/channels.ts"
   },
   "dependencies": {
     "@koul/core": "workspace:*",

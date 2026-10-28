@@ -29,3 +29,8 @@ jobs:
           KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
           KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
         run: pnpm leases
+      - name: Top up the relay's channel accounts
+        working-directory: keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+        run: pnpm channels

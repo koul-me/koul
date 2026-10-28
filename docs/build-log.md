@@ -678,3 +678,15 @@ last written around ledger 900,000), so every XRP or wBTC swap failed until they
 | wBTC token wasm, restored then extended, 9.11 XLM | `dc41376326c43bf6789b24f68ec1610703147d6c8ba63ef9e76b59557c0f95fa`, `189cb9a5c8dfd3655eec45f99ad7e438639e3957bd548e668956471ef30c8a13` |
 
 After: every lease in the list is at 30 days or more (the shortest, the Ed25519 verifier wasm, at 48.7).
+
+## Relay channel accounts (2026-10-28)
+
+Load test, five wallets created at once: every relayed deploy after the first failed with `TRY_AGAIN_LATER`. The
+network keeps one pending Soroban transaction per source account, and the relay paid for every deploy and Koul call
+from the keeper account, which the keeper's own ticks also use. The relay now pays from eight channel accounts derived
+from the keeper secret (`web/lib/relay-server.ts`, Redis locks), created and funded by `pnpm channels`, which the
+daily leases workflow also runs to top them up.
+
+| Action | Tx |
+|---|---|
+| Create channels 0-7 with 200 XLM each from the keeper account | `35416372a3e7594ff8176ab8e6ad34fc0876dc4d083403a2d8b9f08d8e3ac28d` |

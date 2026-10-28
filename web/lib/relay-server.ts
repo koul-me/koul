@@ -1,6 +1,8 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { Address, BASE_FEE, Keypair, Operation, TransactionBuilder, rpc, xdr } from "@stellar/stellar-sdk";
 import { KOUL, SWAP_TOKENS, XOXNO } from "@/lib/koul";
+import { store } from "@/lib/redis";
 
 /**
  * Koul's fee relayer, in front of SDF's. On 2026-10-25 SDF's relayer moved to stellar-accounts v0.8.0 and stopped
@@ -31,21 +33,61 @@ export function isKoulCall(func: xdr.HostFunction): boolean {
 }
 
 /**
+ * Channel accounts. The network keeps one pending Soroban transaction per source account, so with the keeper account
+ * as the only payer every relayed deploy or call waited for the one before it, and five wallets created at once got
+ * TRY_AGAIN_LATER (load test, 2026-10-28). The relay now pays from a pool of channel accounts, each its own source,
+ * derived from the keeper secret (no new secrets) and funded by `pnpm channels` in keeper/. A Redis lock keeps two
+ * requests off the same channel; without Redis, or with no funded channel, it falls back to the keeper account.
+ */
+export const RELAY_CHANNELS = Number(process.env.RELAY_CHANNELS ?? 8);
+export const channelKeypair = (keeperSecret: string, i: number) => Keypair.fromRawEd25519Seed(createHash("sha256").update(`koul-relay-channel:${i}:${keeperSecret}`).digest());
+/** A channel stays locked a little over two ledgers: long enough for its transaction to leave the pending queue. */
+const LOCK_SECONDS = 12;
+const WAIT_MS = 25_000;
+
+async function lockChannel(secret: string, skip: Set<number>): Promise<{ keypair: Keypair; index: number } | null> {
+  const redis = store();
+  if (!redis || RELAY_CHANNELS <= 0) return null;
+  const end = Date.now() + WAIT_MS;
+  while (Date.now() < end) {
+    const order = Array.from({ length: RELAY_CHANNELS }, (_, i) => i).filter((i) => !skip.has(i)).sort(() => Math.random() - 0.5);
+    if (order.length === 0) return null;
+    for (const i of order) {
+      if ((await redis.set(`koul:relay:channel:${i}`, Date.now(), { nx: true, ex: LOCK_SECONDS })) === "OK") return { keypair: channelKeypair(secret, i), index: i };
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return null;
+}
+
+/**
  * Submit the host function with the signed authorization the browser built, and return its hash; the kit polls for
- * the result. One retry when the keeper's sequence moved under us (the keeper and the funds routes share the account).
+ * the result. Paid by a free channel account; a busy or unfunded channel is skipped for another.
  */
 export async function submitSponsored(func: xdr.HostFunction, auth: xdr.SorobanAuthorizationEntry[], secret: string): Promise<string> {
   const server = new rpc.Server(KOUL.rpcUrl);
-  const source = Keypair.fromSecret(secret);
-  for (let attempt = 0; ; attempt++) {
-    const tx = new TransactionBuilder(await server.getAccount(source.publicKey()), { fee: BASE_FEE, networkPassphrase: KOUL.networkPassphrase })
+  const skip = new Set<number>();
+  let lastCode = "no channel";
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const channel = await lockChannel(secret, skip);
+    const source = channel?.keypair ?? Keypair.fromSecret(secret);
+    let account;
+    try { account = await server.getAccount(source.publicKey()); } catch {
+      // A channel that was never funded: leave it out and try the next.
+      if (channel) { skip.add(channel.index); continue; }
+      throw new Error("The relay account is missing");
+    }
+    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: KOUL.networkPassphrase })
       .addOperation(Operation.invokeHostFunction({ func, auth })).setTimeout(60).build();
     const prepared = await server.prepareTransaction(tx);
     prepared.sign(source);
     const sent = await server.sendTransaction(prepared);
     if (sent.status === "PENDING" || sent.status === "DUPLICATE") return sent.hash;
-    const code = sent.errorResult?.result().switch().name ?? sent.status;
-    if (attempt === 0 && (code === "txBadSeq" || sent.status === "TRY_AGAIN_LATER")) continue;
-    throw new Error(`The deploy was rejected: ${code}`);
+    lastCode = sent.errorResult?.result().switch().name ?? sent.status;
+    const retry = lastCode === "txBadSeq" || sent.status === "TRY_AGAIN_LATER" || lastCode === "txInsufficientBalance";
+    if (!retry) break;
+    if (channel && lastCode === "txInsufficientBalance") skip.add(channel.index);
+    if (!channel) await new Promise((r) => setTimeout(r, 2500));
   }
+  throw new Error(`The deploy was rejected: ${lastCode}`);
 }
