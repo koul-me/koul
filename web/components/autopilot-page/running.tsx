@@ -10,12 +10,20 @@ import { ArrowRight } from "lucide-react";
 import { KeyValue, Label, StatusDot, Tile, TileLabel } from "@/components/signal";
 import { RuleNumber } from "@/components/rules/rule-line";
 import type { AutopilotLiveState, LiveRule } from "@/hooks/use-autopilot-live";
+import { useKeeperStatus, type KeeperStatusView } from "@/hooks/use-keeper-status";
 import { actionShort, agoShort, conditionCompact, cooldownShort, observedLabel, whenLabel } from "@/lib/model/labels";
 import { capitalOf } from "@/lib/model/capital";
 import { cn } from "@/lib/utils";
 
 /** The keeper's pass, every 15 seconds (.github/workflows/keeper.yml). */
 const CHECK_EVERY = "15 s";
+
+/** The keeper's last pass when it reports one, the promise otherwise; a late keeper says so instead of hiding it. */
+function checkLine(k: KeeperStatusView | null): string {
+  if (!k?.lastPassAt) return `Checked every ${CHECK_EVERY}`;
+  const ago = `${agoShort(k.lastPassAt)} ago`;
+  return k.healthy ? `Last check ${ago}` : `Keeper delayed · last check ${ago}`;
+}
 const usdc2 = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Conditions({ r }: { r: LiveRule }) {
@@ -47,6 +55,7 @@ export function Running({ ap, now, actions }: { ap: AutopilotLiveState; now: num
   const totalMoved = ap.rules.reduce((n, r) => n + r.movedUsdc, 0);
   // The node keeps about a week of events: counts start at the last save, or at the oldest event still there.
   const since = ap.countsSince?.fromSave ? "since saved" : "in the last 7 days";
+  const keeper = useKeeperStatus();
   return (
     <Tile className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] md:gap-8">
       <div>
@@ -54,7 +63,7 @@ export function Running({ ap, now, actions }: { ap: AutopilotLiveState; now: num
         <div className="mt-2 flex items-center gap-3"><StatusDot on={!paused} size="md" /><span className="t-value">{paused ? "Stopped" : "Watching"}</span></div>
         <div className="mt-3 grid gap-1">
           <Label>{on} {on === 1 ? "rule" : "rules"} {paused ? "kept" : "on"}</Label>
-          <Label>{paused ? "Nothing runs until you start it again" : `Checked every ${CHECK_EVERY}`}</Label>
+          <Label tone={!paused && keeper && !keeper.healthy ? "danger" : undefined}>{paused ? "Nothing runs until you start it again" : checkLine(keeper)}</Label>
           {capital !== null && <Label>{capital === "mixed" ? "Moves use a different share per rule" : capital >= 100 ? "Each move uses everything that rule can see" : `Each move uses up to ${capital}% of what that rule can see`}</Label>}
           {ap.access.active && ap.access.daysLeft !== null && <Label>Access {ap.access.daysLeft}D left</Label>}
           <Label>{totalRuns === 0 ? `No runs ${since}` : `Ran ${totalRuns} ${totalRuns === 1 ? "time" : "times"} ${since} · ${usdc2(totalMoved)} USDC moved`}</Label>

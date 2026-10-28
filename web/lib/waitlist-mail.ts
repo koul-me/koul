@@ -1,34 +1,15 @@
 import "server-only";
 import { approveSignature } from "@/lib/invite";
+import { sendMail as send } from "@/lib/mail";
 
 /**
  * The waitlist emails, through Resend's REST API: a confirmation to whoever joined, a notice to the owner
  * (WAITLIST_NOTIFY_TO) with an Approve link, and the invite once approved. Both are skipped without RESEND_API_KEY. A failed send is logged, never thrown, so it can
  * never fail a signup.
  */
-const FROM = process.env.WAITLIST_FROM ?? "Koul <hello@koul.me>";
 /** Where links in the emails point; the Approve link never trusts a request's own host. */
 const SITE = process.env.WAITLIST_BASE_URL ?? "https://koul.me";
 const APP = process.env.WAITLIST_APP_URL ?? "https://app.koul.me";
-
-/** True when Resend took the email. */
-async function send(to: string, subject: string, text: string, html: string): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return false;
-  try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: FROM, to, subject, text, html }),
-    });
-    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
-    return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "send failed";
-    console.error(JSON.stringify({ level: "error", route: "/api/waitlist", mail: subject, message }));
-    return false;
-  }
-}
 
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 

@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { store } from "@/lib/redis";
 
 /**
  * Personal invite codes: made when the owner approves someone (lib/waitlist-server.ts), kept in Redis, and turned
@@ -10,16 +10,6 @@ import { Redis } from "@upstash/redis";
 export const PERSONAL_PREFIX = "inv";
 /** Personal code -> the email it was made for. */
 export const inviteKey = (code: string) => `koul:invite:${code}`;
-
-/**
- * The Upstash store from the Vercel Marketplace integration. It has shipped under both the KV_* and the
- * UPSTASH_REDIS_* names, so either works. Null when neither is set.
- */
-export function store(): Redis | null {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
-  return url && token ? new Redis({ url, token }) : null;
-}
 
 /** True when a personal code exists. Any store error counts as no, so the page shows the waitlist, never a crash. */
 export async function personalCodeExists(code: string): Promise<boolean> {

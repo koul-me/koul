@@ -1,6 +1,7 @@
 import "server-only";
 import { randomInt } from "node:crypto";
-import { inviteKey, PERSONAL_PREFIX, store } from "@/lib/invite";
+import { inviteKey, PERSONAL_PREFIX } from "@/lib/invite";
+import { store } from "@/lib/redis";
 
 /** Emails scored by the time they first joined; a second signup with the same email changes nothing. */
 const LIST = "koul:waitlist";

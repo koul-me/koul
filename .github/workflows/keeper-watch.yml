@@ -1,0 +1,16 @@
+# A second pair of eyes on the keeper. Asking koul.me for the keeper status is what sends the owner an email when the
+# heartbeat is stale or a lease needs a person; the app's own visitors trigger it too, this makes sure it happens even
+# when nobody is on the site. GitHub runs schedules late at times, which is fine for a backup.
+name: keeper-watch
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: curl -fsS https://koul.me/api/keeper/status
