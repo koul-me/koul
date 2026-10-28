@@ -1,13 +1,15 @@
 /**
- * The relayer the wallet kit talks to (`relayerUrl` in app/providers.tsx). Deploys of Koul's account build are paid by
- * the keeper account here; anything else is passed to SDF's relayer as it came, and a call into one of Koul's own
- * contracts that SDF refuses as not allowlisted is paid here as well. Same wire format both ways: the kit
+ * The relayer the wallet kit talks to (`relayerUrl` in app/providers.tsx). Deploys of Koul's account build and calls
+ * into Koul's own contracts are paid here, from the channel accounts (lib/relay-server.ts); anything else is passed to
+ * SDF's relayer as it came. Same wire format both ways: the kit
  * posts `{ func, auth }` or `{ xdr }` and reads `{ success, hash }` or `{ success: false, error }`.
  */
 import { xdr } from "@stellar/stellar-sdk";
 import { SDF_RELAYER, isAccountDeploy, isKoulCall, submitSponsored } from "@/lib/relay-server";
 
 export const runtime = "nodejs";
+/** A sponsored call waits for its result and may resubmit twice after an on-chain race; about 15 s a try. */
+export const maxDuration = 60;
 
 /** Pay for it with the keeper account, answering in the relayer's wire format. */
 async function sponsor(func: xdr.HostFunction, rawAuth: unknown[], what: string): Promise<Response> {
@@ -31,6 +33,8 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof body.func === "string" && Array.isArray(body.auth)) {
     try { func = xdr.HostFunction.fromXDR(body.func, "base64"); } catch { func = null; }
     if (func && isAccountDeploy(func)) return sponsor(func, body.auth as unknown[], "account deploy");
+    // Koul's own flows are paid here, not by SDF: this relay retries a call that lost a race on-chain, SDF's does not.
+    if (func && isKoulCall(func)) return sponsor(func, body.auth as unknown[], "Koul contract call");
   }
 
   const forwarded = await fetch(SDF_RELAYER, {

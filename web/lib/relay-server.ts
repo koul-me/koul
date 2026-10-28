@@ -61,14 +61,19 @@ async function lockChannel(secret: string, skip: Set<number>): Promise<{ keypair
 }
 
 /**
- * Submit the host function with the signed authorization the browser built, and return its hash; the kit polls for
- * the result. Paid by a free channel account; a busy or unfunded channel is skipped for another.
+ * Submit the host function with the signed authorization the browser built, and return the hash of the transaction
+ * that landed. Paid by a free channel account; a busy or unfunded channel is skipped for another. The relay waits for
+ * the result: when wallets act at the same moment, a transaction simulated against state that changed before it
+ * applied fails on-chain (XOXNO hands out account numbers in order, so two openings race; a shared entry grows past
+ * its simulated size). That failure leaves the signed authorization unused, so the relay simulates again against fresh
+ * state and resubmits, up to three tries, instead of failing the person's step (load test, 2026-10-28).
  */
 export async function submitSponsored(func: xdr.HostFunction, auth: xdr.SorobanAuthorizationEntry[], secret: string): Promise<string> {
   const server = new rpc.Server(KOUL.rpcUrl);
   const skip = new Set<number>();
   let lastCode = "no channel";
-  for (let attempt = 0; attempt < 6; attempt++) {
+  let onChainFailures = 0;
+  for (let attempt = 0; attempt < 8; attempt++) {
     const channel = await lockChannel(secret, skip);
     const source = channel?.keypair ?? Keypair.fromSecret(secret);
     let account;
@@ -82,12 +87,19 @@ export async function submitSponsored(func: xdr.HostFunction, auth: xdr.SorobanA
     const prepared = await server.prepareTransaction(tx);
     prepared.sign(source);
     const sent = await server.sendTransaction(prepared);
-    if (sent.status === "PENDING" || sent.status === "DUPLICATE") return sent.hash;
+    if (sent.status === "PENDING" || sent.status === "DUPLICATE") {
+      const done = await server.pollTransaction(sent.hash, { attempts: 10, sleepStrategy: () => 1500 });
+      if (done.status !== "FAILED") return sent.hash; // landed, or still pending: the kit keeps polling it
+      lastCode = "failed on-chain";
+      onChainFailures++;
+      if (onChainFailures >= 3) break;
+      continue;
+    }
     lastCode = sent.errorResult?.result().switch().name ?? sent.status;
     const retry = lastCode === "txBadSeq" || sent.status === "TRY_AGAIN_LATER" || lastCode === "txInsufficientBalance";
     if (!retry) break;
     if (channel && lastCode === "txInsufficientBalance") skip.add(channel.index);
     if (!channel) await new Promise((r) => setTimeout(r, 2500));
   }
-  throw new Error(`The deploy was rejected: ${lastCode}`);
+  throw new Error(`The transaction was rejected: ${lastCode}`);
 }
