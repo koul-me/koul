@@ -16,6 +16,7 @@ const LIMITS = {
   faucet: [[20, "1 d"]],
   waitlist: [[5, "1 m"], [30, "1 d"]],
   funds: [[20, "1 h"]],
+  register: [[10, "1 m"], [50, "1 d"]],
 } satisfies Record<string, [number, Duration][]>;
 /** Per wallet, on top of the IP budget: a fresh IP cannot refill the same wallet again and again. */
 const PER_WALLET: Partial<Record<keyof typeof LIMITS, [number, Duration]>> = { testUsdc: [2, "1 d"], faucet: [2, "1 d"] };
