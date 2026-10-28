@@ -7,3 +7,5 @@ export * from "./templates";
 export * from "./write";
 export * from "./cashout";
 export * from "./swap";
+export * from "./tokens";
+export * from "./competition";
