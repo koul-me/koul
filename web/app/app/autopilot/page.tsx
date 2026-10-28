@@ -247,10 +247,12 @@ export default function AutopilotPage() {
     if (loaded.current || !w.address) return;
     const token = new URLSearchParams(window.location.search).get("load");
     if (!token) return;
-    loaded.current = true;
-    window.history.replaceState(null, "", window.location.pathname);
-    // Deferred a tick so the draft lands after this render, not inside the effect.
+    // Deferred a tick so the draft lands after this render, not inside the effect. The link counts as used only once
+    // the timer runs: a re-render in between (the wallet reconnecting after a full page load) cancels it, and the
+    // next run of this effect schedules it again instead of losing the rules.
     const t = setTimeout(() => {
+      loaded.current = true;
+      window.history.replaceState(null, "", window.location.pathname);
       const set = decodeRules(token);
       if (!set) { toast.error("That link does not hold rules Koul can read"); return; }
       loadRules(set);
