@@ -24,6 +24,13 @@ router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` sinc
 Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
+2026-10-28 (competition groundwork): keeper heartbeat + `/api/keeper/status` + owner alert (keeper-watch workflow);
+daily lease guard (`pnpm leases`, leases workflow; first run extended the Reflector feed and restored the archived XRP
+and wBTC tokens, build log); rate limits on every open route; the competition backend: scoring in `@koul/core`
+(`competition.ts`), the indexer (`pnpm competition`, competition workflow, idle until `pnpm competition config` stores
+settings), read routes and passkey-proven entry under `/api/competition/*` (README "Operations and the competition
+backend"). The competition pages are the teammate's; the open decisions are in `docs/internal/competition-plan.md`.
+
 2026-10-28 (keeper): the keeper had never run on `koul-me/koul`: the repository had no `KEEPER_SECRET` /
 `AGENT_SECRET`, so every Actions run crashed at startup and no autopilot executed in production. Both secrets are set
 (the same keys as `web/.env`; the agent key matches `NEXT_PUBLIC_KOUL_AGENT_PUBLIC_KEY`). Verified: a new wallet went
