@@ -102,6 +102,8 @@ export interface EntrantScore extends EntryTotals {
   returnPct: number | null;
   /** Tokens it holds that had no price this run (valued at 0). */
   unpriced: string[];
+  /** What swaps paid above fair value at the oracle price; netted out of the return (see EntryState). */
+  swapEdgeUsd: number;
   /** autopilotOnly and a manual move, or capital above the starting amount. */
   flagged: boolean;
   flagReasons: string[];
@@ -109,11 +111,13 @@ export interface EntrantScore extends EntryTotals {
   updatedAt: number;
 }
 
-export function flagsFor(totals: EntryTotals, config: Pick<CompetitionConfig, "autopilotOnly" | "startingCapitalUsd">): string[] {
+export function flagsFor(totals: EntryTotals & { swapEdgeUsd?: number }, config: Pick<CompetitionConfig, "autopilotOnly" | "startingCapitalUsd">): string[] {
   const reasons: string[] = [];
   if (config.autopilotOnly && totals.manualTxs > 0) reasons.push(`${totals.manualTxs} move${totals.manualTxs === 1 ? "" : "s"} not made by the autopilot`);
-  // A cent of slack for rounding in the grant's own price.
-  if (totals.netInUsd > config.startingCapitalUsd + 0.01) reasons.push(`added capital: ${totals.netInUsd.toFixed(2)} USD in, ${config.startingCapitalUsd} allowed`);
+  // Capital is outside money only; a swap's edge is netted out but is not something the person added. A cent of
+  // slack for rounding in the grant's own price.
+  const capital = totals.netInUsd - (totals.swapEdgeUsd ?? 0);
+  if (capital > config.startingCapitalUsd + 0.01) reasons.push(`added capital: ${capital.toFixed(2)} USD in, ${config.startingCapitalUsd} allowed`);
   return reasons;
 }
 
@@ -170,6 +174,12 @@ export interface EntryState extends EntryTotals {
   toLedger: number;
   lastHistoryAt: number;
   flows: number;
+  /**
+   * What swaps paid above their fair value at the Reflector price, summed over the window. Testnet pools price their
+   * token copies loosely, so a buy-then-sell loop can mint USDC (load test, 2026-10-28: 100 USDC became 194 in four
+   * round trips). That edge is counted as capital, not profit, so only price moves over time score.
+   */
+  swapEdgeUsd: number;
   /**
    * Value the wallet already had that no flow in the window explains (money that came in before the network's event
    * window), fixed at the entry's first scoring and counted as capital, so it can never show up as profit.

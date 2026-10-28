@@ -117,13 +117,16 @@ async function holdings(wallet: string) {
 }
 
 async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest: number, oldest: number, prices: Prices, walletWasm: Set<string>): Promise<EntrantScore> {
-  const state = parse<EntryState>(await redis(env, "GET", COMP_KEYS.totals(rec.wallet))) ?? { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: config.startLedger - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN };
+  const state = parse<EntryState>(await redis(env, "GET", COMP_KEYS.totals(rec.wallet))) ?? { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: config.startLedger - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
+  state.swapEdgeUsd ??= 0;
   const end = Math.min(latest, config.endLedger ?? latest);
   const from = Math.max(state.toLedger + 1, oldest);
   const newFlows: Flow[] = [];
   if (from <= end) {
     const { transfers, fired } = await walletActivity(rec.wallet, from, end);
     const internalByTx = new Map<string, { usdcToProtocol: bigint; other: boolean }>();
+    /** Per transaction, the USD at the oracle price of what went out to protocols and what came back. */
+    const swapLegs = new Map<string, { outUsd: number; inUsd: number; tokens: Set<string> }>();
     for (const e of transfers) {
       const token = BY_ID.get(e.contractId?.toString() ?? "");
       if (!token) continue;
@@ -143,29 +146,40 @@ async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest:
       if (where === "external") {
         newFlows.push({ ledger: e.ledger, txHash: e.txHash, token: token.symbol, amount: (incoming ? amount : -amount).toString(), usd: incoming ? usd : -usd, counterparty });
         if (incoming) state.inUsd += usd; else state.outUsd += usd;
-      } else if (!fired.has(e.txHash)) {
+      } else {
+        const legs = swapLegs.get(e.txHash) ?? { outUsd: 0, inUsd: 0, tokens: new Set<string>() };
+        if (incoming) legs.inUsd += usd; else legs.outUsd += usd;
+        legs.tokens.add(token.symbol);
+        swapLegs.set(e.txHash, legs);
+      }
+      if (where !== "external" && !fired.has(e.txHash)) {
         const t = internalByTx.get(e.txHash) ?? { usdcToProtocol: 0n, other: false };
         if (token.symbol === "USDC" && !incoming) t.usdcToProtocol += amount; else t.other = true;
         internalByTx.set(e.txHash, t);
       }
     }
     for (const t of internalByTx.values()) if (t.other || t.usdcToProtocol > ACCOUNT_OPENING_USDC) state.manualTxs++;
+    // A swap is a transaction with a token going out and a different one coming back. What came back above what went
+    // out, both at the oracle price, is the venue's edge: capital, not profit. A swap that paid less is a real loss.
+    for (const legs of swapLegs.values()) {
+      if (legs.tokens.size >= 2 && legs.outUsd > 0 && legs.inUsd > legs.outUsd) state.swapEdgeUsd += legs.inUsd - legs.outUsd;
+    }
     state.toLedger = end;
     state.flows += newFlows.length;
   }
   const h = await holdings(rec.wallet);
   const value = valueUsd(h, TOKENS, prices);
   if (Number.isNaN(state.openingUsd ?? Number.NaN)) {
-    const unexplained = value.usd - (state.inUsd - state.outUsd);
+    const unexplained = value.usd - (state.inUsd - state.outUsd + state.swapEdgeUsd);
     state.openingUsd = unexplained > OPENING_TOLERANCE_USD ? unexplained : 0;
   }
-  state.netInUsd = state.inUsd - state.outUsd + state.openingUsd;
+  state.netInUsd = state.inUsd - state.outUsd + state.openingUsd + state.swapEdgeUsd;
   const { pnlUsd, returnPct } = score(value.usd, state.netInUsd);
   const flagReasons = flagsFor(state, config);
   const now = Date.now();
   const result: EntrantScore = {
     wallet: rec.wallet, handle: rec.handle, valueUsd: value.usd, pnlUsd, returnPct, netInUsd: state.netInUsd, inUsd: state.inUsd, outUsd: state.outUsd,
-    manualTxs: state.manualTxs, unpriced: value.unpriced, flagged: flagReasons.length > 0, flagReasons, ledger: latest, updatedAt: now,
+    manualTxs: state.manualTxs, unpriced: value.unpriced, swapEdgeUsd: state.swapEdgeUsd, flagged: flagReasons.length > 0, flagReasons, ledger: latest, updatedAt: now,
   };
   const writes: (string | number)[][] = [["SET", COMP_KEYS.score(rec.wallet), JSON.stringify(result)]];
   for (const f of newFlows) writes.push(["LPUSH", COMP_KEYS.flows(rec.wallet), JSON.stringify(f)]);

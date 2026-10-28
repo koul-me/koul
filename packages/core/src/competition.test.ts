@@ -52,3 +52,11 @@ describe("competition scoring", () => {
     expect(r.map((x) => [x.id, x.rank])).toEqual([["d", null], ["b", 1], ["a", 2], ["c", 2], ["f", 4], ["e", null]]);
   });
 });
+
+describe("swap edge", () => {
+  it("does not count a swap's edge as added capital", () => {
+    // 100 in, 94 USD of edge from testnet pools: net in 194, capital still 100.
+    expect(flagsFor({ netInUsd: 194, inUsd: 100, outUsd: 0, manualTxs: 0, swapEdgeUsd: 94 }, { autopilotOnly: true, startingCapitalUsd: 100 })).toEqual([]);
+    expect(score(194.41, 194).returnPct).toBeCloseTo(0.21, 2);
+  });
+});
