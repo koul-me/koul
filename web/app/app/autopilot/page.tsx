@@ -265,7 +265,7 @@ export default function AutopilotPage() {
 
   if (live.loading && live.status === "off" && !editor.editing) {
     return (
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <div className="flex items-center justify-between"><Sk className="h-11 w-28 rounded-full" /><Sk className="h-11 w-36 rounded-full" /></div>
         <Sk className="h-[220px] rounded-[var(--radius-tile)]" />
         <Sk className="h-[320px] rounded-[var(--radius-tile)]" />
@@ -285,7 +285,9 @@ export default function AutopilotPage() {
       : live.status === "paused" ? "Stopped · rules kept" : "No rules yet";
 
   return (
-    <div className="grid gap-4 md:gap-5">
+    // One column that may shrink to the screen: an implicit grid column grows to its widest child, which pushed the
+    // editing page past 390 px phones.
+    <div className="grid grid-cols-1 gap-4 md:gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <StatusPill kind={kind} detail={detail} />
