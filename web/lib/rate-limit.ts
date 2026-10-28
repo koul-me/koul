@@ -12,7 +12,9 @@ const LIMITS = {
   // Generous per IP: a venue or an office shares one address, and a launch event must not trip it.
   chat: [[60, "1 m"], [1000, "1 d"]],
   parse: [[60, "1 m"], [1000, "1 d"]],
-  testUsdc: [[30, "1 d"]],
+  // Friendbot pays for test USDC, not us, and each wallet is held to two a day; the IP budget only stops a script
+  // farming new wallets, so it allows a crowded launch event (and a 60-wallet load test) from one address.
+  testUsdc: [[300, "1 d"]],
   faucet: [[20, "1 d"]],
   waitlist: [[5, "1 m"], [30, "1 d"]],
   funds: [[20, "1 h"]],
