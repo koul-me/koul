@@ -99,12 +99,16 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
   try {
     tx = await router.tick({ user, id, route });
   } catch (err) {
+    pass.skipped++;
+    note(`sim ${(err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 80)}`);
     log(`simulation failed, skipping: ${(err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 300)}`);
     return;
   }
   const sim = (tx as { simulation?: rpc.Api.SimulateTransactionResponse }).simulation;
   if (!sim || rpc.Api.isSimulationError(sim)) {
     const codes = [...new Set((sim && rpc.Api.isSimulationError(sim) ? sim.error : "").match(/Error\(Contract, #\d+\)/g) ?? [])].join(",");
+    pass.skipped++;
+    note(`sim ${codes || "error"}`);
     log(`simulation error, skipping: ${codes || (sim && rpc.Api.isSimulationError(sim) ? sim.error.replace(/\s+/g, " ").slice(0, 200) : "no simulation")}`);
     return;
   }
@@ -138,6 +142,7 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
     const msg = `${lastSim} ${(res.error as { message?: string }).message ?? ""}`;
     const codes = [...new Set(msg.match(/Error\(Contract, #\d+\)/g) ?? [])].join(",");
     pass.failed++;
+    note(`submit ${codes || msg.replace(/\s+/g, " ").trim().slice(0, 80)}`);
     log(`submit FAILED ${codes || msg.replace(/\s+/g, " ").trim().slice(0, 300) || json(res.error).slice(0, 200)}`);
     return;
   }
@@ -175,11 +180,12 @@ async function tickUser(user: string): Promise<void> {
 }
 
 /** This pass's counts, reported as the heartbeat when it ends. */
-const pass = { autopilots: 0, submitted: 0, failed: 0 };
+const pass = { autopilots: 0, submitted: 0, failed: 0, skipped: 0, errors: [] as string[] };
+const note = (reason: string) => { if (pass.errors.length < 5) pass.errors.push(reason.slice(0, 120)); };
 
 do {
   const started = Date.now();
-  Object.assign(pass, { autopilots: 0, submitted: 0, failed: 0 });
+  Object.assign(pass, { autopilots: 0, submitted: 0, failed: 0, skipped: 0, errors: [] });
   try { await refreshMockOracle(); } catch (err) { console.log(`${stamp()} oracle refresh failed: ${err instanceof Error ? err.message : String(err)}`); }
   let users: string[] = [];
   try { users = (await router.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
@@ -187,7 +193,7 @@ do {
   // A few wallets at a time keeps a pass short as users grow. Most ticks only simulate; when two submissions race on
   // the keeper's sequence, the loser fails and the next pass tries again.
   for (let i = 0; i < users.length; i += PARALLEL) {
-    await Promise.all(users.slice(i, i + PARALLEL).map((u) => tickUser(u).catch((err) => { pass.failed++; console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); })));
+    await Promise.all(users.slice(i, i + PARALLEL).map((u) => tickUser(u).catch((err) => { pass.failed++; note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); })));
   }
   let ledger = 0;
   try { ledger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* the heartbeat goes out without it */ }
