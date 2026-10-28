@@ -1,8 +1,9 @@
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { Keypair } from "@stellar/stellar-sdk";
+import { Keypair, rpc, xdr } from "@stellar/stellar-sdk";
 import { COMP_KEYS } from "@koul/core";
 import { HEARTBEAT_KEY, LEASES_KEY, judge, type Heartbeat, type LeaseReport } from "@/lib/keeper-status";
+import { KOUL } from "@/lib/koul";
 import { channelKeypair, RELAY_CHANNELS } from "@/lib/relay-server";
 import { store } from "@/lib/redis";
 
@@ -25,7 +26,8 @@ export interface PublicStatus {
   lastPassAt: number | null;
   passSec: number | null;
   wallets: number | null;
-  tradesLastHour: number;
+  /** From the chain; null when the RPC did not answer. */
+  tradesLastHour: number | null;
   buckets: Bucket[];
   historySince: number | null;
   competition: { running: boolean; entrants: number; updatedAt: number | null };
@@ -33,12 +35,43 @@ export interface PublicStatus {
 
 interface HistoryPoint { at: number; passMs: number; wallets: number; submitted: number; failed: number }
 
+const TRADES_CACHE = "koul:status:trades-hour";
+/** An hour of ledgers at about five seconds each. */
+const HOUR_LEDGERS = 720;
+
+/**
+ * Autopilot runs in the last hour, counted from the router's own `fired` events: the chain's record, so the number is
+ * right however long the keeper has been running (the keeper's history only starts at its last restart). Cached a
+ * minute so page refreshes do not each walk the events.
+ */
+async function tradesLastHour(redis: NonNullable<ReturnType<typeof store>>): Promise<number | null> {
+  const cached = await redis.get<number>(TRADES_CACHE);
+  if (typeof cached === "number") return cached;
+  try {
+    const server = new rpc.Server(KOUL.rpcUrl);
+    const latest = (await server.getLatestLedger()).sequence;
+    const filters: rpc.Api.EventFilter[] = [{ type: "contract", contractIds: [KOUL.router], topics: [[xdr.ScVal.scvSymbol("fired").toXDR("base64"), "**"]] }];
+    let count = 0;
+    let cursor: string | undefined;
+    for (let page = 0; page < 50; page++) {
+      const res = cursor ? await server.getEvents({ cursor, limit: 200, filters }) : await server.getEvents({ startLedger: latest - HOUR_LEDGERS, limit: 200, filters });
+      count += res.events.filter((e) => e.ledger <= latest).length;
+      if (res.events.length < 200) break;
+      cursor = res.cursor;
+    }
+    await redis.set(TRADES_CACHE, count, { ex: 60 });
+    return count;
+  } catch {
+    return null;
+  }
+}
+
 export async function publicStatus(now = Date.now()): Promise<PublicStatus | null> {
   const redis = store();
   if (!redis) return null;
-  const [beat, leases, history, compConfig, entrants, compUpdated] = await Promise.all([
+  const [beat, leases, history, compConfig, entrants, compUpdated, trades] = await Promise.all([
     redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<LeaseReport>(LEASES_KEY), redis.lrange<HistoryPoint>(HISTORY_KEY, 0, -1),
-    redis.get(COMP_KEYS.config), redis.scard(COMP_KEYS.entrants), redis.get<number>(COMP_KEYS.updatedAt),
+    redis.get(COMP_KEYS.config), redis.scard(COMP_KEYS.entrants), redis.get<number>(COMP_KEYS.updatedAt), tradesLastHour(redis),
   ]);
   const verdict = judge(beat, leases, now);
   const keeperLate = verdict.problems.some((p) => p.startsWith("The keeper"));
@@ -53,7 +86,6 @@ export async function publicStatus(now = Date.now()): Promise<PublicStatus | nul
     sums[i]!.pass += p.passMs; sums[i]!.n++;
   }
   buckets.forEach((b, i) => { if (sums[i]!.n) b.passSec = Math.round(sums[i]!.pass / sums[i]!.n / 100) / 10; });
-  const tradesLastHour = history.filter((p) => p.at >= now - 3600_000).reduce((n, p) => n + p.submitted, 0);
   return {
     readAt: now,
     healthy: verdict.healthy,
@@ -61,7 +93,7 @@ export async function publicStatus(now = Date.now()): Promise<PublicStatus | nul
     lastPassAt: beat?.at ?? null,
     passSec: beat ? Math.round(beat.passMs / 100) / 10 : null,
     wallets: beat?.wallets ?? null,
-    tradesLastHour,
+    tradesLastHour: trades,
     buckets,
     historySince: history.length ? history[history.length - 1]!.at : null,
     competition: { running: compConfig !== null, entrants, updatedAt: compUpdated ?? null },

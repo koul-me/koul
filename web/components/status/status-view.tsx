@@ -62,11 +62,11 @@ export function StatusView({ s, now, children }: { s: PublicStatus; now: number;
         <Stat label="Last check" value={ago(s.lastPassAt, now)} />
         <Stat label="Pass time" value={s.passSec === null ? "-" : `${s.passSec} s`} note="One check of every autopilot" />
         <Stat label="Autopilots watched" value={s.wallets === null ? "-" : String(s.wallets)} />
-        <Stat label="Trades last hour" value={String(s.tradesLastHour)} note="Sent by the keeper" />
+        <Stat label="Trades last hour" value={s.tradesLastHour === null ? "-" : String(s.tradesLastHour)} note="Autopilot runs on chain" />
       </section>
       <section className="grid gap-4 md:grid-cols-2" aria-label="Last 24 hours">
         <ChartTile title="Pass time" unit="s" decimals={1} points={s.buckets.map((b) => ({ at: b.at, value: b.passSec }))} />
-        <ChartTile title="Trades" unit="trade" units="trades" points={s.buckets.map((b) => ({ at: b.at, value: b.passSec === null ? null : b.trades }))} />
+        <ChartTile title="Trades sent by the keeper" unit="trade" units="trades" points={s.buckets.map((b) => ({ at: b.at, value: b.passSec === null ? null : b.trades }))} />
       </section>
       {s.historySince !== null && now - s.historySince < 23 * 3600_000 && <Label>History since {new Date(s.historySince).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}</Label>}
       {s.competition.running && (
