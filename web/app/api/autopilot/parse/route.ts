@@ -1,7 +1,10 @@
 import { parseAutopilot, type ParseContext } from "@koul/core/server";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** Reference server route. The API key stays in the server environment. */
 export async function POST(request: Request): Promise<Response> {
+  const limited = await rateLimit(request, "parse");
+  if (limited) return limited;
   let body: { text?: unknown; context?: unknown };
   try { body = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   if (typeof body.text !== "string" || !body.context || typeof body.context !== "object") {

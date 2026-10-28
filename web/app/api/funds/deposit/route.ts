@@ -1,4 +1,5 @@
 import { fundsEnabled, fundsService } from "@/lib/funds-server";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** Creating a landing account and running the SEP handshake takes ten to thirty seconds. The default function limit is too short for it. */
 export const maxDuration = 60;
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 /** Reference local-demo endpoint: creating a landing account spends sponsor fees. */
 export async function POST(request: Request): Promise<Response> {
+  const limited = await rateLimit(request, "funds");
+  if (limited) return limited;
   if (!fundsEnabled()) return Response.json({ error: "Funds routes are disabled in production" }, { status: 503 });
   try {
     const body = await request.json() as { wallet?: string; amountTry?: string; customer?: Record<string, string>; simulateSandboxBankTransfer?: boolean };

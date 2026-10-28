@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { notifyOwner, sendWelcome } from "@/lib/waitlist-mail";
 import { joinWaitlist } from "@/lib/waitlist-server";
+import { rateLimit } from "@/lib/rate-limit";
 
 const Body = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
@@ -12,6 +13,8 @@ const Body = z.object({
 
 /** Body: { email, from? }. The same answer whether the email is new or already on the list; only a new one gets mail. */
 export async function POST(request: Request): Promise<Response> {
+  const limited = await rateLimit(request, "waitlist");
+  if (limited) return limited;
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
   const { email, from = "unknown", company } = parsed.data;

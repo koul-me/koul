@@ -1,4 +1,5 @@
 import { fundsEnabled, fundsService } from "@/lib/funds-server";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** Creating a landing account, quoting and building the transfer takes ten to thirty seconds. The default function limit is too short for it. */
 export const maxDuration = 60;
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 /** Returns an unsigned SAC transfer; the user signs it with a passkey. */
 export async function POST(request: Request): Promise<Response> {
+  const limited = await rateLimit(request, "funds");
+  if (limited) return limited;
   if (!fundsEnabled()) return Response.json({ error: "Funds routes are disabled in production" }, { status: 503 });
   try {
     const body = await request.json() as { wallet?: string; amountUsdc?: string; iban?: string; customer?: Record<string, string> };

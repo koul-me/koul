@@ -1,4 +1,5 @@
 import { sendTestUsdc } from "@/lib/test-usdc-server";
+import { rateLimit } from "@/lib/rate-limit";
 
 /** Friendbot, a DEX buy and a transfer: about 15 seconds, well inside this. */
 export const maxDuration = 60;
@@ -8,6 +9,8 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.json() as { wallet?: string };
     if (!body.wallet) return Response.json({ error: "wallet is required" }, { status: 400 });
+    const limited = await rateLimit(request, "testUsdc", body.wallet);
+    if (limited) return limited;
     return Response.json(await sendTestUsdc(body.wallet));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Test USDC failed";

@@ -12,6 +12,7 @@ import { chatReplySchema, chatRequestSchema, type ChatRequest, type ChatReplyWir
 import type { Rule } from "@/lib/model/autopilot";
 import { pairingProblem } from "@/lib/model/pairing";
 import { SWAP_TOKENS, TOKEN_SYMBOLS } from "@/lib/koul";
+import { rateLimit } from "@/lib/rate-limit";
 
 const TOKENS = SWAP_TOKENS.map((t) => `${t.symbol} (${t.name})`).join(", ");
 const SELL_ONLY = SWAP_TOKENS.filter((t) => !t.buys).map((t) => t.symbol).join(", ");
@@ -93,6 +94,8 @@ function checkReply(reply: ChatReplyWire, req: ChatRequest): string | null {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const limited = await rateLimit(request, "chat");
+  if (limited) return limited;
   let raw: unknown;
   try { raw = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = chatRequestSchema.safeParse(raw);
