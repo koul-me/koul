@@ -1,0 +1,36 @@
+# Competition indexer: scores every verified entrant every two minutes and rewrites the leaderboard (see
+# keeper/scripts/competition.ts). With no competition configured it stops after one check, so the hourly schedule
+# costs seconds until there is one.
+name: competition
+
+on:
+  schedule:
+    - cron: "29 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: competition
+  cancel-in-progress: false
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Index every two minutes for 5h40m
+        working-directory: keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+          ROUTER_V1: ${{ vars.ROUTER_V1 || 'CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D' }}
+        run: timeout 340m pnpm competition --loop --every 120 || [ $? -eq 124 ]

@@ -24,7 +24,8 @@
     "session-deny": "tsx scripts/session-deny.ts",
     "tx-diag": "tsx scripts/tx-diag.ts",
     "anchor:withdraw": "tsx scripts/anchor-withdraw.ts",
-    "leases": "tsx scripts/leases.ts"
+    "leases": "tsx scripts/leases.ts",
+    "competition": "tsx scripts/competition.ts"
   },
   "dependencies": {
     "@koul/core": "workspace:*",

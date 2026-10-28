@@ -39,3 +39,13 @@ export async function redis(env: Record<string, string | undefined>, ...command:
 
 /** Kept a day: an old heartbeat must still be readable so the app can say how long ago the keeper stopped. */
 export const writeHeartbeat = (env: Record<string, string | undefined>, beat: Heartbeat) => redis(env, "SET", HEARTBEAT_KEY, JSON.stringify(beat), "EX", 86400);
+
+/** Several commands in one round trip; each result in order, null where the store is missing. */
+export async function pipeline(env: Record<string, string | undefined>, commands: (string | number)[][]): Promise<unknown[]> {
+  const url = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL;
+  const token = env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token || commands.length === 0) return commands.map(() => null);
+  const r = await fetch(`${url}/pipeline`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(commands.map((c) => c.map(String))) });
+  if (!r.ok) throw new Error(`redis pipeline ${r.status} ${await r.text()}`);
+  return ((await r.json()) as { result?: unknown; error?: string }[]).map((x) => (x.error ? null : x.result ?? null));
+}
