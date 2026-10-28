@@ -17,6 +17,8 @@ export interface Heartbeat {
   failed: number;
   /** Ticks whose simulation the router or the policy refused (a rate limit, a floor), so nothing was sent. */
   skipped: number;
+  /** Autopilots left alone this pass because their policy rate limit refused a recent tick. */
+  backedOff: number;
   /** Up to five short reasons for this pass's failures, so a dashboard can say why without the run's log. */
   errors: string[];
   ledger: number;

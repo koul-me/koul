@@ -75,8 +75,28 @@ const describe = (x: Executed) => x.kind.endsWith("swap")
   : `${x.kind} rule ${x.rule_index} amount ${(Number(x.amount) / 1e7).toFixed(2)} USDC hub ${x.from_hub} -> ${x.to_hub}`;
 const describeState = (st: RuleState[]) => st.map((r, i) => `r${i}${r.ready ? "" : " cooling"}${r.holds ? " HOLDS" : ""}[${r.conditions.map((c) => `${c.holds ? "+" : "-"}${c.observed}`).join(" ")}]`).join(" ");
 
+/**
+ * A wallet whose policy refused a tick for its rate limit (#7106, 40 calls per 2,000 ledgers) is left alone for a
+ * while: the refusal only shows at submit, so retrying every pass would spend the keeper account on doomed
+ * transactions and hold up every other wallet (load test, 2026-10-28).
+ */
+const RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
+const backoffUntil = new Map<string, number>();
+
+/**
+ * The network keeps one pending transaction per source account, and every tick is paid by the keeper account, so
+ * submissions go out one at a time; simulations still run in parallel.
+ */
+let submitQueue: Promise<unknown> = Promise.resolve();
+function serially<T>(job: () => Promise<T>): Promise<T> {
+  const run = submitQueue.then(job, job);
+  submitQueue = run.catch(() => undefined);
+  return run;
+}
+
 async function tickOne(user: string, id: number, agentRuleId: number, kit: ReturnType<typeof makeKit>, selected: Awaited<ReturnType<typeof kit.multiSigners.buildSelectedSigners>>): Promise<void> {
   const log = (m: string) => console.log(`${stamp()} ${tag(user, id)} ${m}`);
+  if ((backoffUntil.get(tag(user, id)) ?? 0) > Date.now()) { pass.backedOff++; return; }
   let route: Buffer | undefined;
   try {
     const planned = (await router.next_action({ user, id })).result;
@@ -133,15 +153,16 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
     if (rpc.Api.isSimulationError(r)) lastSim = r.error;
     return r;
   };
-  const res = await kit.multiSigners.operation(tx, selected, {
+  const res = await serially(() => kit.multiSigners.operation(tx, selected, {
     forceMethod: "rpc",
     resolveContextRuleIds: (entry) => Array<number>(countContexts(entry.rootInvocation())).fill(agentRuleId),
-  });
+  }));
   (kit.rpc as { simulateTransaction: typeof orig }).simulateTransaction = orig;
   if (!res.success) {
     const msg = `${lastSim} ${(res.error as { message?: string }).message ?? ""}`;
     const codes = [...new Set(msg.match(/Error\(Contract, #\d+\)/g) ?? [])].join(",");
     pass.failed++;
+    if (codes.includes("#7106")) backoffUntil.set(tag(user, id), Date.now() + RATE_LIMIT_BACKOFF_MS);
     note(`submit ${codes || msg.replace(/\s+/g, " ").trim().slice(0, 80)}`);
     log(`submit FAILED ${codes || msg.replace(/\s+/g, " ").trim().slice(0, 300) || json(res.error).slice(0, 200)}`);
     return;
@@ -180,12 +201,12 @@ async function tickUser(user: string): Promise<void> {
 }
 
 /** This pass's counts, reported as the heartbeat when it ends. */
-const pass = { autopilots: 0, submitted: 0, failed: 0, skipped: 0, errors: [] as string[] };
+const pass = { autopilots: 0, submitted: 0, failed: 0, skipped: 0, backedOff: 0, errors: [] as string[] };
 const note = (reason: string) => { if (pass.errors.length < 5) pass.errors.push(reason.slice(0, 120)); };
 
 do {
   const started = Date.now();
-  Object.assign(pass, { autopilots: 0, submitted: 0, failed: 0, skipped: 0, errors: [] });
+  Object.assign(pass, { autopilots: 0, submitted: 0, failed: 0, skipped: 0, backedOff: 0, errors: [] });
   try { await refreshMockOracle(); } catch (err) { console.log(`${stamp()} oracle refresh failed: ${err instanceof Error ? err.message : String(err)}`); }
   let users: string[] = [];
   try { users = (await router.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
