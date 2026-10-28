@@ -10,10 +10,12 @@ import { store } from "@/lib/redis";
 const HEARTBEAT = "koul:keeper:heartbeat";
 const LEASES = "koul:leases";
 const ALERTED = "koul:keeper:alerted";
+export const HEARTBEAT_KEY = HEARTBEAT;
+export const LEASES_KEY = LEASES;
 
-interface Heartbeat { at: number; passMs: number; intervalSec: number; wallets: number; autopilots: number; submitted: number; failed: number; ledger: number }
-interface LeaseRow { name: string; part: string; days: number | null; action: string }
-interface LeaseReport { at: number; leases: LeaseRow[] }
+export interface Heartbeat { at: number; passMs: number; intervalSec: number; wallets: number; autopilots: number; submitted: number; failed: number; skipped?: number; backedOff?: number; errors?: string[]; ledger: number }
+export interface LeaseRow { name: string; part: string; days: number | null; action: string; tx?: string }
+export interface LeaseReport { at: number; leases: LeaseRow[] }
 
 export interface KeeperStatus {
   /** When the last pass ended, ms since epoch; null when the keeper never reported. */

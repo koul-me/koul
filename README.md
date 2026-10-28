@@ -378,6 +378,11 @@ pass), or the lease guard reports a lease that needs a person, the route emails 
 `WAITLIST_NOTIFY_TO`), at most once an hour. `.github/workflows/keeper-watch.yml` calls it every 10 minutes so the
 alarm works with nobody on the site.
 
+**Status page.** `koul.me/status` is public: one headline, the keeper's last check, pass time, autopilots watched,
+trades in the last hour, and a day of pass time and trades (the keeper keeps one point per pass in
+`koul:keeper:history`). `/status/private` adds problems, the last pass's failure reasons, every lease and the keeper
+and channel balances; it exists only in a browser that opened `/api/status/unlock?key=<STATUS_SECRET>`.
+
 **Lease guard.** `cd keeper && pnpm leases [--dry]` reads the instance and wasm lease of every contract Koul touches
 (router, policy, oracles, verifiers, XOXNO, the aggregator, every token) and restores or extends anything under 30
 days to 90, paid by the keeper account and never above 40 XLM an entry. It runs daily in

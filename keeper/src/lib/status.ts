@@ -4,6 +4,9 @@
  * a missing store or a failed write is logged once and never stops a tick.
  */
 export const HEARTBEAT_KEY = "koul:keeper:heartbeat";
+/** One point per pass, newest first, about a day of them: the status page's charts. */
+export const HISTORY_KEY = "koul:keeper:history";
+const HISTORY_POINTS = 2000;
 export const LEASES_KEY = "koul:leases";
 
 export interface Heartbeat {
@@ -43,8 +46,18 @@ export async function redis(env: Record<string, string | undefined>, ...command:
   }
 }
 
-/** Kept a day: an old heartbeat must still be readable so the app can say how long ago the keeper stopped. */
-export const writeHeartbeat = (env: Record<string, string | undefined>, beat: Heartbeat) => redis(env, "SET", HEARTBEAT_KEY, JSON.stringify(beat), "EX", 86400);
+/**
+ * The latest pass, kept a day (an old heartbeat must still be readable so the app can say how long ago the keeper
+ * stopped), and a compact point on the history list for the status page.
+ */
+export async function writeHeartbeat(env: Record<string, string | undefined>, beat: Heartbeat): Promise<void> {
+  const point = { at: beat.at, passMs: beat.passMs, wallets: beat.wallets, submitted: beat.submitted, failed: beat.failed };
+  await pipeline(env, [
+    ["SET", HEARTBEAT_KEY, JSON.stringify(beat), "EX", 86400],
+    ["LPUSH", HISTORY_KEY, JSON.stringify(point)],
+    ["LTRIM", HISTORY_KEY, 0, HISTORY_POINTS - 1],
+  ]).catch((err) => console.log(`${new Date().toISOString()} status   write failed: ${err instanceof Error ? err.message : String(err)}`));
+}
 
 /** Several commands in one round trip; each result in order, null where the store is missing. */
 export async function pipeline(env: Record<string, string | undefined>, commands: (string | number)[][]): Promise<unknown[]> {
