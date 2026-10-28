@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
     try { func = xdr.HostFunction.fromXDR(body.func, "base64"); } catch { func = null; }
     if (func && isAccountDeploy(func)) return sponsor(func, body.auth as unknown[], "account deploy");
     // Koul's own flows are paid here, not by SDF: this relay retries a call that lost a race on-chain, SDF's does not.
-    if (func && isKoulCall(func)) return sponsor(func, body.auth as unknown[], "Koul contract call");
+    if (func && (await isKoulCall(func))) return sponsor(func, body.auth as unknown[], "Koul contract call");
   }
 
   const forwarded = await fetch(SDF_RELAYER, {
@@ -43,6 +43,6 @@ export async function POST(request: Request): Promise<Response> {
     body: text,
   });
   const answer = await forwarded.text();
-  if (forwarded.status === 403 && /not allowlisted/i.test(answer) && func && isKoulCall(func)) return sponsor(func, body.auth as unknown[], "Koul contract call");
+  if (forwarded.status === 403 && /not allowlisted/i.test(answer) && func && (await isKoulCall(func))) return sponsor(func, body.auth as unknown[], "Koul contract call");
   return new Response(answer, { status: forwarded.status, headers: { "content-type": "application/json" } });
 }

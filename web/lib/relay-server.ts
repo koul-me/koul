@@ -26,10 +26,32 @@ export function isAccountDeploy(func: xdr.HostFunction): boolean {
 /** The contracts Koul's flows call, the only ones this relay pays for when SDF will not. */
 const KOUL_TARGETS = new Set<string>([KOUL.router, KOUL.policy, KOUL.aggregator, XOXNO.controller, XOXNO.usdc, ...SWAP_TOKENS.map((t) => t.id)]);
 
-/** A host function that calls one of Koul's own contracts. */
-export function isKoulCall(func: xdr.HostFunction): boolean {
+/** Contracts known to run Koul's account build (a person's wallet); a wallet's code never changes, so this only grows. */
+const walletContracts = new Set<string>();
+
+/** True when the contract runs Koul's account build: a call into a person's own wallet, such as granting access. */
+async function isKoulWallet(contract: string): Promise<boolean> {
+  if (walletContracts.has(contract)) return true;
+  try {
+    const key = xdr.LedgerKey.contractData(new xdr.LedgerKeyContractData({ contract: new Address(contract).toScAddress(), key: xdr.ScVal.scvLedgerKeyContractInstance(), durability: xdr.ContractDataDurability.persistent() }));
+    const entry = (await new rpc.Server(KOUL.rpcUrl).getLedgerEntries(key)).entries[0];
+    const exec = entry?.val.contractData().val().instance().executable();
+    const ours = !!exec && exec.switch().name === "contractExecutableWasm" && exec.wasmHash().toString("hex") === ACCOUNT_WASM;
+    if (ours) walletContracts.add(contract);
+    return ours;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A host function that calls one of Koul's own contracts or a Koul wallet. SDF's relayer answered 500 to some wallet
+ * calls during the 2026-10-28 load test, so every step of Koul's flows is paid here.
+ */
+export async function isKoulCall(func: xdr.HostFunction): Promise<boolean> {
   if (func.switch().name !== "hostFunctionTypeInvokeContract") return false;
-  return KOUL_TARGETS.has(Address.fromScAddress(func.invokeContract().contractAddress()).toString());
+  const target = Address.fromScAddress(func.invokeContract().contractAddress()).toString();
+  return KOUL_TARGETS.has(target) || (await isKoulWallet(target));
 }
 
 /**
@@ -43,7 +65,7 @@ export const RELAY_CHANNELS = Number(process.env.RELAY_CHANNELS ?? 8);
 export const channelKeypair = (keeperSecret: string, i: number) => Keypair.fromRawEd25519Seed(createHash("sha256").update(`koul-relay-channel:${i}:${keeperSecret}`).digest());
 /** A channel stays locked a little over two ledgers: long enough for its transaction to leave the pending queue. */
 const LOCK_SECONDS = 12;
-const WAIT_MS = 25_000;
+const WAIT_MS = 12_000;
 
 async function lockChannel(secret: string, skip: Set<number>): Promise<{ keypair: Keypair; index: number } | null> {
   const redis = store();
