@@ -369,6 +369,52 @@ cd web && npx tsc --noEmit && npx next build
 
 ---
 
+## Operations and the competition backend
+
+**Keeper health.** After every pass the keeper writes a heartbeat to Redis (`koul:keeper:heartbeat`: when, wallets,
+autopilots, submitted, failed). `GET /api/keeper/status` returns it with `healthy` and plain `problems`; the running
+autopilot tile shows "Last check 12S ago". When the heartbeat is older than five minutes (or four intervals plus a
+pass), or the lease guard reports a lease that needs a person, the route emails `KEEPER_ALERT_TO` (default
+`WAITLIST_NOTIFY_TO`), at most once an hour. `.github/workflows/keeper-watch.yml` calls it every 10 minutes so the
+alarm works with nobody on the site.
+
+**Lease guard.** `cd keeper && pnpm leases [--dry]` reads the instance and wasm lease of every contract Koul touches
+(router, policy, oracles, verifiers, XOXNO, the aggregator, every token) and restores or extends anything under 30
+days to 90, paid by the keeper account and never above 40 XLM an entry. It runs daily in
+`.github/workflows/leases.yml` and leaves its report in Redis (`koul:leases`) for the keeper status.
+
+**Rate limits.** The chat, parser, test USDC, Circle faucet, waitlist, funds and competition routes are limited per IP
+(and per wallet for the money routes) with Upstash Ratelimit, `web/lib/rate-limit.ts`. A limiter outage lets
+requests through.
+
+**Competition.** Scoring rules and every shape live in `packages/core/src/competition.ts` (`@koul/core`):
+
+- Value is idle USDC + USDC supplied minus borrowed on XOXNO + every swap token at the Reflector price; XLM is left out
+  by default (it is the fee balance every wallet gets). Money from outside (a classic account, another smart wallet,
+  a mint) is netted out: `pnl = value - net inflows`, `return = pnl / net inflows`. Value already in a wallet that no
+  flow in the network's event window explains becomes opening capital, so it can never count as profit.
+- Flags (unranked): more capital than `startingCapitalUsd`, or, with `autopilotOnly`, a move the autopilot did not make
+  (the 1 USDC that opens the XOXNO account is allowed).
+- Indexer: `cd keeper && pnpm competition [--loop --every 120]`; settings with `pnpm competition config <file.json>`
+  (a `CompetitionConfig`), a manual entrant with `pnpm competition add <wallet> <handle>`. In production it runs from
+  `.github/workflows/competition.yml` and stops at once while no competition is configured.
+
+Routes for the frontend (types in `@koul/core`):
+
+| Route | Returns |
+|---|---|
+| `GET /api/competition` | `CompetitionInfo`: settings, verified entrants, last update |
+| `GET /api/competition/leaderboard?offset=0&limit=50` | `Leaderboard`: ranked rows (`LeaderboardRow`), total |
+| `GET /api/competition/entrant/:handle` | `EntrantView`: score, rank, value history every 15 minutes |
+| `POST /api/competition/challenge` `{ wallet }` | a one-time challenge and the wallet's passkey credential ids |
+| `POST /api/competition/register` `{ wallet, handle, email, assertion }` | sends the confirmation email |
+| `GET /api/competition/verify?token=` | the email link; the entry is scored from then on |
+
+Entering takes one call from the app: `enterCompetition({ wallet, handle, email })` in `web/lib/competition-client.ts`
+asks for the challenge, has the wallet's passkey sign it (one prompt) and registers. The server checks the signature
+against the passkey public key the wallet stores on chain, so nobody can enter a wallet they do not control. One
+entry per wallet, handle and email.
+
 ## How to evaluate
 
 Everything below runs on https://app.koul.me against Stellar testnet. A passkey belongs to the origin it
