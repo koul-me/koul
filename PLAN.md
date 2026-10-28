@@ -24,6 +24,13 @@ router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` sinc
 Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
+2026-10-28 (load test): 56 wallets created five at a time on app.koul.me, each trading ETH back and forth through the
+keeper for an hour (735 autopilot runs). Fixed on the way: relay and keeper channel accounts (one pending transaction
+per source account), keeper back-off for policy rate limits, relay retry for on-chain races at Start autopilot, Koul's
+relay pays every Koul call (SDF answered 500s), share links after a full reload, the test USDC per-IP limit, swap edge
+above the oracle price counted as capital in the competition. Open: testnet pools mint money through swap loops (router
+should emit the amount out), keeper and indexer speed past about 60 wallets. Report: docs/internal/load-test-2026-10-28.md.
+
 2026-10-28 (competition groundwork): keeper heartbeat + `/api/keeper/status` + owner alert (keeper-watch workflow);
 daily lease guard (`pnpm leases`, leases workflow; first run extended the Reflector feed and restored the archived XRP
 and wBTC tokens, build log); rate limits on every open route; the competition backend: scoring in `@koul/core`
