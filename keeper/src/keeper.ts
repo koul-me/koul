@@ -13,6 +13,7 @@
 import { BASE_FEE, Contract, TransactionBuilder, contract, nativeToScVal, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { checkSwapDeployment, quoteSwap, type Planned } from "@koul/core";
 import { ForbiddenAuthenticator, RP_ID, ORIGIN, TESTNET, countContexts, describeEntries, json, keeperKeypair, loadEnv, loadState, makeKit } from "./lib/common";
+import { writeHeartbeat } from "./lib/status";
 
 const env = loadEnv();
 const state = loadState();
@@ -136,9 +137,11 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
   if (!res.success) {
     const msg = `${lastSim} ${(res.error as { message?: string }).message ?? ""}`;
     const codes = [...new Set(msg.match(/Error\(Contract, #\d+\)/g) ?? [])].join(",");
+    pass.failed++;
     log(`submit FAILED ${codes || msg.replace(/\s+/g, " ").trim().slice(0, 300) || json(res.error).slice(0, 200)}`);
     return;
   }
+  pass.submitted++;
   log(`submitted ${res.hash}`);
   const r = await kit.rpc.getTransaction(res.hash!);
   const ret = (r as { returnValue?: xdr.ScVal }).returnValue;
@@ -149,6 +152,7 @@ async function tickUser(user: string): Promise<void> {
   const log = (m: string) => console.log(`${stamp()} ${user.slice(0, 8)}   ${m}`);
   const ids = (await router.list_ids({ user })).result;
   if (ids.length === 0) { log("no autopilots"); return; }
+  pass.autopilots += ids.length;
   const kit = makeKit(env, new ForbiddenAuthenticator(RP_ID, ORIGIN, state.passkey));
   await kit.connectWallet({ credentialId: "koul-keeper", contractId: user });
   kit.externalSigners.addEd25519FromSecret(env.AGENT_SECRET!);
@@ -170,7 +174,12 @@ async function tickUser(user: string): Promise<void> {
   }
 }
 
+/** This pass's counts, reported as the heartbeat when it ends. */
+const pass = { autopilots: 0, submitted: 0, failed: 0 };
+
 do {
+  const started = Date.now();
+  Object.assign(pass, { autopilots: 0, submitted: 0, failed: 0 });
   try { await refreshMockOracle(); } catch (err) { console.log(`${stamp()} oracle refresh failed: ${err instanceof Error ? err.message : String(err)}`); }
   let users: string[] = [];
   try { users = (await router.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
@@ -178,7 +187,10 @@ do {
   // A few wallets at a time keeps a pass short as users grow. Most ticks only simulate; when two submissions race on
   // the keeper's sequence, the loser fails and the next pass tries again.
   for (let i = 0; i < users.length; i += PARALLEL) {
-    await Promise.all(users.slice(i, i + PARALLEL).map((u) => tickUser(u).catch((err) => console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`))));
+    await Promise.all(users.slice(i, i + PARALLEL).map((u) => tickUser(u).catch((err) => { pass.failed++; console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); })));
   }
+  let ledger = 0;
+  try { ledger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* the heartbeat goes out without it */ }
+  await writeHeartbeat(env, { at: Date.now(), passMs: Date.now() - started, intervalSec: interval, wallets: users.length, ...pass, ledger });
   if (!once) await new Promise((r) => setTimeout(r, interval * 1000));
 } while (!once);
