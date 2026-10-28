@@ -26,7 +26,7 @@ export const SUGGESTIONS: { label: string; text: string }[] = [
   { label: "Exit if the lira drops", text: "Exit if the lira drops" },
   { label: "Chase the best rate", text: "Keep my USDC in whichever hub pays more" },
   { label: "Repay before liquidation", text: "Repay my debt from my wallet if my health drops under 1.25" },
-  { label: "Put idle USDC to work", text: "Whenever I have more than 100 USDC sitting in my wallet, supply it to the hub that pays most" },
+  { label: "Put idle USDC to work", text: "Whenever I have more than 50 USDC sitting in my wallet, supply it to the hub that pays most" },
 ];
 
 const PLACEHOLDER = "Pull everything back to my wallet if USD/TRY passes 50";

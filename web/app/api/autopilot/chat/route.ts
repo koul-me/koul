@@ -2,8 +2,9 @@
  * The Autopilot chat. Takes the conversation, the current rules, the mode and the live readings; answers with one
  * strict JSON reply: a draft (the whole list with the new or changed rule's position), one clarifying question with
  * quick replies, or unsupported. A model answers when a parser key is configured; the local keyword answerer
- * otherwise. Whatever answers is checked against the schema and the router's pairing rules, and a bad answer is a
- * 502 that the page shows as an error with Retry. The key never leaves this process.
+ * otherwise. Whatever answers is checked against the schema and the router's pairing rules; a model answer that
+ * fails is asked once more with the reason, and only a second failure is a 502 that the page shows as an error with
+ * Retry. The key never leaves this process.
  */
 import { parserSettings } from "@koul/core/server";
 import { answerLocally } from "@/lib/chat/fallback";
@@ -18,7 +19,7 @@ const SELL_ONLY = SWAP_TOKENS.filter((t) => !t.buys).map((t) => t.symbol).join("
 export const runtime = "nodejs";
 
 const SYSTEM = `You are Koul, a savings autopilot on Stellar. Turn what the user says into rules the router can run, in a short conversation, and answer with exactly one call of the "reply" tool.
-Vocabulary. Conditions (kind, comparator "gte" or "lte", value): "fx_price" USD/TRY as people say it (48.79); "health_factor" loan health (liquidation at 1.00); "rate_gap" the difference between the two hubs' rates in percent points, only "gte"; "idle_usdc" USDC sitting in the wallet; "pool_rate" one hub's APY percent with "pool" "A" (hub 1) or "B" (hub 2); "token_price" a token's price in US dollars with "token" (XLM 0.17, ETH 2338); "token_balance" how much of a token the wallet holds, with "token". Actions (kind, amount "all", a number, or {"percent": 1..100} for a share of what the action could move, e.g. "half of my supplied USDC" is {"percent": 50}): "withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool" (only with a rate_gap condition, and rate_gap only with it), "supply_from_wallet" with "pool", "sell_token" (swap a token in the wallet into USDC; a number is that token), "buy_token" (swap idle wallet USDC into a token; a number is USDC), "withdraw_to_token" (take supplied USDC out of the hubs and swap it into a token; a number is USDC), each with "token". Swaps run through the XOXNO aggregator and the router refuses any fill more than 1% under the oracle price. Swaps only between USDC and these tokens: ${TOKENS}. On testnet ${SELL_ONLY} can be sold but not bought; say so instead of drafting a buy of them. One to three conditions per rule ("match" "all" or "any"), "cooldownSec" the wait between runs (600 for exits and repayments, 3600 for yield moves and swaps unless the user says otherwise), "inferred" the field paths you filled in, "enabled" true. Never invent anything outside this list: no other tokens or token-to-token swaps, borrows, TRY payouts, transfers to other addresses, schedules by date.
+Vocabulary. Conditions (kind, comparator "gte" or "lte", value): "fx_price" USD/TRY as people say it (48.79); "health_factor" loan health (liquidation at 1.00); "rate_gap" the difference between the two hubs' rates in percent points, only "gte"; "idle_usdc" USDC sitting in the wallet; "pool_rate" one hub's APY percent with "pool" "A" (hub 1) or "B" (hub 2); "token_price" a token's price in US dollars with "token" (XLM 0.17, ETH 2338); "token_balance" how much of a token the wallet holds, with "token". Actions (kind, amount "all", a number, or {"percent": 1..100} for a share of what the action could move, e.g. "half of my supplied USDC" is {"percent": 50}): "withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool" (only with a rate_gap condition, and rate_gap only with it), "supply_from_wallet" with "pool" (for "supply it to the hub that pays most" pick the pool with the higher rate in the live readings; that is supply_from_wallet, not move_to_best_pool), "sell_token" (swap a token in the wallet into USDC; a number is that token), "buy_token" (swap idle wallet USDC into a token; a number is USDC), "withdraw_to_token" (take supplied USDC out of the hubs and swap it into a token; a number is USDC), each with "token". Swaps run through the XOXNO aggregator and the router refuses any fill more than 1% under the oracle price. Swaps only between USDC and these tokens: ${TOKENS}. On testnet ${SELL_ONLY} can be sold but not bought; say so instead of drafting a buy of them. One to three conditions per rule ("match" "all" or "any"), "cooldownSec" the wait between runs (600 for exits and repayments, 3600 for yield moves and swaps unless the user says otherwise), "inferred" the field paths you filled in, "enabled" true. Never invent anything outside this list: no other tokens or token-to-token swaps, borrows, TRY payouts, transfers to other addresses, schedules by date.
 Replies. "draft": the complete rule list to save, existing rules unchanged with their ids, the new or changed rule inserted where it should run (protection first, then exits, then yield moves; the router runs the first matching rule) and "position" its 1-based index; "message" one sentence, for a new rule say where it would run ("It would run second, before the rate rule."), for a change say what changed ("Changed rule 2 · 50.00 → 51.00"). "clarify": when one level is missing and you cannot infer it, ask one short question quoting today's reading and give two to four "choices" (numbers as strings) and the "pending" rule with a placeholder value. "unsupported": one sentence saying Koul cannot do that and what it can watch and do; do not guess.
 Follow-ups: a bare number or "make it 51" changes the level of the draft on the table (the last koul message carries "rules" and "position") or answers the pending question. In "editing" mode a sentence like "make the lira exit 51" changes that rule in the given list. Keep messages under 160 characters. New rule ids: "chat_<n>".`;
 
@@ -49,9 +50,10 @@ const REPLY_TOOL = {
   },
 } as const;
 
-async function askModel(req: ChatRequest): Promise<unknown> {
+/** `rejected` is why the previous answer failed the checks; the model sees it and answers again. */
+async function askModel(req: ChatRequest, rejected?: string): Promise<unknown> {
   const { provider, apiKey, model, baseUrl } = parserSettings();
-  const user = JSON.stringify({ mode: req.mode, live: req.live, rules: req.rules, conversation: req.messages });
+  const user = JSON.stringify({ mode: req.mode, live: req.live, rules: req.rules, conversation: req.messages, ...(rejected ? { your_previous_reply_was_rejected: rejected } : {}) });
   if (provider === "anthropic") {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -97,19 +99,26 @@ export async function POST(request: Request): Promise<Response> {
   if (!parsed.success) return Response.json({ error: "The request does not match the chat contract" }, { status: 400 });
   const req = parsed.data;
   const { apiKey } = parserSettings();
-  let answer: unknown;
-  try {
-    answer = apiKey ? await askModel(req) : answerLocally(req.messages, req.rules as Rule[], req.mode, req.live);
-  } catch (err) {
-    console.error("Autopilot chat failed:", err instanceof Error ? err.message : err);
-    return Response.json({ error: "Koul could not answer right now" }, { status: 502 });
+  let rejected: string | undefined;
+  // The local answerer is deterministic, so only a model gets a second try.
+  for (let attempt = 0; attempt < (apiKey ? 2 : 1); attempt++) {
+    let answer: unknown;
+    try {
+      answer = apiKey ? await askModel(req, rejected) : answerLocally(req.messages, req.rules as Rule[], req.mode, req.live);
+    } catch (err) {
+      console.error("Autopilot chat failed:", err instanceof Error ? err.message : err);
+      return Response.json({ error: "Koul could not answer right now" }, { status: 502 });
+    }
+    const reply = chatReplySchema.safeParse(answer);
+    if (!reply.success) {
+      rejected = reply.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+      console.error(`Autopilot chat: reply off contract (attempt ${attempt + 1}):`, rejected);
+      continue;
+    }
+    const problem = checkReply(reply.data, req);
+    if (!problem) return Response.json(reply.data);
+    rejected = problem;
+    console.error(`Autopilot chat: reply rejected (attempt ${attempt + 1}):`, problem);
   }
-  const reply = chatReplySchema.safeParse(answer);
-  if (!reply.success) {
-    console.error("Autopilot chat: reply off contract:", reply.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
-    return Response.json({ error: "Koul's answer did not match what the page expects" }, { status: 502 });
-  }
-  const problem = checkReply(reply.data, req);
-  if (problem) return Response.json({ error: problem }, { status: 502 });
-  return Response.json(reply.data);
+  return Response.json({ error: rejected && !rejected.includes(":") ? rejected : "Koul's answer did not match what the page expects" }, { status: 502 });
 }
