@@ -24,6 +24,12 @@ router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` sinc
 Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
+2026-10-28 (keeper): the keeper had never run on `koul-me/koul`: the repository had no `KEEPER_SECRET` /
+`AGENT_SECRET`, so every Actions run crashed at startup and no autopilot executed in production. Both secrets are set
+(the same keys as `web/.env`; the agent key matches `NEXT_PUBLIC_KOUL_AGENT_PUBLIC_KEY`). Verified: a new wallet went
+live and the production keeper ran its rule about a minute later. Competition planning lives in the uncommitted
+`docs/internal/competition-plan.md`.
+
 2026-10-25 (waitlist): the app is behind a waitlist, the landing stays open. `NEXT_PUBLIC_KOUL_WAITLIST=1` makes
 `web/proxy.ts` rewrite every app page to `/waitlist` unless the browser holds the invite cookie, which
 `?invite=<code>` sets for any code in `KOUL_INVITE_CODES` (`gateFor` in `web/lib/app-host.ts`, tested). The landing's Open app buttons become an
