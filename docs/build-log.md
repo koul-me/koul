@@ -656,3 +656,25 @@ SDF (`e45dbed2...`), then `set_autopilot` refused by SDF and paid by the relay
   in the concurrency queue and takes over. Wallets are ticked four at a time. The router makes any interval safe
   (decisions and cooldowns are on-chain, two keepers cannot double-fire); what caps a wallet is the policy's rate
   limit, 40 calls per 2000 ledgers with 3 or 4 per swap tick.
+
+## Keeper secrets, lease guard, archived swap tokens (2026-10-28)
+
+The keeper had never run on `koul-me/koul`: the repository had no `KEEPER_SECRET` / `AGENT_SECRET`, so every Actions
+run crashed at startup and no autopilot executed in production. Both secrets are set; a new wallet on app.koul.me went
+live and the production keeper ran its rule about a minute later.
+
+`pnpm leases` (`keeper/scripts/leases.ts`, daily in `.github/workflows/leases.yml`) reads the instance and wasm lease
+of every contract Koul touches and renews anything under 30 days to 90, paid by the keeper account, never above 40 XLM
+an entry. Its first run found the Reflector feed at 20.8 days and the XRP and wBTC token contracts archived (lease 0,
+last written around ledger 900,000), so every XRP or wBTC swap failed until they were restored.
+
+| Action | Tx |
+|---|---|
+| Reflector feed instance, extended to 90 days, 0.31 XLM | `11a70c8a68c0345584960023e1fea496279764831a1dfc5490df0476d1280afa` |
+| Reflector feed wasm, extended to 90 days, 20.37 XLM | `b2dd7896a815ad9bf86437dead841edb48559f799b09a369fc1ddfca7d60b0fb` |
+| XRP token instance, restored then extended | `c96ab4fb9fb1aeea92d9fae03b169b114fa8049bc9acd07d519ce0892299645f`, `eea59d02bb30c1fd244698a3d2baf5b90d41b09414aa24a91847cc3dda826d89` |
+| XRP token wasm, restored then extended, 8.75 XLM | `97e1e68fab2933d750ea2a78d24e6c34f9f6cf77a5b5f70010753562bae20d7f`, `a099daa1f99e22afcd268513d268ff4544a5ed5908fbdf4334dc343cfb4ae156` |
+| wBTC token instance, restored then extended | `9d28e8c0bca68abfff8f19270986ec28b768fbf68d499a548b5c190b97956ca0`, `388e398703c44d491ef9895dde44c27ee4fc4b6613ff56e55530957f17ec5073` |
+| wBTC token wasm, restored then extended, 9.11 XLM | `dc41376326c43bf6789b24f68ec1610703147d6c8ba63ef9e76b59557c0f95fa`, `189cb9a5c8dfd3655eec45f99ad7e438639e3957bd548e668956471ef30c8a13` |
+
+After: every lease in the list is at 30 days or more (the shortest, the Ed25519 verifier wasm, at 48.7).

@@ -23,7 +23,8 @@
     "swap-rules": "tsx scripts/swap-rules.ts",
     "session-deny": "tsx scripts/session-deny.ts",
     "tx-diag": "tsx scripts/tx-diag.ts",
-    "anchor:withdraw": "tsx scripts/anchor-withdraw.ts"
+    "anchor:withdraw": "tsx scripts/anchor-withdraw.ts",
+    "leases": "tsx scripts/leases.ts"
   },
   "dependencies": {
     "@koul/core": "workspace:*",

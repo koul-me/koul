@@ -1,0 +1,31 @@
+# Lease guard, daily. Reads the instance and wasm lease of every contract Koul touches and renews anything under 30
+# days to 90 from the keeper account (never above 40 XLM an entry). A failed or too-expensive renewal fails the run,
+# and the web app's keeper status emails the owner from the report it leaves in Redis.
+name: leases
+
+on:
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Renew short leases
+        working-directory: keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+        run: pnpm leases
