@@ -690,3 +690,4 @@ daily leases workflow also runs to top them up.
 | Action | Tx |
 |---|---|
 | Create channels 0-7 with 200 XLM each from the keeper account | `35416372a3e7594ff8176ab8e6ad34fc0876dc4d083403a2d8b9f08d8e3ac28d` |
+| Create keeper channels 0-7 with 200 XLM each: the keeper's tick workers each pay from their own (one pending transaction per source account), instead of every tick waiting on the keeper account | `29e1f63cb5fd89ec31c8bd45ec9f4372ab0f82463e2680745ccc8d1f058aef06` |

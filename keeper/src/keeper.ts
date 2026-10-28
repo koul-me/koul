@@ -12,7 +12,7 @@
  */
 import { BASE_FEE, Contract, TransactionBuilder, contract, nativeToScVal, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import { checkSwapDeployment, quoteSwap, type Planned } from "@koul/core";
-import { ForbiddenAuthenticator, RP_ID, ORIGIN, TESTNET, countContexts, describeEntries, json, keeperKeypair, loadEnv, loadState, makeKit } from "./lib/common";
+import { ForbiddenAuthenticator, RP_ID, ORIGIN, TESTNET, countContexts, describeEntries, json, keeperChannel, keeperKeypair, loadEnv, loadState, makeKit } from "./lib/common";
 import { writeHeartbeat } from "./lib/status";
 
 const env = loadEnv();
@@ -25,7 +25,9 @@ const ROUTER = env.ROUTER_V1!;
 const ORACLE = env.MOCK_FX;
 const POLICY = env.KOUL_POLICY;
 const FEED_MAX_AGE = 600;
-const PARALLEL = 4;
+/** Tick workers, each paying from its own channel account (keeperChannel); KEEPER_CHANNELS=0 uses the keeper alone. */
+const CHANNELS = Number(env.KEEPER_CHANNELS ?? 8);
+const PARALLEL = Math.max(1, CHANNELS);
 const keeper = keeperKeypair(env);
 
 /**
@@ -82,17 +84,6 @@ const describeState = (st: RuleState[]) => st.map((r, i) => `r${i}${r.ready ? ""
  */
 const RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
 const backoffUntil = new Map<string, number>();
-
-/**
- * The network keeps one pending transaction per source account, and every tick is paid by the keeper account, so
- * submissions go out one at a time; simulations still run in parallel.
- */
-let submitQueue: Promise<unknown> = Promise.resolve();
-function serially<T>(job: () => Promise<T>): Promise<T> {
-  const run = submitQueue.then(job, job);
-  submitQueue = run.catch(() => undefined);
-  return run;
-}
 
 async function tickOne(user: string, id: number, agentRuleId: number, kit: ReturnType<typeof makeKit>, selected: Awaited<ReturnType<typeof kit.multiSigners.buildSelectedSigners>>): Promise<void> {
   const log = (m: string) => console.log(`${stamp()} ${tag(user, id)} ${m}`);
@@ -153,10 +144,10 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
     if (rpc.Api.isSimulationError(r)) lastSim = r.error;
     return r;
   };
-  const res = await serially(() => kit.multiSigners.operation(tx, selected, {
+  const res = await kit.multiSigners.operation(tx, selected, {
     forceMethod: "rpc",
     resolveContextRuleIds: (entry) => Array<number>(countContexts(entry.rootInvocation())).fill(agentRuleId),
-  }));
+  });
   (kit.rpc as { simulateTransaction: typeof orig }).simulateTransaction = orig;
   if (!res.success) {
     const msg = `${lastSim} ${(res.error as { message?: string }).message ?? ""}`;
@@ -174,12 +165,12 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
   if (ret) log(`on-chain result: ${json((tx as unknown as { parseResultXdr?: (v: xdr.ScVal) => unknown }).parseResultXdr?.(ret) ?? ret.switch().name)}`);
 }
 
-async function tickUser(user: string): Promise<void> {
+async function tickUser(user: string, payer: string): Promise<void> {
   const log = (m: string) => console.log(`${stamp()} ${user.slice(0, 8)}   ${m}`);
   const ids = (await router.list_ids({ user })).result;
   if (ids.length === 0) { log("no autopilots"); return; }
   pass.autopilots += ids.length;
-  const kit = makeKit(env, new ForbiddenAuthenticator(RP_ID, ORIGIN, state.passkey));
+  const kit = makeKit(env, new ForbiddenAuthenticator(RP_ID, ORIGIN, state.passkey), payer);
   await kit.connectWallet({ credentialId: "koul-keeper", contractId: user });
   kit.externalSigners.addEd25519FromSecret(env.AGENT_SECRET!);
   const rules = await kit.rules.list();
@@ -213,9 +204,16 @@ do {
   if (users.length === 0) console.log(`${stamp()} no users registered on the router`);
   // A few wallets at a time keeps a pass short as users grow. Most ticks only simulate; when two submissions race on
   // the keeper's sequence, the loser fails and the next pass tries again.
-  for (let i = 0; i < users.length; i += PARALLEL) {
-    await Promise.all(users.slice(i, i + PARALLEL).map((u) => tickUser(u).catch((err) => { pass.failed++; note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${u.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); })));
-  }
+  // One worker per channel account, each taking the next wallet off the list: a worker's submissions are paid by its
+  // own account, one at a time, so two never race on a sequence number.
+  const queue = [...users];
+  await Promise.all(Array.from({ length: PARALLEL }, async (_, w) => {
+    const payer = CHANNELS > 0 ? keeperChannel(env, w).secret() : env.KEEPER_SECRET!;
+    for (let u = queue.shift(); u; u = queue.shift()) {
+      const user = u;
+      await tickUser(user, payer).catch((err) => { pass.failed++; note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${user.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); });
+    }
+  }));
   let ledger = 0;
   try { ledger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* the heartbeat goes out without it */ }
   await writeHeartbeat(env, { at: Date.now(), passMs: Date.now() - started, intervalSec: interval, wallets: users.length, ...pass, ledger });

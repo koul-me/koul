@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /** Shared wiring for the keeper and its scripts: testnet constants, env, state file, kit factory. */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -64,13 +65,20 @@ export class ForbiddenAuthenticator extends SoftwareAuthenticator {
   override async startRegistration(): Promise<never> { throw new Error("PASSKEY WAS TOUCHED"); }
 }
 
-export function makeKit(env: Record<string, string>, authenticator: SoftwareAuthenticator): SmartAccountKit {
+/**
+ * The keeper's channel accounts: each tick worker pays from its own, since the network keeps one pending transaction
+ * per source account. Derived from the keeper secret, funded by `pnpm channels`.
+ */
+export const keeperChannel = (env: Record<string, string>, i: number) => Keypair.fromRawEd25519Seed(createHash("sha256").update(`koul-keeper-channel:${i}:${env.KEEPER_SECRET}`).digest());
+
+/** `deployerSecret` pays for what the kit submits; the keeper account unless a channel is given. */
+export function makeKit(env: Record<string, string>, authenticator: SoftwareAuthenticator, deployerSecret = env.KEEPER_SECRET!): SmartAccountKit {
   return new SmartAccountKit({
     rpcUrl: TESTNET.rpcUrl, networkPassphrase: TESTNET.networkPassphrase, accountWasmHash: TESTNET.accountWasmHash,
     webauthnVerifierAddress: TESTNET.webauthnVerifierAddress, ed25519VerifierAddress: TESTNET.ed25519VerifierAddress,
     storage: new MemoryStorage(), rpId: RP_ID, rpName: "Koul",
     webAuthn: authenticator as unknown as NonNullable<ConstructorParameters<typeof SmartAccountKit>[0]["webAuthn"]>,
-    deployerSecret: env.KEEPER_SECRET!, timeoutInSeconds: 60,
+    deployerSecret, timeoutInSeconds: 60,
   });
 }
 
