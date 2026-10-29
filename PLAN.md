@@ -24,6 +24,15 @@ router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` sinc
 Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
+2026-10-29 (status and app fixes): koul.me/status (public: health, last check, pass time, trades in the last hour from
+the router's on-chain runs, a day of charts) and /status/private behind STATUS_SECRET (problems, failure reasons,
+leases, balances, relay failures); low balances and repeated relay failures email the owner. The keeper keeps each
+wallet's grant between passes (a pass over 67 wallets in 12-15 s) and the indexer reads balances in bulk (57 entrants in
+under 30 s). App: screens refresh by themselves after a transaction; the balance tile shows earning, idle, tokens and
+borrowed and counts swap tokens at the Reflector price; exit levels in templates and new rules start 5% above today's
+USD/TRY; the editing page says when a rule already holds; Put to work warns when the running rule would take the money
+back; small token levels keep their digits.
+
 2026-10-28 (load test): 56 wallets created five at a time on app.koul.me, each trading ETH back and forth through the
 keeper for an hour (735 autopilot runs). Fixed on the way: relay and keeper channel accounts (one pending transaction
 per source account), keeper back-off for policy rate limits, relay retry for on-chain races at Start autopilot, Koul's
