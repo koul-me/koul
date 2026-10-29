@@ -322,7 +322,7 @@ export default function AutopilotPage() {
           } />
           {savingToLibrary && <SaveToLibrary rules={rules} defaultName="My autopilot" onDone={() => setSavingToLibrary(false)} onCancel={() => setSavingToLibrary(false)} />}
           {rules.length > 0 && <Capital rules={rules} onChange={(next) => editor.replace(next)} />}
-          <RuleEditor editor={editor} liveRules={live.rules} live={values.live} now={now} highlight={highlight} changes={chatChanges} onUndo={undoChat} onAdd={() => editor.add(ruleTemplate())} />
+          <RuleEditor editor={editor} liveRules={live.rules} live={values.live} now={now} highlight={highlight} changes={chatChanges} onUndo={undoChat} onAdd={() => editor.add(ruleTemplate(values.live))} />
           <Library onUse={loadRules} now={now} />
           {firingNow && (
             <p role="status" className="rounded-[var(--radius-group)] border border-line px-4 py-3 text-[15px]">

@@ -71,7 +71,8 @@ export function BalanceTile({ balance, parts, lira, loading, rate }: { balance: 
     <Tile tone="lime" className="group flex h-full min-h-[380px] flex-col p-6 md:p-8">
       <div className="flex items-center justify-between">
         <span className="text-[16px] font-bold">Balance</span>
-        <span className="text-[16px] font-bold">USDC</span>
+        {/* USDC until the wallet holds swap tokens; then the total is a dollar value. */}
+        <span className="text-[16px] font-bold">{parts && parts.tokens >= 0.005 ? "USD" : "USDC"}</span>
       </div>
       <div className="mt-auto py-8">
         <div

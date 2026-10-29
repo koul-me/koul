@@ -29,14 +29,16 @@ import { parseAmount, sanitizeAmount } from "@/components/flows/amount-input";
 import type { RuleChange } from "@/lib/chat/diff";
 import { cn } from "@/lib/utils";
 import { hubName } from "@/lib/model/hubs";
+import { exitLevel } from "@/components/autopilot-page/templates";
 
 const pill = "h-11 rounded-full border-0 bg-surface-2 px-4 mono text-text data-[size=default]:h-11 hover:brightness-110 [&_svg]:text-muted";
 const popup = "rounded-[var(--radius-group)] border border-line bg-surface p-1 shadow-none ring-0";
 const item = "mono rounded-lg py-2.5 pl-3 pr-9 text-text focus:bg-surface-2";
 
-function defaultsFor(kind: ConditionKind): Condition {
+/** New conditions start out false: an exit level 5% above today's USD/TRY, never one already passed. */
+function defaultsFor(kind: ConditionKind, live?: LiveValues): Condition {
   switch (kind) {
-    case "fx_price": return { kind, comparator: "gte", value: 50 };
+    case "fx_price": return { kind, comparator: "gte", value: exitLevel(live) };
     case "health_factor": return { kind, comparator: "lte", value: 1.25 };
     case "rate_gap": return { kind, comparator: "gte", value: 1 };
     case "idle_usdc": return { kind, comparator: "gte", value: 100 };
@@ -60,16 +62,16 @@ function TokenPicker({ value, onChange, label }: { value: TokenSymbol; onChange:
   );
 }
 
-export function ruleTemplate(): Rule {
-  return { id: `r_${Date.now().toString(36)}`, name: "Rule", conditions: [defaultsFor("fx_price")], match: "all", action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600, inferred: [], enabled: true };
+export function ruleTemplate(live?: LiveValues): Rule {
+  return { id: `r_${Date.now().toString(36)}`, name: "Rule", conditions: [defaultsFor("fx_price", live)], match: "all", action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600, inferred: [], enabled: true };
 }
 
-function ConditionPickers({ c, i, onChange }: { c: Condition; i: number; onChange: (next: Condition) => void }) {
+function ConditionPickers({ c, i, live, onChange }: { c: Condition; i: number; live: LiveValues; onChange: (next: Condition) => void }) {
   const isGap = c.kind === "rate_gap";
   const unit = c.kind === "token_balance" ? tokenOf(c) : CONDITION_SUBJECTS.find((s) => s.kind === c.kind)?.unit ?? "";
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={c.kind} onValueChange={(v) => v && onChange(defaultsFor(v as ConditionKind))} items={CONDITION_SUBJECTS.map((s) => ({ value: s.kind, label: s.label }))}>
+      <Select value={c.kind} onValueChange={(v) => v && onChange(defaultsFor(v as ConditionKind, live))} items={CONDITION_SUBJECTS.map((s) => ({ value: s.kind, label: s.label }))}>
         <SelectTrigger className={pill} aria-label={`Condition ${i + 1}: what to check`}><SelectValue /></SelectTrigger>
         <SelectContent className={popup}>{CONDITION_SUBJECTS.map((s) => <SelectItem key={s.kind} value={s.kind} className={item}>{s.label}</SelectItem>)}</SelectContent>
       </Select>
@@ -284,7 +286,7 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
               {rule.conditions.map((c, ci) => (
                 <div key={ci} className="flex flex-wrap items-center gap-2">
                   {ci > 0 && <Label className="w-10">{rule.match === "all" ? "and" : "or"}</Label>}
-                  <ConditionPickers c={c} i={ci} onChange={(next) => editor.update(rule.id, (r) => ({ ...r, conditions: r.conditions.map((x, k) => (k === ci ? next : x)) }))} />
+                  <ConditionPickers c={c} i={ci} live={live} onChange={(next) => editor.update(rule.id, (r) => ({ ...r, conditions: r.conditions.map((x, k) => (k === ci ? next : x)) }))} />
                   {rule.conditions.length > 1 && <button type="button" onClick={() => editor.update(rule.id, (r) => ({ ...r, conditions: r.conditions.filter((_, k) => k !== ci) }))} className="label min-h-11 rounded-full px-3 text-muted hover:text-text">Remove</button>}
                 </div>
               ))}
