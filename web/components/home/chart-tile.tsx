@@ -63,7 +63,7 @@ export function ChartTile({ balance, series, loading, now, className }: { balanc
   return (
     <Tile className={cn("flex flex-col", className)}>
       <div className="flex min-h-11 items-center justify-between">
-        <TileLabel>Balance</TileLabel>
+        <TileLabel>Balance over time</TileLabel>
         {drawn && <TextSegmented label="Range" value={range} onChange={setRange} options={[{ value: "7D", label: "7D" }, { value: "30D", label: "30D" }, { value: "ALL", label: "ALL" }]} />}
       </div>
       <Loadable loading={loading} skeleton={<Sk className="h-24 w-full rounded-xl" />} className="mt-4 flex min-h-24 flex-1 items-center justify-center">

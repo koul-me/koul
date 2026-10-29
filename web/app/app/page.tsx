@@ -3,8 +3,9 @@
 import * as React from "react";
 import { motion } from "motion/react";
 import { staggerChild, staggerParent } from "@/lib/motion";
-import { usePortfolio } from "@/hooks/use-portfolio";
-import { bestPool, useFx, usePools } from "@/hooks/use-market";
+import { usePortfolio, useTokenHoldings } from "@/hooks/use-portfolio";
+import { bestPool, useFx, usePools, useTokenPrices } from "@/hooks/use-market";
+import { SWAP_TOKENS } from "@/lib/koul";
 import { useAutopilotLive } from "@/hooks/use-autopilot-live";
 import { useActivity } from "@/hooks/use-activity";
 import { useRunToasts } from "@/hooks/use-run-toasts";
@@ -44,7 +45,12 @@ export default function HomePage() {
   const loaded = pf.loaded;
   const supplied = pf.positions.supplied.A + pf.positions.supplied.B;
   const debt = pf.positions.borrowed.A + pf.positions.borrowed.B;
-  const balance = loaded ? pf.positions.idleUsdc + supplied - debt : null;
+  // Tokens bought by swaps count at the Reflector price, so a swap is not a loss; XLM is the fee balance and stays out.
+  const holdings = useTokenHoldings();
+  const tokenPrices = useTokenPrices();
+  const tokensUsd = SWAP_TOKENS.filter((t) => t.symbol !== "XLM").reduce((n, t) => n + (holdings[t.symbol] ?? 0) * (tokenPrices.prices[t.symbol]?.usd ?? 0), 0);
+  const balance = loaded ? pf.positions.idleUsdc + supplied - debt + tokensUsd : null;
+  const parts = loaded ? { earning: supplied, idle: pf.positions.idleUsdc, tokens: tokensUsd, owed: debt } : null;
   const lira = balance !== null && !fx.loading && fx.fx.tryPerUsd > 0 ? balance * fx.fx.tryPerUsd : balance === 0 ? 0 : null;
   const target = bestPool(pools.pools);
   const idle = loaded ? pf.positions.idleUsdc : null;
@@ -65,7 +71,7 @@ export default function HomePage() {
     <PullToRefresh onRefresh={refreshAll}>
     <motion.div variants={staggerParent} initial="hidden" animate="show" className="grid gap-4 md:gap-5">
       <div className="grid gap-4 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:gap-5">
-        <motion.div {...tile}><BalanceTile balance={balance} lira={lira} loading={!loaded} rate={fx.fx.tryPerUsd > 0 ? { tryPerUsd: fx.fx.tryPerUsd, at: fx.fx.timestamp * 1000 } : null} /></motion.div>
+        <motion.div {...tile}><BalanceTile balance={balance} parts={parts} lira={lira} loading={!loaded} rate={fx.fx.tryPerUsd > 0 ? { tryPerUsd: fx.fx.tryPerUsd, at: fx.fx.timestamp * 1000 } : null} /></motion.div>
         {/* The right column ends level with the balance: the chart takes whatever height is left. */}
         <div className="grid gap-4 md:grid-rows-[auto_1fr] md:gap-5">
           <div className="grid grid-cols-2 gap-4 md:gap-5">

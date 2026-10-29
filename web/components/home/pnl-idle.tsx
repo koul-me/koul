@@ -38,7 +38,7 @@ export function IdleTile({ idle, loading, target, onPutToWork, busy }: { idle: n
   const skeleton = <><Sk className="h-9 w-28 rounded-xl md:h-12 md:w-32" /><Sk className="mt-4 h-11 w-32 rounded-full" /></>;
   return (
     <Tile className="flex h-full min-h-[196px] flex-col">
-      <TileLabel>Idle</TileLabel>
+      <TileLabel>Idle · not earning</TileLabel>
       <Loadable loading={loading || idle === null} skeleton={skeleton} className="mt-auto">
         <FitValue text={fmtUsdc(shown ?? idle ?? 0)} />
         <div className="mt-4 min-h-11">
