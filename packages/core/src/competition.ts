@@ -180,6 +180,11 @@ export interface EntryState extends EntryTotals {
    * round trips). That edge is counted as capital, not profit, so only price moves over time score.
    */
   swapEdgeUsd: number;
+  /** The wallet's XOXNO account (its position NFT), once found; null while it has none, re-checked now and then. */
+  accountId?: string | null;
+  accountCheckedAt?: number;
+  /** Tokens the wallet has sent or received in the window; custom tokens are only read for these. */
+  tokensSeen?: string[];
   /**
    * Value the wallet already had that no flow in the window explains (money that came in before the network's event
    * window), fixed at the entry's first scoring and counted as capital, so it can never show up as profit.

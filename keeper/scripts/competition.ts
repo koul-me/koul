@@ -28,7 +28,7 @@ let BY_ID = new Map(TOKENS.map((t) => [t.id, t]));
 /** Opening the XOXNO account at the first Start autopilot supplies 1 USDC by hand; that one is not a manual move. */
 const ACCOUNT_OPENING_USDC = 1_0000000n;
 const HISTORY_EVERY_MS = 15 * 60_000;
-const PARALLEL = 4;
+const PARALLEL = 8;
 const PAGE = 200;
 
 const reader = new KoulReader({
@@ -89,34 +89,50 @@ const amountOf = (v: xdr.ScVal): bigint => {
 /** The wallet's transfers and mints of the scored tokens, and the transactions in which its autopilot fired. */
 async function walletActivity(wallet: string, from: number, to: number) {
   const ids = TOKENS.map((t) => t.id);
-  const transfers: rpc.Api.EventResponse[] = [];
-  // Five contracts a filter, five filters a request: out, in, and mints in, per group of tokens.
-  for (const g of groups(ids, 5)) {
-    transfers.push(...(await events(from, to, [
-      { type: "contract", contractIds: g, topics: [[sym("transfer"), addr(wallet), "**"]] },
-      { type: "contract", contractIds: g, topics: [[sym("transfer"), "*", addr(wallet), "**"]] },
-      { type: "contract", contractIds: g, topics: [[sym("mint"), addr(wallet), "**"]] },
-    ])));
-  }
-  const fired = new Set((await events(from, to, [{ type: "contract", contractIds: [ROUTER], topics: [[sym("fired"), addr(wallet), "**"]] }])).map((e) => e.txHash));
-  return { transfers, fired };
+  const [first, ...rest] = groups(ids, 5);
+  const firedFilter: rpc.Api.EventFilter = { type: "contract", contractIds: [ROUTER], topics: [[sym("fired"), addr(wallet), "**"]] };
+  const transferFilters = (g: string[]): rpc.Api.EventFilter[] => [
+    { type: "contract", contractIds: g, topics: [[sym("transfer"), addr(wallet), "**"]] },
+    { type: "contract", contractIds: g, topics: [[sym("transfer"), "*", addr(wallet), "**"]] },
+    { type: "contract", contractIds: g, topics: [[sym("mint"), addr(wallet), "**"]] },
+  ];
+  // Up to five filters a request: the router's runs ride along with the first group of tokens.
+  const all = [
+    ...(await events(from, to, [...transferFilters(first ?? []), firedFilter])),
+    ...(await Promise.all(rest.map((g) => events(from, to, transferFilters(g))))).flat(),
+  ];
+  const fired = new Set(all.filter((e) => e.contractId?.toString() === ROUTER).map((e) => e.txHash));
+  return { transfers: all.filter((e) => e.contractId?.toString() !== ROUTER), fired };
 }
 
 // ---- One entry ----
 
-async function holdings(wallet: string) {
+/** Built-in token balances for every entrant, read in one or two ledger calls per run (SACs only). */
+type SacBalances = Map<string, bigint>;
+const ACCOUNT_RECHECK_MS = 10 * 60_000;
+
+async function holdings(wallet: string, state: EntryState, sac: SacBalances, sacTokens: Set<string>) {
   const tokens: Record<string, bigint> = {};
-  await Promise.all(TOKENS.map(async (t) => { tokens[t.symbol] = await reader.readTokenBalance(t.id, wallet).catch(() => 0n); }));
+  await Promise.all(TOKENS.map(async (t) => {
+    // Custom (wasm) tokens keep their own storage layout, so they are still asked through a simulation.
+    if (sacTokens.has(t.id)) { tokens[t.symbol] = sac.get(`${t.id}:${wallet}`) ?? 0n; return; }
+    // A custom token can only have arrived through a transfer the indexer saw (or before the window, which the opening
+    // value covers), so it is only read for wallets that have moved it.
+    tokens[t.symbol] = state.tokensSeen?.includes(t.symbol) ? await reader.readTokenBalance(t.id, wallet).catch(() => 0n) : 0n;
+  }));
+  // The XOXNO account number only changes from none to one, so it is looked up once and then kept.
+  if (state.accountId === undefined || (state.accountId === null && Date.now() - (state.accountCheckedAt ?? 0) > ACCOUNT_RECHECK_MS)) {
+    const nft = await reader.readPositionNft(wallet).catch(() => undefined);
+    if (nft !== undefined) { state.accountId = nft ? String(nft.tokenId) : null; state.accountCheckedAt = Date.now(); }
+  }
   let supplied = 0n, borrowed = 0n;
-  const nft = await reader.readPositionNft(wallet).catch(() => null);
-  if (nft) {
-    const p = await reader.readPortfolio(wallet, BigInt(nft.tokenId));
-    for (const h of p.hubs) { supplied += h.collateral; borrowed += h.debt; }
+  if (state.accountId) {
+    for (const h of await reader.readHubAmounts(BigInt(state.accountId))) { supplied += h.collateral; borrowed += h.debt; }
   }
   return { tokens, supplied, borrowed };
 }
 
-async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest: number, oldest: number, prices: Prices, walletWasm: Set<string>): Promise<EntrantScore> {
+async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest: number, oldest: number, prices: Prices, walletWasm: Set<string>, sac: SacBalances, sacTokens: Set<string>): Promise<EntrantScore> {
   const state = parse<EntryState>(await redis(env, "GET", COMP_KEYS.totals(rec.wallet))) ?? { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: config.startLedger - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
   state.swapEdgeUsd ??= 0;
   const end = Math.min(latest, config.endLedger ?? latest);
@@ -137,6 +153,7 @@ async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest:
       const incoming = toAddr === rec.wallet;
       if (incoming && fromAddr === rec.wallet) continue;
       const counterparty = (incoming ? fromAddr : toAddr) ?? "mint";
+      if (!(state.tokensSeen ??= []).includes(token.symbol)) state.tokensSeen.push(token.symbol);
       const amount = amountOf(e.value);
       const isWallet = (c: string) => walletWasm.has(wasmOf.get(c) ?? "");
       if (counterparty.startsWith("C")) await wasmHash(counterparty);
@@ -167,7 +184,7 @@ async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest:
     state.toLedger = end;
     state.flows += newFlows.length;
   }
-  const h = await holdings(rec.wallet);
+  const h = await holdings(rec.wallet, state, sac, sacTokens);
   const value = valueUsd(h, TOKENS, prices);
   if (Number.isNaN(state.openingUsd ?? Number.NaN)) {
     const unexplained = value.usd - (state.inUsd - state.outUsd + state.swapEdgeUsd);
@@ -221,10 +238,13 @@ async function run(): Promise<boolean> {
   const p = await prices();
   // Every entrant's wallet runs the same smart-account wasm; a transfer with one of those is between people.
   const walletWasm = new Set((await Promise.all(records.map((r) => wasmHash(r.wallet)))).filter((h): h is string => h !== null));
+  // Built-in tokens (no wasm of their own) can be read from their ledger entries, all entrants at once.
+  const sacTokens = new Set((await Promise.all(TOKENS.map(async (t) => ((await wasmHash(t.id)) === null ? t.id : null)))).filter((x): x is string => x !== null));
+  const sac = await reader.readSacBalances([...sacTokens], records.map((r) => r.wallet)).catch(() => new Map<string, bigint>());
   const scores: EntrantScore[] = [];
   const started = Date.now();
   for (const g of groups(records, PARALLEL)) {
-    scores.push(...(await Promise.all(g.map((r) => indexEntry(r, config, latest, oldest, p, walletWasm).catch((err) => {
+    scores.push(...(await Promise.all(g.map((r) => indexEntry(r, config, latest, oldest, p, walletWasm, sac, sacTokens).catch((err) => {
       console.log(`${stamp()} competition: ${r.handle} failed: ${rpcMessage(err)}`);
       return null;
     })))).filter((s): s is EntrantScore => s !== null));

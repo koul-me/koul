@@ -136,6 +136,47 @@ export class KoulReader {
     return { asset, price: price.price, timestamp: price.timestamp, decimals, ageSeconds: Math.max(0, Math.floor(Date.now() / 1000) - Number(price.timestamp)) };
   }
 
+  /**
+   * Balances of built-in token contracts (Stellar Asset Contracts) straight from their ledger entries: every
+   * `(token, owner)` pair in one or two RPC calls instead of a simulation each. Only for SACs, whose storage layout is
+   * fixed (`Balance(owner)` holding `{ amount, authorized, clawback }`); an owner with no entry holds 0. Keyed
+   * `${token}:${owner}`.
+   */
+  async readSacBalances(tokens: string[], owners: string[]): Promise<Map<string, bigint>> {
+    const pairs = tokens.flatMap((t) => owners.map((o) => [t, o] as const));
+    const key = (t: string, o: string) => xdr.LedgerKey.contractData(new xdr.LedgerKeyContractData({
+      contract: new Address(t).toScAddress(),
+      key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol("Balance"), new Address(o).toScVal()]),
+      durability: xdr.ContractDataDurability.persistent(),
+    }));
+    const out = new Map<string, bigint>(pairs.map(([t, o]) => [`${t}:${o}`, 0n]));
+    for (let i = 0; i < pairs.length; i += 200) {
+      const chunk = pairs.slice(i, i + 200);
+      const res = await this.server.getLedgerEntries(...chunk.map(([t, o]) => key(t, o)));
+      for (const e of res.entries) {
+        const d = e.key.contractData();
+        const token = Address.fromScAddress(d.contract()).toString();
+        const owner = Address.fromScAddress(d.key().vec()![1]!.address()).toString();
+        const v = scValToNative(e.val.contractData().val()) as bigint | { amount: bigint };
+        out.set(`${token}:${owner}`, typeof v === "bigint" ? v : BigInt(v.amount));
+      }
+    }
+    return out;
+  }
+
+  /** Only what an XOXNO account holds and owes in USDC per hub: four reads instead of a full portfolio. */
+  async readHubAmounts(accountId: bigint): Promise<{ hub: number; collateral: bigint; debt: bigint }[]> {
+    const controller = await this.client<Controller>(this.config.controller);
+    return Promise.all((this.config.hubs ?? [1, 2]).map(async (hub) => {
+      const hub_asset = this.key(hub);
+      const [collateral, debt] = await Promise.all([
+        controller.get_collateral_amount({ account_id: accountId, hub_asset }).then((v) => v.result as bigint),
+        controller.get_borrow_amount({ account_id: accountId, hub_asset }).then((v) => v.result as bigint),
+      ]);
+      return { hub, collateral, debt };
+    }));
+  }
+
   /** Any token contract's balance of `owner`, in its base units. */
   async readTokenBalance(token: string, owner: string): Promise<bigint> {
     return BigInt(await this.raw(token, "balance", [new Address(owner).toScVal()]) as bigint);
