@@ -5,7 +5,7 @@
  * posts `{ func, auth }` or `{ xdr }` and reads `{ success, hash }` or `{ success: false, error }`.
  */
 import { xdr } from "@stellar/stellar-sdk";
-import { SDF_RELAYER, isAccountDeploy, isKoulCall, submitSponsored } from "@/lib/relay-server";
+import { SDF_RELAYER, isAccountDeploy, isKoulCall, recordRelayFailure, submitSponsored } from "@/lib/relay-server";
 
 export const runtime = "nodejs";
 /** A sponsored call waits for its result and may resubmit twice after an on-chain race; about 15 s a try. */
@@ -20,6 +20,7 @@ async function sponsor(func: xdr.HostFunction, rawAuth: unknown[], what: string)
     return Response.json({ success: true, hash: await submitSponsored(func, auth, secret) });
   } catch (err) {
     console.error(`Relay: ${what} failed:`, err instanceof Error ? err.message : err);
+    await recordRelayFailure(what, err instanceof Error ? err.message : String(err));
     return Response.json({ success: false, error: err instanceof Error ? err.message : "The transaction could not be submitted" }, { status: 502 });
   }
 }
@@ -44,5 +45,6 @@ export async function POST(request: Request): Promise<Response> {
   });
   const answer = await forwarded.text();
   if (forwarded.status === 403 && /not allowlisted/i.test(answer) && func && (await isKoulCall(func))) return sponsor(func, body.auth as unknown[], "Koul contract call");
+  if (forwarded.status >= 500) await recordRelayFailure("SDF relayer", `${forwarded.status} ${answer}`);
   return new Response(answer, { status: forwarded.status, headers: { "content-type": "application/json" } });
 }

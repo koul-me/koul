@@ -125,3 +125,18 @@ export async function submitSponsored(func: xdr.HostFunction, auth: xdr.SorobanA
   }
   throw new Error(`The transaction was rejected: ${lastCode}`);
 }
+
+/**
+ * The relay's recent failures, newest first, for the private status page and the owner alert: Vercel keeps runtime
+ * logs only briefly, so a failed wallet creation could not be explained after the fact (load test, 2026-10-28).
+ */
+export const RELAY_FAILURES_KEY = "koul:relay:failures";
+export interface RelayFailure { at: number; what: string; error: string }
+export async function recordRelayFailure(what: string, error: string): Promise<void> {
+  const redis = store();
+  if (!redis) return;
+  try {
+    await redis.lpush(RELAY_FAILURES_KEY, JSON.stringify({ at: Date.now(), what, error: error.slice(0, 200) } satisfies RelayFailure));
+    await redis.ltrim(RELAY_FAILURES_KEY, 0, 99);
+  } catch { /* a failure log must never fail the request */ }
+}
