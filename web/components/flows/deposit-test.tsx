@@ -7,11 +7,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { KeyValue, Label, PillButton, Tile } from "@/components/signal";
-import { toastTx } from "@/hooks/use-passkey-action";
+import { refreshAfterTx, toastTx } from "@/hooks/use-passkey-action";
 import { useTransferRunner } from "@/hooks/use-transfer-runner";
 import { useWallet } from "@/hooks/use-wallet";
 import { track } from "@/lib/analytics";
-import { invalidate } from "@/lib/data/store";
 import { useAppHref } from "@/lib/app-base";
 import { FlowFrame, DEPOSIT_OPTIONS, type Method } from "./flow-frame";
 
@@ -43,7 +42,7 @@ export function DepositTest({ method, onMethod }: { method: Method; onMethod: (m
       if (!res.ok || !body.hash) throw new Error(body.error ?? `The server answered ${res.status}`);
       track("test_usdc_added");
       toastTx(`${AMOUNT} USDC added`, body.hash, "Test USDC from the testnet DEX.");
-      invalidate("portfolio:"); invalidate("events:");
+      refreshAfterTx();
       router.push(appHref("/"));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

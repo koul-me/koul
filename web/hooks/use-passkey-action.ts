@@ -79,6 +79,19 @@ export function toastError(title: string, err: unknown) {
  * One passkey-signed action with a status machine: building the transaction, waiting for the passkey, submitting,
  * then success or a recoverable cancel. `run` takes a builder so the prompt only opens once the tx is ready.
  */
+/**
+ * What a confirmed transaction can change on screen: balances, positions, holdings, the activity list and the
+ * autopilot's live readings. They are read again at once and then twice more: the RPC often still answers with the
+ * state from before the transaction for a ledger or two, and the next poll is a minute away, so without the later
+ * reads a "Put to work" only showed after a page reload.
+ */
+const AFTER_TX = ["portfolio:", "holdings:", "events:", "autopilots:", "check:", "tick:", "pools"];
+const AFTER_TX_DELAYS_MS = [0, 4_000, 12_000];
+export function refreshAfterTx(extra: string[] = []) {
+  const prefixes = [...new Set([...AFTER_TX, ...extra])];
+  for (const ms of AFTER_TX_DELAYS_MS) setTimeout(() => prefixes.forEach((p) => invalidate(p)), ms);
+}
+
 export function usePasskeyAction() {
   const { kit } = usePasskeyWallet();
   const [phase, setPhase] = useState<ActionPhase>("idle");
@@ -119,7 +132,7 @@ export function usePasskeyAction() {
       if (opts.event) track(opts.event);
       toast.dismiss(toastId);
       if (!opts.quiet) toastTx(opts.title, res.hash, opts.description);
-      for (const p of opts.invalidatePrefixes ?? []) invalidate(p);
+      refreshAfterTx(opts.invalidatePrefixes ?? []);
       return res;
     } catch (err) {
       if (restore) restore();
