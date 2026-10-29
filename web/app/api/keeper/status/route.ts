@@ -4,6 +4,7 @@
  */
 import { after } from "next/server";
 import { alertOwner, readKeeperStatus } from "@/lib/keeper-status";
+import { opsProblems } from "@/lib/status-server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,12 @@ export async function GET(): Promise<Response> {
   try {
     const status = await readKeeperStatus();
     if (!status) return Response.json({ error: "Keeper status is not set up" }, { status: 503 });
-    if (!status.healthy) after(() => alertOwner(status));
+    // Low balances and repeated relay failures alert the owner too, but stay out of this public answer.
+    after(async () => {
+      const extra = await opsProblems().catch(() => []);
+      const all = { ...status, problems: [...status.problems, ...extra], healthy: status.healthy && extra.length === 0 };
+      if (!all.healthy) await alertOwner(all);
+    });
     return Response.json(status, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     console.error(JSON.stringify({ level: "error", route: "/api/keeper/status", message: error instanceof Error ? error.message : String(error) }));

@@ -41,7 +41,17 @@ export default async function PrivateStatusPage() {
             </>
           ) : <span>No heartbeat yet.</span>}
         </Tile>
-        <section className="grid gap-4 md:grid-cols-2">
+        <Tile className="grid gap-3 p-5">
+          <TileLabel>Relay failures</TileLabel>
+          {p.relayFailures.length === 0 ? <span className="text-[16px]">None recorded.</span> : (
+            <ul className="mono grid gap-1">
+              {p.relayFailures.slice(0, 10).map((f, i) => (
+                <li key={i} className="flex flex-wrap gap-x-4"><span className="text-muted">{new Date(f.at).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}</span><span>{f.what}</span><span className="text-danger">{f.error}</span></li>
+              ))}
+            </ul>
+          )}
+        </Tile>
+        <section className="grid items-start gap-4 md:grid-cols-2">
           <Tile className="grid content-start gap-3 p-5">
             <TileLabel>Leases</TileLabel>
             <Label>{p.leases ? `Guard ran ${new Date(p.leases.at).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}` : "The lease guard has not run yet"}{p.shortestLease ? ` · shortest: ${p.shortestLease.name} ${p.shortestLease.part}, ${p.shortestLease.days} days` : ""}</Label>

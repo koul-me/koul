@@ -4,7 +4,7 @@ import { Keypair, rpc, xdr } from "@stellar/stellar-sdk";
 import { COMP_KEYS } from "@koul/core";
 import { HEARTBEAT_KEY, LEASES_KEY, judge, type Heartbeat, type LeaseReport } from "@/lib/keeper-status";
 import { KOUL } from "@/lib/koul";
-import { channelKeypair, RELAY_CHANNELS } from "@/lib/relay-server";
+import { channelKeypair, RELAY_CHANNELS, RELAY_FAILURES_KEY, type RelayFailure } from "@/lib/relay-server";
 import { store } from "@/lib/redis";
 
 /**
@@ -73,7 +73,9 @@ export async function publicStatus(now = Date.now()): Promise<PublicStatus | nul
     redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<LeaseReport>(LEASES_KEY), redis.lrange<HistoryPoint>(HISTORY_KEY, 0, -1),
     redis.get(COMP_KEYS.config), redis.scard(COMP_KEYS.entrants), redis.get<number>(COMP_KEYS.updatedAt), tradesLastHour(redis),
   ]);
-  const verdict = judge(beat, leases, now);
+  const keeperVerdict = judge(beat, leases, now);
+  const extra = await opsProblems(now).catch(() => []);
+  const verdict = { ...keeperVerdict, healthy: keeperVerdict.healthy && extra.length === 0, problems: [...keeperVerdict.problems, ...extra] };
   const keeperLate = verdict.problems.some((p) => p.startsWith("The keeper"));
   // 96 quarter hours, oldest first: the average pass length and the trades sent in each.
   const start = Math.floor((now - DAY_MS) / BUCKET_MS) * BUCKET_MS + BUCKET_MS;
@@ -107,6 +109,7 @@ export interface PrivateStatus {
   leases: LeaseReport | null;
   shortestLease: { name: string; part: string; days: number } | null;
   balances: Balance[];
+  relayFailures: RelayFailure[];
 }
 
 async function xlm(address: string): Promise<number | null> {
@@ -120,11 +123,15 @@ async function xlm(address: string): Promise<number | null> {
   }
 }
 
-export async function privateStatus(now = Date.now()): Promise<PrivateStatus | null> {
+const BALANCES_CACHE = "koul:status:balances";
+
+/** The keeper and channel balances, cached five minutes so the page and the alert check do not each call Horizon. */
+export async function readBalances(): Promise<Balance[]> {
   const redis = store();
   const secret = process.env.KEEPER_SECRET;
-  if (!redis || !secret) return null;
-  const [beat, leases] = await Promise.all([redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<LeaseReport>(LEASES_KEY)]);
+  if (!redis || !secret) return [];
+  const cached = await redis.get<Balance[]>(BALANCES_CACHE);
+  if (cached) return cached;
   const keeper = Keypair.fromSecret(secret);
   const keeperChannel = (i: number) => Keypair.fromRawEd25519Seed(createHash("sha256").update(`koul-keeper-channel:${i}:${secret}`).digest());
   // The keeper account funds the channels; a channel under 60 XLM is topped up by the daily leases workflow.
@@ -137,13 +144,42 @@ export async function privateStatus(now = Date.now()): Promise<PrivateStatus | n
     const v = await xlm(address);
     return { label, address, xlm: v, low: v !== null && v < min };
   }));
+  await redis.set(BALANCES_CACHE, balances, { ex: 300 });
+  return balances;
+}
+
+/** What the relay failed at recently, newest first. */
+export async function readRelayFailures(): Promise<RelayFailure[]> {
+  const redis = store();
+  return redis ? redis.lrange<RelayFailure>(RELAY_FAILURES_KEY, 0, 19) : [];
+}
+
+/**
+ * Problems beyond the keeper and the leases: a payer running low (a channel with no XLM fails every transaction it
+ * would pay for) and the relay failing repeatedly. They join the keeper's in the owner alert and on the pages.
+ */
+export async function opsProblems(now = Date.now()): Promise<string[]> {
+  const [balances, failures] = await Promise.all([readBalances().catch(() => []), readRelayFailures().catch(() => [])]);
+  const out = balances.filter((b) => b.low || b.xlm === null).map((b) => b.xlm === null ? `${b.label} is missing on chain.` : `${b.label} is low: ${b.xlm.toFixed(2)} XLM.`);
+  const lastHour = failures.filter((f) => now - f.at < 3600_000);
+  if (lastHour.length >= 3) out.push(`The relay failed ${lastHour.length} times in the last hour; last: ${lastHour[0]!.what}: ${lastHour[0]!.error}`);
+  return out;
+}
+
+export async function privateStatus(now = Date.now()): Promise<PrivateStatus | null> {
+  const redis = store();
+  if (!redis || !process.env.KEEPER_SECRET) return null;
+  const [beat, leases, balances, relayFailures, extra] = await Promise.all([
+    redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<LeaseReport>(LEASES_KEY), readBalances(), readRelayFailures(), opsProblems(now),
+  ]);
   const shortest = (leases?.leases ?? []).filter((l) => l.days !== null).sort((a, b) => a.days! - b.days!)[0];
   return {
-    problems: judge(beat, leases, now).problems,
+    problems: [...judge(beat, leases, now).problems, ...extra],
     heartbeat: beat,
     leases,
     shortestLease: shortest ? { name: shortest.name, part: shortest.part, days: shortest.days! } : null,
     balances,
+    relayFailures,
   };
 }
 
