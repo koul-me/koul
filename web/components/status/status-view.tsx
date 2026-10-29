@@ -29,12 +29,14 @@ function ChartTile({ title, unit, units, decimals, points }: { title: string; un
       <BarChart points={points} unit={unit} units={units} decimals={decimals} label={title} />
       <details>
         <summary className="label cursor-pointer text-muted">Show as table</summary>
-        <table className="mono mt-3 w-full text-left">
+        <div className="mt-3 max-h-64 overflow-y-auto">
+        <table className="mono w-full text-left">
           <thead><tr className="text-muted"><th className="py-1 font-normal">Quarter hour</th><th className="py-1 text-right font-normal">{title}</th></tr></thead>
           <tbody>
             {rows.map((p) => <tr key={p.at} className="border-t border-line"><td className="py-1">{new Date(p.at).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}</td><td className="py-1 text-right">{p.value!.toFixed(decimals ?? 0)} {p.value === 1 ? unit : units ?? unit}</td></tr>)}
           </tbody>
         </table>
+        </div>
       </details>
     </Tile>
   );
@@ -64,7 +66,8 @@ export function StatusView({ s, now, children }: { s: PublicStatus; now: number;
         <Stat label="Autopilots watched" value={s.wallets === null ? "-" : String(s.wallets)} />
         <Stat label="Trades last hour" value={s.tradesLastHour === null ? "-" : String(s.tradesLastHour)} note="Autopilot runs on chain" />
       </section>
-      <section className="grid gap-4 md:grid-cols-2" aria-label="Last 24 hours">
+      {/* items-start: opening one chart's table must not stretch the other tile in the row. */}
+      <section className="grid items-start gap-4 md:grid-cols-2" aria-label="Last 24 hours">
         <ChartTile title="Pass time" unit="s" decimals={1} points={s.buckets.map((b) => ({ at: b.at, value: b.passSec }))} />
         <ChartTile title="Trades sent by the keeper" unit="trade" units="trades" points={s.buckets.map((b) => ({ at: b.at, value: b.passSec === null ? null : b.trades }))} />
       </section>
