@@ -165,29 +165,54 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
   if (ret) log(`on-chain result: ${json((tx as unknown as { parseResultXdr?: (v: xdr.ScVal) => unknown }).parseResultXdr?.(ret) ?? ret.switch().name)}`);
 }
 
-async function tickUser(user: string, payer: string): Promise<void> {
-  const log = (m: string) => console.log(`${stamp()} ${user.slice(0, 8)}   ${m}`);
-  const ids = (await router.list_ids({ user })).result;
-  if (ids.length === 0) { log("no autopilots"); return; }
-  pass.autopilots += ids.length;
-  const kit = makeKit(env, new ForbiddenAuthenticator(RP_ID, ORIGIN, state.passkey), payer);
-  await kit.connectWallet({ credentialId: "koul-keeper", contractId: user });
+/**
+ * What a wallet's grant looks like, kept between passes: listing every context rule is several reads, and a grant
+ * rarely changes. The wallet's rule counter (one read) moves whenever a rule is added, so an unchanged counter reuses
+ * the last answer, including "no live grant" for wallets that stopped. Any failed tick drops the entry.
+ */
+interface Grant { count: number; agentRuleId: number | null; validUntil: number | null; kit: ReturnType<typeof makeKit> | null; selected: Awaited<ReturnType<ReturnType<typeof makeKit>["multiSigners"]["buildSelectedSigners"]>> }
+const grants = new Map<string, Grant>();
+export const forgetGrant = (user: string) => grants.delete(user);
+
+async function grantFor(user: string, payer: string, latest: number): Promise<Grant> {
+  const known = grants.get(user);
+  const fresh = async () => {
+    const k = makeKit(env, new ForbiddenAuthenticator(RP_ID, ORIGIN, state.passkey), payer);
+    await k.connectWallet({ credentialId: "koul-keeper", contractId: user });
+    return k;
+  };
+  let kit = known?.kit ?? (await fresh());
+  const count = Number(await kit.rules.count());
+  if (known && known.count === count && (known.validUntil === null || known.validUntil > latest)) return known;
+  if (known?.kit) kit = await fresh();
   kit.externalSigners.addEd25519FromSecret(env.AGENT_SECRET!);
   const rules = await kit.rules.list();
   // The newest live grant under the current policy: a wallet can still carry an older, narrower or expired one, and
   // a grant under the previous policy allowlists the previous router.
-  const latest = (await kit.rpc.getLatestLedger()).sequence;
   const agentRules = rules
-    .filter((r) => r.signers.some((s) => s.tag === "External" && s.values[0] === TESTNET.ed25519VerifierAddress))
+    .filter((r) => r.signers.some((x) => x.tag === "External" && x.values[0] === TESTNET.ed25519VerifierAddress))
     .filter((r) => !POLICY || r.policies.map(String).includes(POLICY))
     .filter((r) => !r.valid_until || Number(r.valid_until) > latest)
     .sort((x, y) => Number(x.id) - Number(y.id));
-  if (agentRules.length === 0) { log("no live agent grant under the current policy, skipping"); return; }
-  const agentRuleId = Number(agentRules[agentRules.length - 1]!.id);
-  const selected = kit.multiSigners.buildSelectedSigners(await kit.multiSigners.getAvailableSigners(), null).filter((s) => s.type === "ed25519");
-  if (selected.length !== 1) { log("agent key is not a signer on this wallet, skipping"); return; }
+  const rule = agentRules[agentRules.length - 1];
+  const selected = rule ? kit.multiSigners.buildSelectedSigners(await kit.multiSigners.getAvailableSigners(), null).filter((x) => x.type === "ed25519") : [];
+  const grant: Grant = { count, agentRuleId: rule ? Number(rule.id) : null, validUntil: rule?.valid_until ? Number(rule.valid_until) : null, kit: rule && selected.length === 1 ? kit : null, selected };
+  grants.set(user, grant);
+  return grant;
+}
+
+async function tickUser(user: string, payer: string, latest: number): Promise<void> {
+  const log = (m: string) => console.log(`${stamp()} ${user.slice(0, 8)}   ${m}`);
+  const ids = (await router.list_ids({ user })).result;
+  if (ids.length === 0) { log("no autopilots"); return; }
+  pass.autopilots += ids.length;
+  const grant = await grantFor(user, payer, latest);
+  if (grant.agentRuleId === null) { log("no live agent grant under the current policy, skipping"); return; }
+  if (!grant.kit) { log("agent key is not a signer on this wallet, skipping"); return; }
   for (const id of ids) {
-    try { await tickOne(user, id, agentRuleId, kit, selected); } catch (err) { console.log(`${stamp()} ${tag(user, id)} error: ${err instanceof Error ? err.message : String(err)}`); }
+    const before = pass.failed + pass.skipped;
+    try { await tickOne(user, id, grant.agentRuleId, grant.kit, grant.selected); } catch (err) { pass.failed++; console.log(`${stamp()} ${tag(user, id)} error: ${err instanceof Error ? err.message : String(err)}`); }
+    if (pass.failed + pass.skipped > before) forgetGrant(user);
   }
 }
 
@@ -206,16 +231,19 @@ do {
   // the keeper's sequence, the loser fails and the next pass tries again.
   // One worker per channel account, each taking the next wallet off the list: a worker's submissions are paid by its
   // own account, one at a time, so two never race on a sequence number.
-  const queue = [...users];
+  // A wallet always goes to the same worker, so the kit kept for it (paid by that worker's channel) stays valid.
+  let latestLedger = 0;
+  try { latestLedger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* grants are then re-read */ }
+  const shard = (u: string) => [...u].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % PARALLEL;
   await Promise.all(Array.from({ length: PARALLEL }, async (_, w) => {
     const payer = CHANNELS > 0 ? keeperChannel(env, w).secret() : env.KEEPER_SECRET!;
-    for (let u = queue.shift(); u; u = queue.shift()) {
-      const user = u;
-      await tickUser(user, payer).catch((err) => { pass.failed++; note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${user.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); });
+    for (const user of users.filter((u) => shard(u) === w)) {
+      await tickUser(user, payer, latestLedger).catch((err) => { pass.failed++; forgetGrant(user); note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${user.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); });
     }
   }));
   let ledger = 0;
   try { ledger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* the heartbeat goes out without it */ }
+  if (!quiet || process.env.KEEPER_TIMING) console.log(`${stamp()} pass     ${users.length} wallets in ${((Date.now() - started) / 1000).toFixed(1)}s, ${pass.submitted} sent, ${pass.failed} failed`);
   await writeHeartbeat(env, { at: Date.now(), passMs: Date.now() - started, intervalSec: interval, wallets: users.length, ...pass, ledger });
   if (!once) await new Promise((r) => setTimeout(r, interval * 1000));
 } while (!once);
