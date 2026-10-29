@@ -3,7 +3,7 @@
  * Conditions are mono ("USD/TRY > 50.00"), actions are plain words with the amount in them ("Withdraw 50 USDC to
  * wallet", "Supply 50% of idle to Hub 1").
  */
-import { POOLS, amountUnit, fmtPrice, tokenOf, type Action, type Condition, type Rule } from "@/lib/model/autopilot";
+import { POOLS, amountUnit, fmtPrice, fmtTokenAmount, tokenOf, type Action, type Condition, type Rule } from "@/lib/model/autopilot";
 import { isPercent } from "@/lib/model/capital";
 import { hubName } from "@/lib/model/hubs";
 
@@ -22,7 +22,7 @@ export function describeCondition(c: Condition): string {
     case "fx_price": return `USD/TRY ${op(c)} ${n2(c.value)}`;
     case "idle_usdc": return `wallet ${op(c)} ${n0(c.value)} USDC`;
     case "token_price": return `${tokenOf(c)} ${op(c)} $${fmtPrice(c.value)}`;
-    case "token_balance": return `wallet ${op(c)} ${n0(c.value)} ${tokenOf(c)}`;
+    case "token_balance": return `wallet ${op(c)} ${fmtTokenAmount(c.value)} ${tokenOf(c)}`;
   }
 }
 

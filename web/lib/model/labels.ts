@@ -3,7 +3,7 @@
  * are mono, actions are plain words. Nothing here is a sentence.
  */
 import { tokenBySymbol, usdPerTryToTryPerUsd } from "@/lib/koul";
-import { aprToApy, fmtPrice, tokenOf, type Action, type Condition, type ConditionKind, type LiveValues } from "./autopilot";
+import { aprToApy, fmtPrice, fmtTokenAmount, tokenOf, type Action, type Condition, type ConditionKind, type LiveValues } from "./autopilot";
 
 const n2 = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -45,7 +45,7 @@ export function observedLabel(c: Pick<Condition, "kind" | "token">, observed: bi
     case "fx_price": return observed === 0n ? null : n2(usdPerTryToTryPerUsd(observed));
     case "idle_usdc": return `${n2(Number(observed) / 1e7)} USDC`;
     case "token_price": return observed === 0n ? null : `$${fmtPrice(Number(observed) / 1e14)}`;
-    case "token_balance": { const t = tokenBySymbol(tokenOf(c)); return `${n2(Number(observed) / 10 ** t.decimals)} ${t.symbol}`; }
+    case "token_balance": { const t = tokenBySymbol(tokenOf(c)); return `${fmtTokenAmount(Number(observed) / 10 ** t.decimals)} ${t.symbol}`; }
   }
 }
 
@@ -58,7 +58,7 @@ export function liveLabel(c: Condition, live: Pick<LiveValues, "rateA" | "rateB"
     case "fx_price": return live.fx === null || live.fx <= 0 ? null : n2(live.fx);
     case "idle_usdc": return live.idleUsdc === null ? null : `${n2(live.idleUsdc)} USDC`;
     case "token_price": { const p = live.prices[tokenOf(c)]; return p ? `$${fmtPrice(p.usd)}` : null; }
-    case "token_balance": { const h = live.holdings[tokenOf(c)]; return h === undefined ? null : `${n2(h)} ${tokenOf(c)}`; }
+    case "token_balance": { const h = live.holdings[tokenOf(c)]; return h === undefined ? null : `${fmtTokenAmount(h)} ${tokenOf(c)}`; }
   }
 }
 

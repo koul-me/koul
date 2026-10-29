@@ -185,6 +185,13 @@ export interface AutopilotEval {
 
 const fmt2 = (n: number) => (Number.isFinite(n) ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—");
 /** Prices show four decimals under a dollar (XLM trades in fractions of a cent) and two above. */
+/**
+ * A token amount: two decimals from 1 up, four significant digits below, so a small level such as 0.002 ETH does not
+ * read as 0 (load test, 2026-10-28).
+ */
+export const fmtTokenAmount = (n: number) => !Number.isFinite(n) ? "—" : n === 0 ? "0" : Math.abs(n) >= 1
+  ? n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  : n.toLocaleString("en-US", { maximumSignificantDigits: 4 });
 export const fmtPrice = (n: number) => !Number.isFinite(n) ? "—" : n.toLocaleString("en-US", n < 1 ? { minimumFractionDigits: 4, maximumFractionDigits: 4 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export function evaluateCondition(c: Condition, live: LiveValues): ConditionEval {
@@ -311,7 +318,7 @@ function describeAction(r: Rule, live: LiveValues): { actionable: boolean; block
 export function conditionSentence(c: Condition): { subject: string; verb: string; value: string; technical: string } {
   const l = CONDITION_LABELS[c.kind];
   const subject = c.kind === "pool_rate" ? `${POOLS[c.pool ?? "B"].name} pays` : c.kind === "token_price" ? `the ${tokenOf(c)} price` : c.kind === "token_balance" ? `${tokenOf(c)} in my wallet` : l.subject;
-  const value = c.kind === "rate_gap" ? `${fmt2(c.value)} pts` : c.kind === "idle_usdc" ? `${fmt2(c.value)} USDC` : c.kind === "pool_rate" ? `${fmt2(c.value)}%` : c.kind === "token_price" ? `$${fmtPrice(c.value)}` : c.kind === "token_balance" ? `${fmt2(c.value)} ${tokenOf(c)}` : fmt2(c.value);
+  const value = c.kind === "rate_gap" ? `${fmt2(c.value)} pts` : c.kind === "idle_usdc" ? `${fmt2(c.value)} USDC` : c.kind === "pool_rate" ? `${fmt2(c.value)}%` : c.kind === "token_price" ? `$${fmtPrice(c.value)}` : c.kind === "token_balance" ? `${fmtTokenAmount(c.value)} ${tokenOf(c)}` : fmt2(c.value);
   const verb = c.kind === "rate_gap" ? (c.comparator === "gte" ? "at least" : "at most") : COMPARATOR_LABELS[c.comparator];
   return { subject, verb, value, technical: l.technical };
 }
