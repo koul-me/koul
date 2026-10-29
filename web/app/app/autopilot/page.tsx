@@ -18,7 +18,8 @@ import { bestPool, usePools } from "@/hooks/use-market";
 import { useWallet } from "@/hooks/use-wallet";
 import { chainUiId, useArmAutopilot } from "@/hooks/use-autopilots";
 import { invalidate } from "@/lib/data/store";
-import { aprToApy, newId, toCoreAutopilot, type Autopilot } from "@/lib/model/autopilot";
+import { aprToApy, evaluateAutopilot, newId, toCoreAutopilot, type Autopilot } from "@/lib/model/autopilot";
+import { cooldownShort } from "@/lib/model/labels";
 import { phaseDetail, planDelete, planSteps, saveSteps, type SaveStep, type SaveStepKey } from "@/lib/model/save-steps";
 import { decodeRules, type LibraryEntry } from "@/lib/model/library";
 import { InlineConfirm, Label, PillButton, Sk, StatusPill, Tile, type StatusKind } from "@/components/signal";
@@ -263,6 +264,12 @@ export default function AutopilotPage() {
 
   const ask: AccessAsk | null = asking ? { needsPosition, days: ACCESS_DAYS, steps: saveSteps({ plan: nextPlan, done: {}, active: null, failed: null, labels: stepLabels }), confirmLabel: editor.editing ? `${verb} autopilot` : "Start autopilot", onConfirm: () => void submit(), onCancel: () => setAsking(false) } : null;
   const onDiscard = () => { editor.discard(); setHighlight(null); setChatChanges([]); setSaveError(null); setAsking(false); clearProgress(); };
+  // A rule that is already true runs the moment the autopilot does; say so before the person saves, not after.
+  // The first rule whose conditions hold, whether or not it has anything to move yet: an exit with nothing supplied
+  // takes back whatever is put to work next.
+  const holding = editor.editing ? evaluateAutopilot({ rules }, values.live).rules.find((r) => r.conditionsMet) ?? null : null;
+  const firingIndex = holding ? rules.findIndex((r) => r.id === holding.ruleId) : -1;
+  const firingNow = holding && firingIndex >= 0 ? { index: firingIndex + 1, cooldown: cooldownShort(rules[firingIndex]!.cooldownSec), actionable: holding.actionable } : null;
   const bar = <SaveBar key="save-bar" changes={editor.changes} confirmations={confirmations} blocker={editor.changes === 0 ? null : blocker} error={saveError} ask={ask} saved={justSaved} savedLabel={plan?.includes("clear") ? "Autopilot removed" : plan && !plan.includes("rules") ? "Autopilot started" : first ? "Autopilot started" : "Autopilot updated"} verb={verb} busy={busy} busyLabel={busyLabel} progress={progress} onDiscard={onDiscard} onSave={() => void onSave()} onStop={editor.editing && live.status === "live" ? () => { onDiscard(); void pause(); } : undefined} />;
 
   if (live.loading && live.status === "off" && !editor.editing) {
@@ -317,11 +324,19 @@ export default function AutopilotPage() {
           {rules.length > 0 && <Capital rules={rules} onChange={(next) => editor.replace(next)} />}
           <RuleEditor editor={editor} liveRules={live.rules} live={values.live} now={now} highlight={highlight} changes={chatChanges} onUndo={undoChat} onAdd={() => editor.add(ruleTemplate())} />
           <Library onUse={loadRules} now={now} />
+          {firingNow && (
+            <p role="status" className="rounded-[var(--radius-group)] border border-line px-4 py-3 text-[15px]">
+              <span className="font-bold">Rule {firingNow.index} holds right now.</span>{" "}
+              <span className="text-muted">{firingNow.actionable
+                ? `Once the autopilot runs, it acts within about 15 seconds${firingNow.cooldown ? `, then again every ${firingNow.cooldown} while it holds` : ""}.`
+                : "It has nothing to act on yet; as soon as it does, it runs within about 15 seconds."}</span>
+            </p>
+          )}
           <AnimatePresence>{bar}</AnimatePresence>
         </>
       ) : live.status === "off" ? (
         <>
-          <Templates onAdd={(rule) => editor.add(rule)} />
+          <Templates onAdd={(rule) => editor.add(rule)} live={values.live} />
           <Library onUse={loadRules} now={now} />
           <AnimatePresence>{(plan !== null || justSaved) && bar}</AnimatePresence>
         </>

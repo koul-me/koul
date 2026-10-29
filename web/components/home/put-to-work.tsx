@@ -9,14 +9,26 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import { IconButton, KeyValue, Label, PillButton, TickSlider } from "@/components/signal";
 import { usePositionActions } from "@/hooks/use-position-actions";
+import { useAutopilotLive } from "@/hooks/use-autopilot-live";
+import { useAppHref } from "@/lib/app-base";
+import { actionShort, conditionsCompact } from "@/lib/model/labels";
+import type { ActionKind } from "@/lib/model/autopilot";
 import { fmtPct, fmtUsdc } from "@/lib/format";
 import type { Pool } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 import { hubName } from "@/lib/model/hubs";
 
+/** Actions that take supplied USDC back out of the hubs. */
+const PULLS_BACK: ActionKind[] = ["withdraw_to_wallet", "withdraw_to_token"];
+
 export function PutToWorkDialog({ open, onOpenChange, idle, pool }: { open: boolean; onOpenChange: (o: boolean) => void; idle: number; pool: Pool | null }) {
   const actions = usePositionActions();
   const busy = actions.action.busy;
+  const ap = useAutopilotLive();
+  const appHref = useAppHref();
+  // The rule a tick would run now: if it withdraws from the hubs, this money comes straight back.
+  const running = ap.status === "live" && ap.nowOn !== null ? ap.rules.find((r) => r.index === ap.nowOn) ?? null : null;
+  const pullsBack = running && PULLS_BACK.includes(running.rule.action.kind) ? running : null;
   const [share, setShare] = React.useState(100);
   // Whole cents, and the router's 1 USDC minimum: a share that comes to less than that cannot go.
   const amount = Math.floor(idle * share) / 100;
@@ -56,8 +68,14 @@ export function PutToWorkDialog({ open, onOpenChange, idle, pool }: { open: bool
             <KeyValue label="To" value={pool ? `${hubName(pool.hub)} · ${fmtPct(pool.supplyApy)}` : "—"} />
           </div>
           {tooSmall && <Label tone="danger">At least 1 USDC</Label>}
+          {pullsBack && (
+            <div role="alert" className="grid gap-2 rounded-[var(--radius-group)] border border-danger px-4 py-3 text-[15px]">
+              <span><span className="font-bold">Your autopilot will move this back.</span> <span className="text-muted">Rule {pullsBack.index} holds right now (IF {conditionsCompact(pullsBack.rule)} → {actionShort(pullsBack.rule.action)}), so within about 15 seconds of supplying, it takes this out again.</span></span>
+              <a href={appHref("/autopilot")} className="label w-fit text-accent-text underline underline-offset-4">Edit rules</a>
+            </div>
+          )}
           <PillButton size="lg" full onClick={() => void confirm()} disabled={busy || !pool || tooSmall} aria-busy={busy}>
-            {actions.action.phase === "prompt" ? "Confirm with your passkey" : actions.action.phase === "signed" || actions.action.phase === "submitting" ? "Sending to Stellar" : "Put to work"}
+            {actions.action.phase === "prompt" ? "Confirm with your passkey" : actions.action.phase === "signed" || actions.action.phase === "submitting" ? "Sending to Stellar" : pullsBack ? "Put to work anyway" : "Put to work"}
           </PillButton>
           <Label className="text-center">One passkey confirmation</Label>
         </DialogPrimitive.Popup>
