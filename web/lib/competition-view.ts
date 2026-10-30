@@ -23,10 +23,10 @@ const TR = "Europe/Istanbul";
 
 /** "Fri 6 Nov" in Turkey time. */
 export const dayOf = (iso: string) => DAY(TR).format(new Date(iso)).replace(",", "");
-/** "15:00 TRT · 12:00 UTC". */
-export const timeOf = (iso: string) => `${TIME(TR).format(new Date(iso))} TRT · ${TIME("UTC").format(new Date(iso))} UTC`;
-/** "18:00 TRT", for one-line mentions like the banner. */
-export const hourOf = (iso: string) => `${TIME(TR).format(new Date(iso))} TRT`;
+/** "21:00 GMT+3 · 18:00 UTC" (Turkey time, written as an offset people elsewhere can read). */
+export const timeOf = (iso: string) => `${TIME(TR).format(new Date(iso))} GMT+3 · ${TIME("UTC").format(new Date(iso))} UTC`;
+/** "21:00 GMT+3", for one-line mentions like the banner. */
+export const hourOf = (iso: string) => `${TIME(TR).format(new Date(iso))} GMT+3`;
 /** "Fri 6 Nov – Fri 20 Nov", or the start alone while the end is open. */
 export function windowOf(config: CompetitionConfig): string | null {
   if (!config.startsAt) return null;
