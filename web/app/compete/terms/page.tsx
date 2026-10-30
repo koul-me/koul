@@ -86,7 +86,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
               "The Competition is void where prohibited or restricted by law. You are responsible for checking that taking part is legal where you live.",
               `You cannot enter if you live in, are a resident of, or are located in ${listOf(EXCLUDED_REGIONS)}, or if you are on a sanctions list of the United Nations, the United States, the European Union or the United Kingdom.`,
             ]} />
-            {max !== null && <P>Entries are limited to the first {max} confirmed entrants. Once that number is reached, entries close.</P>}
+            {max !== null && <P>Entries are limited to the first {max} entrants. Once that number is reached, entries close.</P>}
           </Section>
 
           <Section n={6} title="When it runs">
@@ -101,8 +101,8 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
           <Section n={7} title="How to enter">
             <List items={[
               "Make a Koul wallet at app.koul.me. It is protected by a passkey and comes with test USDC and test XLM.",
-              "Go to app.koul.me/join, choose a public handle, give your email, accept these terms and confirm with your passkey. This proves the wallet is yours. Nothing is signed on chain.",
-              "Open the link in the confirmation email. Your entry counts only once it is confirmed.",
+              "Go to app.koul.me/join, choose a public handle, give your email, accept these terms and sign with your passkey. The signature proves the wallet is yours and confirms your entry. Nothing is signed on chain.",
+              "We use your email to contact you about the Competition and its results. No reply or click is needed for your entry to count.",
               "Join the Koul Telegram group. Winners are contacted there (section 14).",
             ]} />
           </Section>
@@ -184,7 +184,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
           <Section n={18} title="Privacy">
             <List items={[
               "Your handle, your wallet address, your score and your wallet's trades are public on the leaderboard. Wallet activity is public on the Stellar testnet anyway.",
-              "Your email is never shown. We use it only to run the Competition (confirming your entry, contacting winners) and to send Koul updates. You can ask us to stop sending updates at any time.",
+              "Your email is never shown. We use it only to run the Competition (contacting you about your entry and its results, contacting winners) and to send Koul updates. You can ask us to stop sending updates at any time.",
               "We keep entry data for as long as the Competition and its payouts need it, and as the law requires.",
             ]} />
           </Section>

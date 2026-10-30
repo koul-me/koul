@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 const STEPS = [
   { title: "Make a Koul wallet", line: "A passkey, no seed phrase. It comes with 100 test USDC and free test XLM." },
   { title: "Write your rules", line: "Swap between USDC, ETH, SOL, XRP and wBTC, or lend on XOXNO. Then start your autopilot." },
-  { title: "Enter", line: "Pick a handle and confirm your email. From there your autopilot does the trading." },
+  { title: "Enter", line: "Pick a handle and confirm with your passkey. From there your autopilot does the trading." },
 ];
 /** Shown after Enter only when the group link is set. */
 const TELEGRAM_STEP = { title: "Join the Telegram group", line: "Winners are contacted there, so join before the end." };
@@ -111,7 +111,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
                 <a href={boardHref} className="label mt-3 inline-flex min-h-11 items-center gap-2 text-accent-text">Full leaderboard<ArrowRight className="size-4" aria-hidden /></a>
               </>
             ) : (
-              <p className="py-6 text-[16px] text-muted">{phase === "upcoming" ? `The board fills when the competition starts. ${info.entrants} entered so far.` : "Scores show here a few minutes after the first entries are confirmed."}</p>
+              <p className="py-6 text-[16px] text-muted">{phase === "upcoming" ? `The board fills when the competition starts. ${info.entrants} entered so far.` : "Scores show here a few minutes after the first entries come in."}</p>
             )}
           </Tile>
         )}

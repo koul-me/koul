@@ -2,12 +2,12 @@
 
 /**
  * Join the trading competition: the connected wallet, a handle, an email, and one passkey prompt that proves the
- * wallet is yours (lib/competition-client), after the "18 or older and accept the terms" box. The entry counts once
- * the email link is opened; the last step is the Telegram group, where winners are contacted. Without a wallet the app
- * frame shows Welcome first and comes back here.
+ * wallet is yours (lib/competition-client), after the "18 or older and accept the terms" box. That signature confirms
+ * the entry, so "You're in" shows right away, with the entrant page and the last step: the Telegram group, where
+ * winners are contacted. Without a wallet the app frame shows Welcome first and comes back here.
  */
 import * as React from "react";
-import { ArrowRight, ArrowUpRight, MailCheck } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CircleCheck } from "lucide-react";
 import { HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionInfo } from "@koul/core";
 import { Label, PillButton, Tile, TileLabel } from "@/components/signal";
 import { useWallet } from "@/hooks/use-wallet";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 const field = "h-14 w-full rounded-full bg-surface-2 px-5 text-[17px] text-text placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text";
 
-type State = { kind: "idle" } | { kind: "signing" } | { kind: "sent"; handle: string; email: string } | { kind: "error"; message: string };
+type State = { kind: "idle" } | { kind: "signing" } | { kind: "entered"; handle: string } | { kind: "error"; message: string };
 
 export default function JoinPage() {
   const w = useWallet();
@@ -55,8 +55,7 @@ export default function JoinPage() {
     setState({ kind: "signing" });
     try {
       const r = await enterCompetition({ wallet: w.address, handle, email, acceptedTerms: true });
-      if (!r.emailSent) throw new Error("We could not send the confirmation email. Check the address and try again.");
-      setState({ kind: "sent", handle: r.handle, email });
+      setState({ kind: "entered", handle: r.handle });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong. Try again in a minute.";
       setState({ kind: "error", message: /NotAllowed|abort|cancel/i.test(message) ? "The passkey prompt was closed. Try again when you are ready." : message });
@@ -77,15 +76,18 @@ export default function JoinPage() {
     );
   }
 
-  if (state.kind === "sent") {
+  if (state.kind === "entered") {
     return (
       <div className="grid max-w-[640px] gap-4">
         <Tile tone="lime" className="grid gap-5">
-          <MailCheck className="size-9" aria-hidden />
-          <h1 className="t-title">Check your email</h1>
-          <p className="text-[17px]">Open the link we sent to <b>{state.email}</b> to confirm your entry as <b>{state.handle}</b>. Until then you are not on the board.</p>
+          <CircleCheck className="size-9" aria-hidden />
+          <h1 className="t-title">You&apos;re in</h1>
+          <p className="text-[17px]">You are entered as <b className="break-all">{state.handle}</b>. {phase === "upcoming" ? "Your score shows on your page once the competition starts." : "Your score shows on your page within a few minutes."}</p>
           <p className="text-[17px]">Only trades your autopilot makes count, so make sure it is running.</p>
-          <PillButton href={appHref("/autopilot")} variant="onLime" size="lg" className="justify-self-start">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>
+          <div className="flex flex-wrap gap-3">
+            <PillButton href={appHref("/autopilot")} variant="onLime" size="lg">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>
+            <PillButton href={`/compete/${state.handle}`} variant="onLimeOutline" size="lg">Your page<ArrowRight className="size-5" aria-hidden /></PillButton>
+          </div>
         </Tile>
         {TELEGRAM_URL && (
           <Tile className="grid gap-3">
@@ -123,7 +125,7 @@ export default function JoinPage() {
             {handleProblem && <span className="text-[14px] text-danger">{handleProblem}</span>}
           </label>
           <label className="grid gap-2">
-            <span className="t-tile-label text-muted">Email, for the confirmation and results</span>
+            <span className="t-tile-label text-muted">Email, so we can reach you about results</span>
             <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required autoComplete="email" placeholder="you@example.com" className={field} />
           </label>
           <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[15px]">
@@ -140,7 +142,7 @@ export default function JoinPage() {
         <TileLabel>Before you enter</TileLabel>
         <Point title="Use a new wallet">Everyone starts with {c.startingCapitalUsd} test USDC plus the free test XLM. Adding money or XLM takes the entry off the board.</Point>
         <Point title="Let the autopilot trade">Write your rules on the Autopilot page and start it. A swap or supply you make yourself takes the entry off the board.</Point>
-        <Point title="One passkey prompt">It proves this wallet is yours. Nothing is signed on chain and nothing moves.</Point>
+        <Point title="One passkey prompt">It proves this wallet is yours and confirms your entry. Nothing is signed on chain and nothing moves.</Point>
         {TELEGRAM_URL && (
           <Point title="Join the Telegram group">
             Winners are contacted there. <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="text-accent-text underline-offset-4 hover:underline">Open the Koul group</a>

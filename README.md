@@ -418,8 +418,8 @@ Routes for the frontend (types in `@koul/core`):
 | `GET /api/competition/leaderboard?offset=0&limit=50` | `Leaderboard`: ranked rows (`LeaderboardRow`), total |
 | `GET /api/competition/entrant/:handle` | `EntrantView`: score, rank, value history every 15 minutes |
 | `POST /api/competition/challenge` `{ wallet }` | a one-time challenge and the wallet's passkey credential ids |
-| `POST /api/competition/register` `{ wallet, handle, email, assertion }` | sends the confirmation email |
-| `GET /api/competition/verify?token=` | the email link; the entry is scored from then on |
+| `POST /api/competition/register` `{ wallet, handle, email, assertion }` | the passkey signature confirms the entry and it is scored from then on; a "You're in" note is mailed best effort |
+| `GET /api/competition/verify?token=` | confirmation links mailed before entries were confirmed by passkey; still honoured |
 
 Entering takes one call from the app: `enterCompetition({ wallet, handle, email })` in `web/lib/competition-client.ts`
 asks for the challenge, has the wallet's passkey sign it (one prompt) and registers. The server checks the signature
