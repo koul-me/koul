@@ -20,6 +20,8 @@ export interface CompetitionConfig {
   endsAt: string | null;
   /** The capital every entry starts with, in USD (the welcome grant). */
   startingCapitalUsd: number;
+  /** What the winners get, as the competition page shows it ("$500 prize pool"); null or absent shows no prize. */
+  prize?: string | null;
   /** When true, a move the autopilot did not make (a manual swap, supply or withdraw) flags the entry. */
   autopilotOnly: boolean;
   /**
@@ -136,6 +138,8 @@ export function rank<T extends Pick<EntrantScore, "returnPct" | "flagged">>(rows
 
 /** Handles: 3 to 20 letters, digits or underscores, compared in lower case. */
 export const HANDLE_PATTERN = /^[a-zA-Z0-9_]{3,20}$/;
+/** Handles that would collide with the competition's own pages (/compete/leaderboard). */
+export const RESERVED_HANDLES: ReadonlySet<string> = new Set(["leaderboard", "join", "rules", "admin", "koul"]);
 
 // What the web routes return (GET /api/competition, /leaderboard, /entrant/:handle).
 

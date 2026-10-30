@@ -5,7 +5,7 @@
  */
 export const APP_HOST = "app.koul.me";
 const LANDING_HOSTS = ["koul.me", "www.koul.me"];
-const APP_PAGES = ["autopilot", "activity", "account", "deposit", "withdraw"];
+const APP_PAGES = ["autopilot", "activity", "account", "deposit", "withdraw", "join"];
 
 export type Route =
   | { kind: "next" }

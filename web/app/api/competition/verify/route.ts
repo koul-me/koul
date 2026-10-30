@@ -21,5 +21,5 @@ export async function GET(request: Request): Promise<Response> {
     redis.sadd(COMP_KEYS.entrants, wallet),
     redis.del(COMP_KEYS.pending(token)),
   ]);
-  return page("You're in", `<p><b>${escape(rec.handle)}</b> is entered. Your score shows on the leaderboard within a few minutes.</p><p><a href="https://app.koul.me">Open Koul</a></p>`);
+  return page("You're in", `<p><b>${escape(rec.handle)}</b> is entered. Your score shows on the leaderboard within a few minutes.</p><p><a href="https://koul.me/compete/leaderboard">See the leaderboard</a> · <a href="https://app.koul.me/autopilot">Check your autopilot</a></p>`);
 }

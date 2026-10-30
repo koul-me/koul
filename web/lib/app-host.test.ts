@@ -18,6 +18,10 @@ describe("routeFor", () => {
     expect(routeFor("koul.me", "/app")).toEqual({ kind: "redirect", to: "https://app.koul.me/", status: 308 });
     expect(routeFor("www.koul.me", "/app/activity")).toEqual({ kind: "redirect", to: "https://app.koul.me/activity", status: 308 });
     expect(routeFor("koul.me", "/autopilot", "?load=abc")).toEqual({ kind: "redirect", to: "https://app.koul.me/autopilot?load=abc", status: 308 });
+    // The competition's join step needs the wallet, so it lives in the app; its public pages stay on koul.me.
+    expect(routeFor("koul.me", "/join")).toEqual({ kind: "redirect", to: "https://app.koul.me/join", status: 308 });
+    expect(routeFor("koul.me", "/compete/leaderboard")).toEqual({ kind: "next" });
+    expect(routeFor("app.koul.me", "/join")).toEqual({ kind: "rewrite", to: "/app/join" });
   });
 
   it("keeps the app under /app on other hosts", () => {

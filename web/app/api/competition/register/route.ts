@@ -5,7 +5,7 @@
  */
 import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
-import { COMP_KEYS, HANDLE_PATTERN, type CompetitionConfig, type EntrantRecord } from "@koul/core";
+import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig, type EntrantRecord } from "@koul/core";
 import { sendMail } from "@/lib/mail";
 import { verifyAssertion, walletPasskeys } from "@/lib/passkey-proof";
 import { rateLimit } from "@/lib/rate-limit";
@@ -27,6 +27,7 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Check the form" }, { status: 400 });
   const { wallet, handle, email, assertion } = parsed.data;
+  if (RESERVED_HANDLES.has(handle.toLowerCase())) return Response.json({ error: "That handle is taken" }, { status: 409 });
   const redis = store();
   if (!redis) return Response.json({ error: "Registration is not open" }, { status: 503 });
 
