@@ -1,9 +1,11 @@
 "use client";
 
 /** What Koul is built on, the last call to action, and the footer. Plain names, no logos, nothing claimed. */
+import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import { Label } from "@/components/signal";
+import { TELEGRAM_URL } from "@/lib/community";
 import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
 import { KoulMark } from "@/components/brand/koul-mark";
@@ -47,6 +49,13 @@ export function Footer() {
         <span className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</span>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Label>Stellar testnet</Label>
+          <Link href="/compete" className="label inline-flex min-h-11 items-center rounded-full text-muted transition-colors hover:text-text">Competition</Link>
+          {TELEGRAM_URL && (
+            <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="label inline-flex min-h-11 items-center gap-2 rounded-full text-muted transition-colors hover:text-text">
+              Telegram
+              <ArrowUpRight className="size-3.5" aria-hidden />
+            </a>
+          )}
           <a
             href="https://github.com/koul-me"
             target="_blank"

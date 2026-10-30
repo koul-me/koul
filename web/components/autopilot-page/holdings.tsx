@@ -2,8 +2,8 @@
 
 /**
  * "What you have": the numbers a rule is written against, live, on the page where the rule is written. The idle
- * wallet, each hub with its rate, debt and free cash, loan health, USD/TRY with the gap between the hubs, and how
- * long Koul's key lasts. The cell the open rule reads (its condition subject) or moves from (its action) gets the
+ * wallet, each hub with its rate, debt and free cash, loan health, USD/TRY with the gap between the hubs (only while
+ * USD/TRY is on, lib/fx.ts), and how long Koul's key lasts. The cell the open rule reads (its condition subject) or moves from (its action) gets the
  * accent border and flashes once; on a phone the cells are one scrolling strip and the linked cell scrolls into
  * view. With no rule open the panel is one line.
  */
@@ -16,6 +16,7 @@ import { fmtFx, fmtHealth, fmtPct, fmtUsdc } from "@/lib/format";
 import { POOLS, type ActionKind, type Condition, type PoolId } from "@/lib/model/autopilot";
 import { cn } from "@/lib/utils";
 import { hubName } from "@/lib/model/hubs";
+import { FX_ON } from "@/lib/fx";
 
 export type CellKey = "wallet" | "hubA" | "hubB" | "health" | "fx" | "key";
 
@@ -90,7 +91,7 @@ export function Holdings({ positions, health, pools, fx, xlm, access, loading, f
   const b = hub("B");
   const gap = a.pool && b.pool ? Math.abs(b.pool.supplyApr - a.pool.supplyApr) : null;
   const healthTone = !health.hasLoan ? "dim" : health.factor !== null && health.factor < health.minimum ? "danger" : "text";
-  const oneLine = [`${fmtUsdc(positions.idleUsdc)} USDC idle`, a.pool ? `${hubName(POOLS.A.hub)} ${fmtPct(a.pool.supplyApy)}` : null, b.pool ? `${hubName(POOLS.B.hub)} ${fmtPct(b.pool.supplyApy)}` : null, health.hasLoan ? `health ${fmtHealth(health.factor)}` : null, fx.tryPerUsd && fx.tryPerUsd > 0 ? `USD/TRY ${fmtFx(fx.tryPerUsd)}` : null].filter(Boolean).join(" · ");
+  const oneLine = [`${fmtUsdc(positions.idleUsdc)} USDC idle`, a.pool ? `${hubName(POOLS.A.hub)} ${fmtPct(a.pool.supplyApy)}` : null, b.pool ? `${hubName(POOLS.B.hub)} ${fmtPct(b.pool.supplyApy)}` : null, health.hasLoan ? `health ${fmtHealth(health.factor)}` : null, FX_ON && fx.tryPerUsd && fx.tryPerUsd > 0 ? `USD/TRY ${fmtFx(fx.tryPerUsd)}` : null].filter(Boolean).join(" · ");
   const isLinked = (k: CellKey) => linked.includes(k);
 
   if (collapsed && !opened) {
@@ -121,7 +122,7 @@ export function Holdings({ positions, health, pools, fx, xlm, access, loading, f
           <Cell id="hubA" linked={isLinked("hubA")} flash={flash} label={`${hubName(POOLS.A.hub)} · supplied`} value={`${fmtUsdc(a.supplied)} USDC`} sub={a.sub} reads="hub APY · rate gap" />
           <Cell id="hubB" linked={isLinked("hubB")} flash={flash} label={`${hubName(POOLS.B.hub)} · supplied`} value={`${fmtUsdc(b.supplied)} USDC`} sub={b.sub} reads="hub APY · rate gap" />
           <Cell id="health" linked={isLinked("health")} flash={flash} label="Loan health" value={health.hasLoan ? fmtHealth(health.factor) : "No debt"} sub={health.hasLoan ? `liquidation at ${fmtHealth(health.liquidationAt)}` : "nothing borrowed, nothing to repay"} tone={healthTone} reads="health" />
-          <Cell id="fx" linked={isLinked("fx")} flash={flash} label="USD/TRY" value={fx.tryPerUsd && fx.tryPerUsd > 0 ? fmtFx(fx.tryPerUsd) : "No reading"} sub={fx.stale ? "stale: the oracle has not published lately" : gap !== null ? `rate gap between the hubs ${fmtPct(gap)}` : undefined} tone={fx.stale ? "dim" : "text"} reads="USD/TRY" />
+          {FX_ON && <Cell id="fx" linked={isLinked("fx")} flash={flash} label="USD/TRY" value={fx.tryPerUsd && fx.tryPerUsd > 0 ? fmtFx(fx.tryPerUsd) : "No reading"} sub={fx.stale ? "stale: the oracle has not published lately" : gap !== null ? `rate gap between the hubs ${fmtPct(gap)}` : undefined} tone={fx.stale ? "dim" : "text"} reads="USD/TRY" />}
           <Cell id="key" linked={false} flash={flash} label="Koul's key" value={!access.loaded ? "…" : access.active ? (access.daysLeft === null ? "Active" : `${access.daysLeft}D left`) : "Not given"} sub={access.active ? "revoke any time from the chip above" : "given with your first start"} tone={access.active ? "lime" : "dim"} />
         </div>
       )}

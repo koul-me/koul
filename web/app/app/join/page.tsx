@@ -2,17 +2,19 @@
 
 /**
  * Join the trading competition: the connected wallet, a handle, an email, and one passkey prompt that proves the
- * wallet is yours (lib/competition-client). The entry counts once the email link is opened. Without a wallet the app
+ * wallet is yours (lib/competition-client), after the "18 or older and accept the terms" box. The entry counts once
+ * the email link is opened; the last step is the Telegram group, where winners are contacted. Without a wallet the app
  * frame shows Welcome first and comes back here.
  */
 import * as React from "react";
-import { ArrowRight, MailCheck } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MailCheck } from "lucide-react";
 import { HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionInfo } from "@koul/core";
 import { Label, PillButton, Tile, TileLabel } from "@/components/signal";
 import { useWallet } from "@/hooks/use-wallet";
 import { useAppHref } from "@/lib/app-base";
+import { TELEGRAM_URL } from "@/lib/community";
 import { enterCompetition } from "@/lib/competition-client";
-import { dayOf, phaseOf, previewInfo, previewOf, timeOf } from "@/lib/competition-view";
+import { dayOf, entriesFull, phaseOf, previewInfo, previewOf, timeOf } from "@/lib/competition-view";
 import { cn } from "@/lib/utils";
 
 const field = "h-14 w-full rounded-full bg-surface-2 px-5 text-[17px] text-text placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text";
@@ -52,7 +54,7 @@ export default function JoinPage() {
     if (!ready || !w.address) return;
     setState({ kind: "signing" });
     try {
-      const r = await enterCompetition({ wallet: w.address, handle, email });
+      const r = await enterCompetition({ wallet: w.address, handle, email, acceptedTerms: true });
       if (!r.emailSent) throw new Error("We could not send the confirmation email. Check the address and try again.");
       setState({ kind: "sent", handle: r.handle, email });
     } catch (err) {
@@ -77,12 +79,31 @@ export default function JoinPage() {
 
   if (state.kind === "sent") {
     return (
-      <Tile tone="lime" className="grid max-w-[640px] gap-5">
-        <MailCheck className="size-9" aria-hidden />
-        <h1 className="t-title">Check your email</h1>
-        <p className="text-[17px]">Open the link we sent to <b>{state.email}</b> to confirm your entry as <b>{state.handle}</b>. Until then you are not on the board.</p>
-        <p className="text-[17px]">Only trades your autopilot makes count, so make sure it is running.</p>
-        <PillButton href={appHref("/autopilot")} variant="onLime" size="lg" className="justify-self-start">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>
+      <div className="grid max-w-[640px] gap-4">
+        <Tile tone="lime" className="grid gap-5">
+          <MailCheck className="size-9" aria-hidden />
+          <h1 className="t-title">Check your email</h1>
+          <p className="text-[17px]">Open the link we sent to <b>{state.email}</b> to confirm your entry as <b>{state.handle}</b>. Until then you are not on the board.</p>
+          <p className="text-[17px]">Only trades your autopilot makes count, so make sure it is running.</p>
+          <PillButton href={appHref("/autopilot")} variant="onLime" size="lg" className="justify-self-start">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>
+        </Tile>
+        {TELEGRAM_URL && (
+          <Tile className="grid gap-3">
+            <TileLabel>Next step</TileLabel>
+            <p className="text-[20px] font-bold leading-snug">Join the Koul Telegram group: winners are contacted there.</p>
+            <PillButton href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" variant="outline" size="lg" className="justify-self-start">Open Telegram<ArrowUpRight className="size-5" aria-hidden /></PillButton>
+          </Tile>
+        )}
+      </div>
+    );
+  }
+
+  if (entriesFull(info)) {
+    return (
+      <Tile className="grid max-w-[640px] gap-4">
+        <h1 className="t-title">Entries are full</h1>
+        <p className="text-[16px] text-muted">Every place in this competition is taken. You can still follow it on the leaderboard.</p>
+        <PillButton href="/compete/leaderboard" variant="outline" className="justify-self-start">Leaderboard</PillButton>
       </Tile>
     );
   }
@@ -107,7 +128,7 @@ export default function JoinPage() {
           </label>
           <label className="flex min-h-11 cursor-pointer items-start gap-3 text-[15px]">
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-1 size-5 shrink-0 accent-[var(--lime)]" />
-            <span>I have read the <a href="/compete#rules" target="_blank" className="text-accent-text underline-offset-4 hover:underline">rules</a>. Only my autopilot&apos;s trades count, and adding money takes my entry off the board.</span>
+            <span>I am 18 or older and accept the <a href="/compete/terms" target="_blank" className="text-accent-text underline-offset-4 hover:underline">competition terms</a>.</span>
           </label>
           {state.kind === "error" && <p role="alert" className="text-[15px] text-danger">{state.message}</p>}
           <PillButton type="submit" size="lg" disabled={!ready || state.kind === "signing"} className="justify-self-start">
@@ -117,9 +138,14 @@ export default function JoinPage() {
       </Tile>
       <Tile className="grid content-start gap-4">
         <TileLabel>Before you enter</TileLabel>
-        <Point title="Use a new wallet">Everyone starts with {c.startingCapitalUsd} test USDC. A wallet that already holds more is taken off the board.</Point>
+        <Point title="Use a new wallet">Everyone starts with {c.startingCapitalUsd} test USDC plus the free test XLM. Adding money or XLM takes the entry off the board.</Point>
         <Point title="Let the autopilot trade">Write your rules on the Autopilot page and start it. A swap or supply you make yourself takes the entry off the board.</Point>
         <Point title="One passkey prompt">It proves this wallet is yours. Nothing is signed on chain and nothing moves.</Point>
+        {TELEGRAM_URL && (
+          <Point title="Join the Telegram group">
+            Winners are contacted there. <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="text-accent-text underline-offset-4 hover:underline">Open the Koul group</a>
+          </Point>
+        )}
         <p className={cn("mono break-all text-muted")}>Entering as {w.short ?? "…"}</p>
       </Tile>
     </div>

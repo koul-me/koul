@@ -6,6 +6,7 @@ import { RuleLine } from "@/components/rules/rule-line";
 import type { LiveRule } from "@/hooks/use-autopilot-live";
 import { agoShort, observedLabel } from "@/lib/model/labels";
 import { cn } from "@/lib/utils";
+import { fxProblem } from "@/lib/fx";
 
 export function RulesHeader({ hint, action }: { hint: string; action?: React.ReactNode }) {
   return (
@@ -40,6 +41,7 @@ export function RulesList({ rules, now, onEdit, onOpen, stopped }: { rules: Live
                 runs={r.runs}
                 ranAgo={r.current && r.lastRunAt ? agoShort(r.lastRunAt, now) : null}
                 now={observedLabel(r.rule.conditions[0]!, r.observed)}
+                nowOverride={fxProblem(r.rule) ? <span className="text-danger" title="USD/TRY is not available right now. Edit the rules to delete or switch off this one.">UNAVAILABLE</span> : undefined}
                 dimmed={!r.rule.enabled || stopped}
                 trailing={<span className={cn(r.rule.enabled ? "text-accent-text" : "text-muted")}>{r.rule.enabled ? "ON" : "OFF"}</span>}
               />

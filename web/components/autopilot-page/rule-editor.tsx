@@ -30,6 +30,7 @@ import type { RuleChange } from "@/lib/chat/diff";
 import { cn } from "@/lib/utils";
 import { hubName } from "@/lib/model/hubs";
 import { exitLevel } from "@/components/autopilot-page/templates";
+import { FX_ON, fxProblem } from "@/lib/fx";
 
 const pill = "h-11 rounded-full border-0 bg-surface-2 px-4 mono text-text data-[size=default]:h-11 hover:brightness-110 [&_svg]:text-muted";
 const popup = "rounded-[var(--radius-group)] border border-line bg-surface p-1 shadow-none ring-0";
@@ -62,18 +63,22 @@ function TokenPicker({ value, onChange, label }: { value: TokenSymbol; onChange:
   );
 }
 
+/** "Add rule": the USD/TRY exit while USD/TRY is on, otherwise repay before liquidation; both start out false. */
 export function ruleTemplate(live?: LiveValues): Rule {
-  return { id: `r_${Date.now().toString(36)}`, name: "Rule", conditions: [defaultsFor("fx_price", live)], match: "all", action: { kind: "withdraw_to_wallet", amount: "all" }, cooldownSec: 600, inferred: [], enabled: true };
+  const [condition, action]: [Condition, Action] = FX_ON ? [defaultsFor("fx_price", live), { kind: "withdraw_to_wallet", amount: "all" }] : [defaultsFor("health_factor", live), { kind: "repay_from_wallet", amount: "all" }];
+  return { id: `r_${Date.now().toString(36)}`, name: "Rule", conditions: [condition], match: "all", action, cooldownSec: 600, inferred: [], enabled: true };
 }
 
 function ConditionPickers({ c, i, live, onChange }: { c: Condition; i: number; live: LiveValues; onChange: (next: Condition) => void }) {
   const isGap = c.kind === "rate_gap";
   const unit = c.kind === "token_balance" ? tokenOf(c) : CONDITION_SUBJECTS.find((s) => s.kind === c.kind)?.unit ?? "";
+  // USD/TRY is offered only while it is on; a condition that already reads it keeps its name so it can be switched away.
+  const subjects = CONDITION_SUBJECTS.filter((s) => FX_ON || s.kind !== "fx_price" || c.kind === "fx_price");
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={c.kind} onValueChange={(v) => v && onChange(defaultsFor(v as ConditionKind, live))} items={CONDITION_SUBJECTS.map((s) => ({ value: s.kind, label: s.label }))}>
+      <Select value={c.kind} onValueChange={(v) => v && onChange(defaultsFor(v as ConditionKind, live))} items={subjects.map((s) => ({ value: s.kind, label: s.label }))}>
         <SelectTrigger className={pill} aria-label={`Condition ${i + 1}: what to check`}><SelectValue /></SelectTrigger>
-        <SelectContent className={popup}>{CONDITION_SUBJECTS.map((s) => <SelectItem key={s.kind} value={s.kind} className={item}>{s.label}</SelectItem>)}</SelectContent>
+        <SelectContent className={popup}>{subjects.map((s) => <SelectItem key={s.kind} value={s.kind} className={item}>{s.label}</SelectItem>)}</SelectContent>
       </Select>
       {c.kind === "pool_rate" && (
         <Select value={c.pool ?? "B"} onValueChange={(v) => v && onChange({ ...c, pool: v as "A" | "B" })} items={[{ value: "A", label: hubName(POOLS.A.hub) }, { value: "B", label: hubName(POOLS.B.hub) }]}>
@@ -238,7 +243,7 @@ function SortableRule({ rule, i, shownIndex, editor, lr, live, now, dragging, hi
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: rule.id, animateLayoutChanges: () => false, transition: { duration: 250, easing: "cubic-bezier(0.22, 1, 0.36, 1)" } });
   const open = editor.open === rule.id;
   const first = rule.conditions[0]!;
-  const problem = pairingProblem(rule);
+  const problem = fxProblem(rule) ?? pairingProblem(rule);
   // A rule copied from the chain keeps its live reading; a new or changed one reads the app's live values.
   const nowText = lr && lr.observed !== null ? observedLabel(first, lr.observed) : liveLabel(first, live);
   const count = editor.rules.length;

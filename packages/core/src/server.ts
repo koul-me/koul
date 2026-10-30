@@ -20,12 +20,31 @@ export interface ParseContext {
   fxPrice: string | null;
   fxPriceAgeSeconds: number | null;
 }
-export const PARSE_SYSTEM_PROMPT = `Translate a user's savings automation request into one ordered Koul autopilot.
+/** What the parser says when a request needs USD/TRY while it is off. */
+export const FX_OFF_NOTE = "USD/TRY is not available right now.";
+
+/**
+ * The parser's prompt. `fx` offers the FxPrice condition on the team's mock FX oracle; without it (the default) the
+ * model is told USD/TRY is not available right now and to say so in a note.
+ */
+export function parseSystemPrompt(fx = false): string {
+  return fx ? FX_PROMPT : FX_PROMPT
+    .replace("FxPrice(asset, comparator, USD per asset unit with 14 decimals, max age seconds); ", "")
+    .replace(FX_PARAGRAPH, `USD/TRY and lira price conditions are not available right now: never write an FxPrice condition. When a request depends on the lira, USD/TRY or another exchange rate, leave that part out and add the note "${FX_OFF_NOTE}"; if nothing else is left, return autopilot null with that note.\n`)
+    .replace(" For unspecified price freshness use 900 seconds.", "");
+}
+
+const FX_PARAGRAPH = `The FX oracle quotes USD per one unit of the asset with 14 decimals, which is the inverse of the USD/TRY rate people say out loud. A user who says "if the lira passes 50" or "USD/TRY above 50" means one dollar buys 50 lira or more, which is FxPrice(TRY, Below, round(1e14 / 50) = "2000000000000"). A stronger lira, "USD/TRY under 45", is FxPrice(TRY, AtOrAbove, round(1e14 / 45)). Always divide 1e14 by the rate the user said, and pick Below for a weakening lira and AtOrAbove for a strengthening one. Sanity check the level against the context price before returning it.\n`;
+
+const FX_PROMPT = `Translate a user's savings automation request into one ordered Koul autopilot.
 The output is data for a Soroban router, never an instruction to execute a transaction. The user's funds stay in their smart account.
 Vocabulary: HealthFactor Below/AtOrAbove (WAD, 18 decimals); SupplyRateGap(over hub, under hub, minimum annual bps); SupplyRate(hub, comparator, annual bps) for what one hub pays on its own; FxPrice(asset, comparator, USD per asset unit with 14 decimals, max age seconds); IdleBalance (USDC with 7 decimals). Conditions per rule join with match_all. Actions: SupplyFromWallet to put idle wallet USDC into a hub, which is the only way an autopilot opens a position; MoveSupply; RepayFromWallet; RepayWithCollateral; WithdrawToWallet. Amounts: All, Percent in 1..10000 bps, Fixed in 7-decimal USDC units and at least 1 USDC. One rule fires per tick, in list order. Up to 32 rules, 1..3 conditions each, cooldown at least 1 ledger. Never create an if/else, a swap, a TRY withdrawal, a borrow, or a transfer to another address. WithdrawToWallet moves USDC to the user's wallet; a separate user passkey action is needed to cash out to TRY.
 The FX oracle quotes USD per one unit of the asset with 14 decimals, which is the inverse of the USD/TRY rate people say out loud. A user who says "if the lira passes 50" or "USD/TRY above 50" means one dollar buys 50 lira or more, which is FxPrice(TRY, Below, round(1e14 / 50) = "2000000000000"). A stronger lira, "USD/TRY under 45", is FxPrice(TRY, AtOrAbove, round(1e14 / 45)). Always divide 1e14 by the rate the user said, and pick Below for a weakening lira and AtOrAbove for a strengthening one. Sanity check the level against the context price before returning it.
 Use only the provided hub IDs. For rate gap, hub_over is the higher-paying hub and hub_under the lower-paying hub. For MoveSupply, from_hub is the lower-paying one. Rates everywhere are the pool's simple annual rate, which the context gives in RAY (1e27 = 100%). A percentage the user says about what a pool pays is a compounded APY, the figure the app displays, so never write it in directly: convert it with bps = round(ln(1 + percent / 100) * 10000). "60% a year" is 4700 bps, "20%" is 1823 bps, "5%" is 488 bps. When a request says to put idle money to work without naming a hub, use the hub the context shows paying most.
 Notes are only for what you could not do: a part of the request the router cannot express, or a threshold too ambiguous to guess. One short sentence each, at most two, and an empty array when the whole request fits. Never use notes to explain a choice you made, to restate a mapping, to justify a hub, or to describe a default: defaults belong in defaulted_fields alone. For a wholly unsupported request, return autopilot null and say why in one note. Never invent a feature. For omitted account ID, use the context account ID. A ledger closes about every 5 seconds, so a minute is 12 ledgers, an hour 720, a day 17280: convert any wait the user states. For an unspecified cooldown use 30 ledgers for protection or withdrawal and 300 for yield moves. For unspecified price freshness use 900 seconds. Record every filled value's JSON path in defaulted_fields. Use context readings to interpret relative requests, but do not present them as guarantees. Return decimal strings for all u64 and i128 fields.`;
+
+/** The default prompt: USD/TRY off. */
+export const PARSE_SYSTEM_PROMPT = parseSystemPrompt();
 
 /**
  * The tool the model must call. The schema is generated from the same zod schema the codec uses, so the model is
@@ -33,11 +52,28 @@ Notes are only for what you could not do: a part of the request the router canno
  * `maxItems`, and the rule and condition counts are worth showing the model. Whatever comes back is parsed by zod
  * and then checked against the contract's limits, so nothing invalid can reach a signature either way.
  */
-export const PARSE_TOOL = {
-  name: "create_autopilot",
-  description: "Return only supported Koul rules, with unsupported parts in notes and filled defaults listed by field path.",
-  input_schema: zodToJsonSchema(parseResultSchema, { target: "jsonSchema7", $refStrategy: "none" }),
-} as const;
+export function parseTool(fx = false) {
+  const schema = zodToJsonSchema(parseResultSchema, { target: "jsonSchema7", $refStrategy: "none" });
+  return {
+    name: "create_autopilot",
+    description: "Return only supported Koul rules, with unsupported parts in notes and filled defaults listed by field path.",
+    input_schema: fx ? schema : withoutFx(schema),
+  } as const;
+}
+
+/** The default tool: USD/TRY off. */
+export const PARSE_TOOL = parseTool();
+
+/** The JSON schema with every FxPrice branch taken out of the condition unions. */
+function withoutFx<T>(node: T): T {
+  if (Array.isArray(node)) return node.filter((n) => !isFxBranch(n)).map(withoutFx) as T;
+  if (!node || typeof node !== "object") return node;
+  return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, withoutFx(v)])) as T;
+}
+function isFxBranch(node: unknown): boolean {
+  const type = (node as { properties?: { type?: { const?: unknown; enum?: unknown[] } } } | null)?.properties?.type;
+  return type?.const === "FxPrice" || (Array.isArray(type?.enum) && type.enum.length === 1 && type.enum[0] === "FxPrice");
+}
 
 export interface ParseOptions {
   apiKey?: string;
@@ -47,6 +83,8 @@ export interface ParseOptions {
   /** For OpenAI-compatible providers: where to send it. Defaults to OpenAI itself. */
   baseUrl?: string;
   fetcher?: typeof fetch;
+  /** Offer USD/TRY (FxPrice on the team's mock FX oracle). Off by default: a rule with FxPrice is dropped with a note. */
+  fx?: boolean;
 }
 export type Provider = "anthropic" | "openai";
 
@@ -75,6 +113,26 @@ export function parserSettings(options: ParseOptions = {}): { provider: Provider
   return { provider, apiKey, model, baseUrl };
 }
 
+/**
+ * USD/TRY off: drop every rule the model wrote with an FxPrice condition anyway (the whole rule, since its other
+ * conditions alone would mean something else), renumber the defaulted field paths, and lead the notes with the
+ * reason. An autopilot left with no rule is null.
+ */
+export function stripFx(result: ParseResult): ParseResult {
+  const ap = result.autopilot;
+  if (!ap || !ap.rules.some((r) => r.conditions.some((c) => c.type === "FxPrice"))) return result;
+  const kept = ap.rules.map((r, i) => [r, i] as const).filter(([r]) => !r.conditions.some((c) => c.type === "FxPrice"));
+  const index = new Map(kept.map(([, old], now) => [old, now]));
+  const defaulted = result.defaulted_fields.flatMap((path) => {
+    const m = /^((?:autopilot\.)?rules)\.(\d+)(\..*)?$/.exec(path);
+    if (!m) return [path];
+    const now = index.get(Number(m[2]));
+    return now === undefined ? [] : [`${m[1]}.${now}${m[3] ?? ""}`];
+  });
+  const notes = result.notes.some((n) => n.includes(FX_OFF_NOTE)) ? result.notes : [FX_OFF_NOTE, ...result.notes];
+  return { ...result, autopilot: kept.length ? { ...ap, rules: kept.map(([r]) => r) } : null, notes, defaulted_fields: kept.length ? defaulted : [] };
+}
+
 /** Server-only. Asks the model for one strict tool call, then validates it against the contract's own limits. */
 export async function parseAutopilot(text: string, context: ParseContext, options: ParseOptions = {}): Promise<ParseResult> {
   if (!text.trim() || text.length > 2000) throw new Error("Request must be 1..2000 characters");
@@ -82,7 +140,11 @@ export async function parseAutopilot(text: string, context: ParseContext, option
   const { provider, apiKey, model, baseUrl } = parserSettings(options);
   if (!apiKey) throw new Error("No parser API key on the server: set ANTHROPIC_API_KEY or OPENAI_API_KEY");
   const fetcher = options.fetcher ?? fetch;
-  const message = JSON.stringify({ request: text, context });
+  const fx = options.fx ?? false;
+  const PARSE_SYSTEM_PROMPT = parseSystemPrompt(fx);
+  const PARSE_TOOL = parseTool(fx);
+  // With USD/TRY off the model does not see a reading of it either.
+  const message = JSON.stringify({ request: text, context: fx ? context : { ...context, fxPrice: null, fxPriceAgeSeconds: null } });
 
   let raw: unknown;
   let attempt = 0;
@@ -126,8 +188,9 @@ export async function parseAutopilot(text: string, context: ParseContext, option
     const where = parsed.error.issues.slice(0, 3).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
     throw new Error(`Parser returned a result that does not match the schema (${where}). Got: ${JSON.stringify(raw).slice(0, 300)}`);
   }
+  const data = fx ? parsed.data : stripFx(parsed.data);
   // Models narrate even when told not to. Keep the two most useful notes, trimmed, so a UI can show them whole.
-  const result: ParseResult = { ...parsed.data, notes: parsed.data.notes.map((n) => n.trim()).filter(Boolean).slice(0, 2).map((n) => (n.length > 180 ? `${n.slice(0, 177)}…` : n)) };
+  const result: ParseResult = { ...data, notes: data.notes.map((n) => n.trim()).filter(Boolean).slice(0, 2).map((n) => (n.length > 180 ? `${n.slice(0, 177)}…` : n)) };
   void attempt;
   if (!result.autopilot) return result;
   const errors = validateAutopilot(result.autopilot);

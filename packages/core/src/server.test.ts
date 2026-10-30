@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseAutopilot, PARSE_TOOL, type ParseContext } from "./server";
+import { FX_OFF_NOTE, parseAutopilot, PARSE_TOOL, type ParseContext } from "./server";
 import { healthGuard, liraShield, yieldOnly } from "./templates";
 
 const context: ParseContext = { accountId: "12", hubIds: [1, 2], idleUsdc: "250000000", healthFactorWad: "1600000000000000000", depositRatesRay: { "1": "10000000000000000000000000", "2": "12000000000000000000000000" }, fxAsset: "TRY", fxPrice: "2050000000000", fxPriceAgeSeconds: 40 };
@@ -45,6 +45,40 @@ describe("sentence parser boundary", () => {
     const result = await parseAutopilot("Repay my debt", context, { provider: "openai", apiKey: "test", baseUrl: "https://example.test/v1", fetcher });
     expect(url).toBe("https://example.test/v1/chat/completions");
     expect(result.autopilot).toEqual(healthGuard("12"));
+  });
+  it("keeps USD/TRY out by default: not offered, not seen, and dropped with a note when written anyway", async () => {
+    let sent: { system: string; tools: Array<{ input_schema: unknown }>; messages: Array<{ content: string }> } | undefined;
+    const fetcher: typeof fetch = async (_url, init) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ content: [{ type: "tool_use", name: PARSE_TOOL.name, input: { autopilot: liraShield("12", { fx: true }), notes: [], defaulted_fields: ["rules.3.cooldown_ledgers", "rules.0.cooldown_ledgers"] } }] }), { status: 200 });
+    };
+    const result = await parseAutopilot("Protect me from a lira shock", context, { apiKey: "test", fetcher });
+    expect(result.autopilot).toEqual(liraShield("12"));
+    expect(result.notes).toEqual([FX_OFF_NOTE]);
+    expect(result.defaulted_fields).toEqual(["rules.0.cooldown_ledgers"]);
+    expect(sent?.system).not.toContain("FxPrice(");
+    expect(sent?.system).toContain(FX_OFF_NOTE);
+    expect(JSON.stringify(sent?.tools[0]?.input_schema)).not.toContain("FxPrice");
+    expect(JSON.stringify(sent?.tools[0]?.input_schema)).toContain("TokenPrice");
+    expect(JSON.parse(sent!.messages[0]!.content).context.fxPrice).toBeNull();
+  });
+  it("an autopilot that was only USD/TRY comes back null with the note", async () => {
+    const onlyFx = { account_id: "12", rules: liraShield("12", { fx: true }).rules.slice(3) };
+    const fetcher: typeof fetch = async () => new Response(JSON.stringify({ content: [{ type: "tool_use", name: PARSE_TOOL.name, input: { autopilot: onlyFx, notes: [], defaulted_fields: ["rules.0.cooldown_ledgers"] } }] }), { status: 200 });
+    const result = await parseAutopilot("Exit if USD/TRY passes 50", context, { apiKey: "test", fetcher });
+    expect(result).toEqual({ autopilot: null, notes: [FX_OFF_NOTE], defaulted_fields: [] });
+  });
+  it("offers and keeps USD/TRY with fx on", async () => {
+    let sent: { system: string; tools: Array<{ input_schema: unknown }> } | undefined;
+    const fetcher: typeof fetch = async (_url, init) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify({ content: [{ type: "tool_use", name: PARSE_TOOL.name, input: { autopilot: liraShield("12", { fx: true }), notes: [], defaulted_fields: [] } }] }), { status: 200 });
+    };
+    const result = await parseAutopilot("Protect me from a lira shock", context, { apiKey: "test", fetcher, fx: true });
+    expect(result.autopilot).toEqual(liraShield("12", { fx: true }));
+    expect(result.notes).toEqual([]);
+    expect(sent?.system).toContain("FxPrice(TRY, Below");
+    expect(JSON.stringify(sent?.tools[0]?.input_schema)).toContain("FxPrice");
   });
   it("rejects a model result that names another account", async () => {
     const fetcher: typeof fetch = async () => new Response(JSON.stringify({ content: [{ type: "tool_use", name: PARSE_TOOL.name, input: { autopilot: healthGuard("23"), notes: [], defaulted_fields: [] } }] }), { status: 200 });

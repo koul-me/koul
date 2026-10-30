@@ -1,8 +1,8 @@
 /**
  * What the competition pages show, worked out from what the indexer stored: the phase (before, during, after), the
  * dates in Turkey time and UTC, and the number formats. Pure, so the server pages and the join page agree. The preview
- * data lets the pages be looked at locally before a competition is configured (?preview=upcoming|live|ended, never in
- * production).
+ * data lets the pages be looked at locally before a competition is configured (?preview=upcoming|live|ended|full, never
+ * in production).
  */
 import type { CompetitionConfig, CompetitionInfo, EntrantView, HistoryPoint, Leaderboard, LeaderboardRow } from "@koul/core";
 
@@ -25,6 +25,8 @@ const TR = "Europe/Istanbul";
 export const dayOf = (iso: string) => DAY(TR).format(new Date(iso)).replace(",", "");
 /** "15:00 TRT · 12:00 UTC". */
 export const timeOf = (iso: string) => `${TIME(TR).format(new Date(iso))} TRT · ${TIME("UTC").format(new Date(iso))} UTC`;
+/** "18:00 TRT", for one-line mentions like the banner. */
+export const hourOf = (iso: string) => `${TIME(TR).format(new Date(iso))} TRT`;
 /** "Fri 6 Nov – Fri 20 Nov", or the start alone while the end is open. */
 export function windowOf(config: CompetitionConfig): string | null {
   if (!config.startsAt) return null;
@@ -35,6 +37,28 @@ export function lengthOf(config: CompetitionConfig): string | null {
   if (!config.startsAt || !config.endsAt) return null;
   const days = Math.round((Date.parse(config.endsAt) - Date.parse(config.startsAt)) / 86_400_000);
   return days % 7 === 0 ? `${days / 7} week${days === 7 ? "" : "s"}` : `${days} days`;
+}
+
+/** "Friday 30 October 2026, 18:00 Turkey time (15:00 UTC)", for the terms. */
+export function longDateOf(iso: string): string {
+  const d = new Date(iso);
+  const day = new Intl.DateTimeFormat("en-GB", { timeZone: TR, weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d).replace(",", "");
+  return `${day}, ${TIME(TR).format(d)} Turkey time (${TIME("UTC").format(d)} UTC)`;
+}
+
+/**
+ * The entry cap: `maxEntrants` is optional on the stored config and absent on older ones. Null when
+ * there is no cap.
+ */
+export function maxEntrantsOf(config: CompetitionConfig | null): number | null {
+  const m = config?.maxEntrants;
+  return typeof m === "number" && Number.isFinite(m) && m > 0 ? Math.floor(m) : null;
+}
+
+/** True when a cap is set and the verified entrants have reached it. */
+export function entriesFull(info: CompetitionInfo | null): boolean {
+  const max = maxEntrantsOf(info?.config ?? null);
+  return max !== null && (info?.entrants ?? 0) >= max;
 }
 
 /** "+6.84%", "-1.20%", or a dash when there is no return yet. */
@@ -53,21 +77,24 @@ export function agoOf(t: number | null, now: number): string {
 
 const HANDLES = ["ninebps", "lumen", "mira", "quietbull", "kadikoy", "sato", "orbitfi", "deltaflat", "ankara_algo", "slowmoney", "tidal", "bosphorus"];
 
-export type Preview = "upcoming" | "live" | "ended";
+/** "full" is an upcoming competition whose entry cap is reached. */
+export type Preview = "upcoming" | "live" | "ended" | "full";
 export const previewOf = (v: string | string[] | undefined): Preview | null =>
-  process.env.NODE_ENV !== "production" && (v === "upcoming" || v === "live" || v === "ended") ? v : null;
+  process.env.NODE_ENV !== "production" && (v === "upcoming" || v === "live" || v === "ended" || v === "full") ? v : null;
 
 function previewConfig(p: Preview, now: number): CompetitionConfig {
-  const start = p === "upcoming" ? now + 6 * 86_400_000 + 3 * 3_600_000 : p === "live" ? now - 5 * 86_400_000 : now - 16 * 86_400_000;
-  return {
+  const start = p === "upcoming" || p === "full" ? now + 2 * 86_400_000 + 3 * 3_600_000 : p === "live" ? now - 3 * 86_400_000 : now - 9 * 86_400_000;
+  const config: CompetitionConfig = {
     id: "preview", name: "Koul Trading Competition", startLedger: 1, endLedger: null,
-    startsAt: new Date(start).toISOString(), endsAt: new Date(start + 14 * 86_400_000).toISOString(),
-    startingCapitalUsd: 100, autopilotOnly: true, prize: "$500 prize pool",
+    startsAt: new Date(start).toISOString(), endsAt: new Date(start + 7 * 86_400_000).toISOString(),
+    startingCapitalUsd: 100, autopilotOnly: true, prize: "$300 prize pool",
   };
+  // Spread in, so this compiles whether or not the config type has the optional cap yet.
+  return p === "full" ? { ...config, ...{ maxEntrants: 47 } } : config;
 }
 
 function previewRows(p: Preview): LeaderboardRow[] {
-  if (p === "upcoming") return [];
+  if (p === "upcoming" || p === "full") return [];
   const rows: LeaderboardRow[] = HANDLES.map((handle, i) => {
     const r = 6.84 - i * 0.61 + (i % 3) * 0.07;
     return { rank: i + 1, handle, wallet: `C${String(i).padStart(55, "A")}`, valueUsd: 100 + r, pnlUsd: r, returnPct: r, flagged: false };
@@ -77,12 +104,13 @@ function previewRows(p: Preview): LeaderboardRow[] {
 }
 
 export function previewInfo(p: Preview, now: number): CompetitionInfo {
-  return { config: previewConfig(p, now), entrants: p === "upcoming" ? 47 : 13, updatedAt: p === "upcoming" ? null : now - 90_000 };
+  const before = p === "upcoming" || p === "full";
+  return { config: previewConfig(p, now), entrants: before ? 47 : 13, updatedAt: before ? null : now - 90_000 };
 }
 
 export function previewBoard(p: Preview, now: number, offset = 0, limit = 50): Leaderboard {
   const rows = previewRows(p);
-  return { rows: rows.slice(offset, offset + limit), total: rows.length, offset, updatedAt: p === "upcoming" ? null : now - 90_000 };
+  return { rows: rows.slice(offset, offset + limit), total: rows.length, offset, updatedAt: p === "upcoming" || p === "full" ? null : now - 90_000 };
 }
 
 export function previewEntrant(p: Preview, handle: string, now: number): EntrantView | null {

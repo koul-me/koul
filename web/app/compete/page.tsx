@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
-import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { Label, PillButton, Tile, TileLabel } from "@/components/signal";
 import { BoardTable } from "@/components/compete/board-table";
 import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
 import { Countdown } from "@/components/compete/countdown";
+import { TELEGRAM_URL } from "@/lib/community";
 import { loadCompetition } from "@/lib/competition-load";
-import { agoOf, dayOf, lengthOf, phaseOf, previewOf, timeOf, windowOf } from "@/lib/competition-view";
+import { agoOf, dayOf, entriesFull, lengthOf, phaseOf, previewOf, timeOf, windowOf } from "@/lib/competition-view";
 
 export const metadata: Metadata = {
   title: "Trading competition",
@@ -16,27 +18,36 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const STEPS = [
-  { title: "Make a Koul wallet", line: "A passkey, no seed phrase. It comes with 100 test USDC." },
+  { title: "Make a Koul wallet", line: "A passkey, no seed phrase. It comes with 100 test USDC and free test XLM." },
   { title: "Write your rules", line: "Swap between USDC, ETH, SOL, XRP and wBTC, or lend on XOXNO. Then start your autopilot." },
   { title: "Enter", line: "Pick a handle and confirm your email. From there your autopilot does the trading." },
 ];
+/** Shown after Enter only when the group link is set. */
+const TELEGRAM_STEP = { title: "Join the Telegram group", line: "Winners are contacted there, so join before the end." };
 
 const RULES = [
   "Only trades your autopilot makes count. A manual swap, supply or withdraw takes the entry off the board.",
-  "Everyone starts with 100 test USDC. Money added from outside also takes the entry off the board, so use a new wallet.",
-  "Your score is the return on that 100: everything the wallet holds, at Reflector oracle prices. The test XLM for fees is not counted.",
-  "USD/TRY conditions are off during the competition, since that feed is a test feed we run.",
+  "Everyone starts with the same basket: 100 test USDC plus the free test XLM a new wallet gets, about 10,000. Both count.",
+  "Your score is the return on that basket: everything the wallet holds, at Reflector oracle prices.",
+  "Money or XLM added from outside takes the entry off the board. Use a new wallet and do not top it up.",
+  "If a swap pays more than the oracle price, the extra counts as capital, not profit.",
+  "USD/TRY is off during the competition, since that feed is a test price we set. A rule on USD/TRY takes the entry off the board, so delete any you have.",
   "Each wallet can make about 10 swaps every 3 hours.",
-  "Scores update every few minutes. The final board is the one at the end time, and the top entries are checked before prizes are paid.",
-  "One entry per person, wallet and email.",
+  "Scores update every few minutes. The final board is the one at the end time, after the top entries are checked.",
+  "Prizes are paid in USDC on Stellar mainnet: $150 for first, $100 for second, $50 for third.",
+  "Winners are contacted in the Koul Telegram group, so you must join it to be paid.",
+  "One entry per person, wallet and email. You must be 18 or older.",
 ];
+
 
 export default async function CompetePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const preview = previewOf((await searchParams).preview);
   const { info, board, now } = await loadCompetition(preview, 10);
   const c = info.config;
   const phase = phaseOf(c, now);
-  const joinable = phase === "upcoming" || phase === "live";
+  const full = entriesFull(info);
+  const joinable = (phase === "upcoming" || phase === "live") && !full;
+  const steps = TELEGRAM_URL ? [...STEPS, TELEGRAM_STEP] : STEPS;
   const boardHref = `/compete/leaderboard${preview ? `?preview=${preview}` : ""}`;
   return (
     <>
@@ -60,24 +71,30 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
               </div>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 {joinable && <PillButton href="/app/join" variant="onLime" size="lg">Join the competition<ArrowRight className="size-5" aria-hidden /></PillButton>}
+                {full && phase !== "ended" && <span className="text-[20px] font-extrabold tracking-tight">Entries are full</span>}
                 <span className="label">
                   {phase === "upcoming" && c.startsAt && <>Starts in <Countdown to={Date.parse(c.startsAt)} serverNow={now} /></>}
                   {phase === "live" && (c.endsAt ? <>Live · ends in <Countdown to={Date.parse(c.endsAt)} serverNow={now} /></> : "Live")}
                   {phase === "ended" && `Finished${c.endsAt ? ` on ${dayOf(c.endsAt)}` : ""}`}
                 </span>
               </div>
+              <p className="max-w-[60ch] text-[15px]">
+                Free to enter, 18 and over. <Link href="/compete/terms" className="font-semibold underline underline-offset-4">Read the terms</Link>
+                {TELEGRAM_URL && <> · Winners are contacted in the <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-4">Koul Telegram group</a></>}
+              </p>
             </>
           ) : (
             <p className="max-w-[46ch] text-[17px]">The next competition is being set up. Follow Koul on X for the date.</p>
           )}
         </Tile>
 
-        <section className="grid gap-4 md:grid-cols-3" aria-label="How to join">
-          {STEPS.map((s, i) => (
+        <section className={steps.length > 3 ? "grid gap-4 md:grid-cols-2 lg:grid-cols-4" : "grid gap-4 md:grid-cols-3"} aria-label="How to join">
+          {steps.map((s, i) => (
             <Tile key={s.title} className="grid content-start gap-3">
               <span className="mono text-muted">{String(i + 1).padStart(2, "0")}</span>
               <h2 className="text-[24px] font-extrabold tracking-tight">{s.title}</h2>
               <p className="text-[16px] text-muted">{s.line}</p>
+              {s === TELEGRAM_STEP && TELEGRAM_URL && <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="label inline-flex min-h-11 items-center gap-2 text-accent-text">Open Telegram<ArrowUpRight className="size-4" aria-hidden /></a>}
             </Tile>
           ))}
         </section>
@@ -109,6 +126,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
               </li>
             ))}
           </ol>
+          <Link href="/compete/terms" className="label inline-flex min-h-11 items-center gap-2 text-accent-text">Full terms and participant agreement<ArrowRight className="size-4" aria-hidden /></Link>
           {preview && <TileLabel>Preview data: nothing on this page is real.</TileLabel>}
         </Tile>
 

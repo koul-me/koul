@@ -18,6 +18,7 @@ import { PositionsTile } from "@/components/home/positions-tile";
 import { ActivityTile } from "@/components/home/activity-tile";
 import { PutToWorkDialog } from "@/components/home/put-to-work";
 import { PullToRefresh } from "@/components/signal";
+import { CompetitionBanner } from "@/components/compete/banner";
 import { balanceHistory } from "@/lib/model/history";
 import { useWallet, walletCreatedAt } from "@/hooks/use-wallet";
 import { hubName } from "@/lib/model/hubs";
@@ -70,6 +71,7 @@ export default function HomePage() {
   return (
     <PullToRefresh onRefresh={refreshAll}>
     <motion.div variants={staggerParent} initial="hidden" animate="show" className="grid gap-4 md:gap-5">
+      <CompetitionBanner variant="tile" />
       <div className="grid gap-4 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:gap-5">
         <motion.div {...tile}><BalanceTile balance={balance} parts={parts} lira={lira} loading={!loaded} rate={fx.fx.tryPerUsd > 0 ? { tryPerUsd: fx.fx.tryPerUsd, at: fx.fx.timestamp * 1000 } : null} /></motion.div>
         {/* The right column ends level with the balance: the chart takes whatever height is left. */}

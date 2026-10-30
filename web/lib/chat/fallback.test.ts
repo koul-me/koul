@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { answerLocally } from "./fallback";
 import type { ChatMessage } from "./reducer";
 import type { Rule } from "@/lib/model/autopilot";
+
+// These cases cover the USD/TRY answers, so this file runs with USD/TRY on; lib/fx.test.ts covers it off.
+vi.hoisted(() => { process.env.NEXT_PUBLIC_KOUL_FX = "on"; });
 
 const live = { fx: 48.79, healthFactor: 2.1, hasLoan: true, rateA: 3.1, rateB: 4.2, idleUsdc: 50, prices: { XLM: 0.17 }, holdings: { XLM: 120 } };
 const health: Rule = { id: "h", name: "Stay safe", conditions: [{ kind: "health_factor", comparator: "lte", value: 1.25 }], match: "all", action: { kind: "repay_from_wallet", amount: "all" }, cooldownSec: 600, inferred: [], enabled: true };

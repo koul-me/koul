@@ -2,8 +2,8 @@
 
 /**
  * The demo runner: three presses that move the mock USD/TRY price (calm, a lira shock, a stale publish) and a
- * countdown to the keeper's next pass. Renders only with NEXT_PUBLIC_KOUL_DEMO=1 on testnet; the price change goes
- * through a server route, the browser holds no secret.
+ * countdown to the keeper's next pass. Renders only with NEXT_PUBLIC_KOUL_DEMO=1 on testnet, and only while USD/TRY is
+ * on (lib/fx.ts); the price change goes through a server route, the browser holds no secret.
  */
 import * as React from "react";
 import { toast } from "sonner";
@@ -13,8 +13,9 @@ import { useFx } from "@/hooks/use-market";
 import { invalidate } from "@/lib/data/store";
 import { fmtFx } from "@/lib/format";
 import { KOUL } from "@/lib/koul";
+import { FX_ON } from "@/lib/fx";
 
-export const DEMO_ON = process.env.NEXT_PUBLIC_KOUL_DEMO === "1" && KOUL.networkPassphrase === "Test SDF Network ; September 2015";
+export const DEMO_ON = FX_ON && process.env.NEXT_PUBLIC_KOUL_DEMO === "1" && KOUL.networkPassphrase === "Test SDF Network ; September 2015";
 /** The keeper's pass, every 15 seconds (.github/workflows/keeper.yml). */
 const KEEPER_PERIOD_S = 15;
 

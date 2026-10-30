@@ -1,7 +1,11 @@
 import { parseAutopilot, type ParseContext } from "@koul/core/server";
 import { rateLimit } from "@/lib/rate-limit";
+import { FX_ON } from "@/lib/fx";
 
-/** Reference server route. The API key stays in the server environment. */
+/**
+ * Reference server route. The API key stays in the server environment. USD/TRY follows the same switch as the app
+ * (lib/fx.ts): off, the model is not offered FxPrice and a rule that uses it anyway is dropped with a note.
+ */
 export async function POST(request: Request): Promise<Response> {
   const limited = await rateLimit(request, "parse");
   if (limited) return limited;
@@ -11,7 +15,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "text and context are required" }, { status: 400 });
   }
   try {
-    const result = await parseAutopilot(body.text, body.context as ParseContext);
+    const result = await parseAutopilot(body.text, body.context as ParseContext, { fx: FX_ON });
     return Response.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Parsing failed";

@@ -13,6 +13,7 @@ import { readAgentParams, type ChainAutopilot } from "@/lib/data/live";
 import { grantCovers } from "@/lib/model/access";
 import { READ_CONFIG, WRITE_CONFIG } from "@/lib/koul";
 import { fmtUsdc } from "@/lib/format";
+import { FX_OFF_NOTE, FX_ON, hasFx } from "@/lib/fx";
 import { fromCoreAutopilot, newId, toCoreAutopilot, type Autopilot, type Rule } from "@/lib/model/autopilot";
 import { useAgentAccess } from "./use-agent-access";
 import { useChainAutopilots } from "./use-portfolio";
@@ -36,7 +37,7 @@ function chainAutopilot(c: ChainAutopilot, agent: ReturnType<typeof useAgentAcce
   const rules = fromCoreAutopilot(c.autopilot).map((r) => ({ ...r, inferred: local?.rules.find((l) => l.id === r.id)?.inferred ?? r.inferred }));
   return {
     id: chainUiId(c.id),
-    name: local?.name ?? (rules.length === 3 ? "Lira shield" : rules.length === 1 ? rules[0]!.name : `Autopilot ${c.id}`),
+    name: local?.name ?? (rules.length === 3 && rules.some(hasFx) ? "Lira shield" : rules.length === 1 ? rules[0]!.name : `Autopilot ${c.id}`),
     description: local?.description ?? "",
     rules,
     status: agent ? "armed" : "paused",
@@ -122,7 +123,9 @@ export function useArmAutopilot() {
 
   const preview = useCallback((ap: Autopilot, accountId: bigint) => {
     const m = toCoreAutopilot(ap, accountId);
-    return { ...m, errors: m.autopilot.rules.length ? validateAutopilot(m.autopilot) : ["No rule the router can run"] };
+    // The last gate before a signature: no USD/TRY condition goes on-chain while USD/TRY is off (lib/fx.ts).
+    const fx = !FX_ON && m.autopilot.rules.some((r) => r.conditions.some((c) => c.type === "FxPrice")) ? [`${FX_OFF_NOTE} Delete the USD/TRY rule or switch it off, then save again.`] : [];
+    return { ...m, errors: m.autopilot.rules.length ? [...fx, ...validateAutopilot(m.autopilot)] : ["No rule the router can run"] };
   }, []);
 
   /**

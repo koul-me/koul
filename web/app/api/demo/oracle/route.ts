@@ -1,12 +1,14 @@
 /**
  * Demo only: moves the mock USD/TRY price through the oracle admin app's route, server to server, so the browser
- * never holds a secret. Off unless NEXT_PUBLIC_KOUL_DEMO=1, and never on a network other than testnet.
+ * never holds a secret. Off unless NEXT_PUBLIC_KOUL_DEMO=1 and USD/TRY is on (lib/fx.ts), and never on a network
+ * other than testnet.
  */
 import { NextResponse } from "next/server";
 import { KOUL } from "@/lib/koul";
+import { FX_ON } from "@/lib/fx";
 
 const ADMIN = process.env.KOUL_ORACLE_ADMIN_URL ?? "https://koul-oracle.vercel.app";
-const enabled = () => process.env.NEXT_PUBLIC_KOUL_DEMO === "1" && KOUL.networkPassphrase === "Test SDF Network ; September 2015";
+const enabled = () => FX_ON && process.env.NEXT_PUBLIC_KOUL_DEMO === "1" && KOUL.networkPassphrase === "Test SDF Network ; September 2015";
 
 export async function GET() {
   if (!enabled()) return NextResponse.json({ error: "Demo is off" }, { status: 404 });
