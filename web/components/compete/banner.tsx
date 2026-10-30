@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * The slim competition banner on the landing page and the app's Home. Before the start it gives the date and the
+ * The slim competition banner on the landing page and the app's Home (the landing's fuller section is
+ * components/landing/competition.tsx, on the same data). Before the start it gives the date and the
  * prize, during the competition the entrant count; after the end, or with no competition stored, it renders nothing.
  * It reads GET /api/competition in the browser so the landing stays static. `?preview=` works here too in development.
  * Join goes to app.koul.me/join through the app base; the competition pages live on koul.me and on every other host.
@@ -15,9 +16,10 @@ import { TELEGRAM_URL } from "@/lib/community";
 import { dayOf, entriesFull, hourOf, phaseOf, previewInfo, previewOf } from "@/lib/competition-view";
 import { cn } from "@/lib/utils";
 
-type Loaded = { info: CompetitionInfo; now: number; preview: string | null };
+export type Loaded = { info: CompetitionInfo; now: number; preview: string | null };
 
-function useCompetition(): Loaded | null {
+/** The stored competition, read once in the browser; null until it answers (or when it fails). */
+export function useCompetition(): Loaded | null {
   const [state, setState] = React.useState<Loaded | null>(null);
   React.useEffect(() => {
     let live = true;
