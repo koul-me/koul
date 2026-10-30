@@ -44,6 +44,7 @@ export function ThemeToggle({ className }: { className?: string }) {
 }
 
 const NAV = [
+  { href: "/compete", label: "Competition" },
   { href: "#how", label: "How it works" },
   { href: "#build", label: "Try it" },
   { href: "#safety", label: "Safety" },
