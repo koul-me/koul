@@ -13,4 +13,4 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - run: curl -fsS https://koul.me/api/keeper/status
+      - run: curl -fsS 'https://koul.me/api/keeper/status?watch=1'

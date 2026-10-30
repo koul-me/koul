@@ -163,6 +163,27 @@ export async function opsProblems(now = Date.now()): Promise<string[]> {
   const out = balances.filter((b) => b.low || b.xlm === null).map((b) => b.xlm === null ? `${b.label} is missing on chain.` : `${b.label} is low: ${b.xlm.toFixed(2)} XLM.`);
   const lastHour = failures.filter((f) => now - f.at < 3600_000);
   if (lastHour.length >= 3) out.push(`The relay failed ${lastHour.length} times in the last hour; last: ${lastHour[0]!.what}: ${lastHour[0]!.error}`);
+  return [...out, ...(await loadProblems(now).catch(() => []))];
+}
+
+/** A pass slower than this means rules react late; past it the keeper needs more channels, a faster RPC or a split. */
+const SLOW_PASS_MS = 60_000;
+/** The indexer runs every few minutes; a board older than this while the competition runs means it stopped. */
+const STALE_BOARD_MS = 15 * 60_000;
+
+/** What grows with users: keeper ticks failing, passes slowing down, the competition board going stale. */
+async function loadProblems(now: number): Promise<string[]> {
+  const redis = store();
+  if (!redis) return [];
+  const [beat, config, boardAt] = await Promise.all([
+    redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<{ startsAt: string | null; endsAt: string | null }>(COMP_KEYS.config), redis.get<number>(COMP_KEYS.updatedAt),
+  ]);
+  const out: string[] = [];
+  if (beat && beat.failed >= 5 && beat.failed > beat.submitted) out.push(`The keeper's last pass failed ${beat.failed} ticks and sent ${beat.submitted}; first reasons: ${(beat.errors ?? []).slice(0, 2).join("; ") || "none recorded"}.`);
+  if (beat && beat.passMs > SLOW_PASS_MS) out.push(`A keeper pass takes ${Math.round(beat.passMs / 1000)} s for ${beat.wallets} wallets: rules react late.`);
+  const starts = config?.startsAt ? Date.parse(config.startsAt) : null, ends = config?.endsAt ? Date.parse(config.endsAt) : null;
+  const running = starts !== null && now > starts + STALE_BOARD_MS && (ends === null || now < ends + 3600_000);
+  if (running && (!boardAt || now - Number(boardAt) > STALE_BOARD_MS)) out.push(`The competition board was last written ${boardAt ? `${Math.round((now - Number(boardAt)) / 60_000)} min ago` : "never"}: the indexer is not running.`);
   return out;
 }
 
