@@ -239,13 +239,19 @@ async function tickUser(user: string, payer: string, latest: number): Promise<vo
   }
 }
 
-/** This pass's counts, reported as the heartbeat when it ends. */
+/** Counts since the last heartbeat (autopilots: this pass only). */
 const pass = { autopilots: 0, submitted: 0, failed: 0, skipped: 0, backedOff: 0, errors: [] as string[] };
+/**
+ * The heartbeat goes out at most once a minute, not every pass: it is three Redis commands, and a write every 17 s was
+ * about 465,000 a month, the whole of Upstash's free plan. The late alert waits five minutes, so a minute is plenty.
+ */
+const BEAT_EVERY_MS = 60_000;
+let lastBeatAt = 0;
 const note = (reason: string) => { if (pass.errors.length < 5) pass.errors.push(reason.slice(0, 120)); };
 
 do {
   const started = Date.now();
-  Object.assign(pass, { autopilots: 0, submitted: 0, failed: 0, skipped: 0, backedOff: 0, errors: [] });
+  pass.autopilots = 0;
   try { await refreshMockOracle(); } catch (err) { console.log(`${stamp()} oracle refresh failed: ${err instanceof Error ? err.message : String(err)}`); }
   let users: string[] = [];
   try { users = (await router.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
@@ -266,9 +272,14 @@ do {
       await tickUser(user, payer, latestLedger).catch((err) => { pass.failed++; forgetGrant(user); note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${user.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); });
     }
   }));
-  let ledger = 0;
-  try { ledger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* the heartbeat goes out without it */ }
   if (!quiet || process.env.KEEPER_TIMING) console.log(`${stamp()} pass     ${users.length} wallets in ${((Date.now() - started) / 1000).toFixed(1)}s, ${pass.submitted} sent, ${pass.failed} failed`);
-  await writeHeartbeat(env, { at: Date.now(), passMs: Date.now() - started, intervalSec: interval, wallets: users.length, ...pass, ledger });
+  if (once || Date.now() - lastBeatAt >= BEAT_EVERY_MS) {
+    const passMs = Date.now() - started;
+    let ledger = 0;
+    try { ledger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* the heartbeat goes out without it */ }
+    await writeHeartbeat(env, { at: Date.now(), passMs, intervalSec: interval, wallets: users.length, ...pass, ledger });
+    lastBeatAt = Date.now();
+    Object.assign(pass, { submitted: 0, failed: 0, skipped: 0, backedOff: 0, errors: [] });
+  }
   if (!once) await new Promise((r) => setTimeout(r, interval * 1000));
 } while (!once);
