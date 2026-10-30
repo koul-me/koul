@@ -5,13 +5,13 @@ import { cn } from "@/lib/utils";
 import { useAppHref, useAppPathname } from "@/lib/app-base";
 import { TABS } from "./nav";
 
-/** The phone navigation: a rounded dark bar floating above the safe area, four tabs, the active one in lime. */
+/** The phone navigation: a rounded dark bar floating above the safe area, five tabs, the active one in lime. */
 export function BottomTabs() {
   const pathname = useAppPathname();
   const appHref = useAppHref();
   return (
     <nav aria-label="Main" className="fixed inset-x-4 bottom-0 z-40 mb-[max(16px,env(safe-area-inset-bottom))] md:hidden">
-      <ul className="grid grid-cols-4 rounded-[var(--radius-tile)] bg-surface p-1">
+      <ul className="grid grid-cols-5 rounded-[var(--radius-tile)] bg-surface p-1">
         {TABS.map((t) => {
           const on = t.active(pathname);
           const Icon = t.icon;

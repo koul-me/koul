@@ -19,7 +19,7 @@ export function Wordmark({ className }: { className?: string }) {
 }
 
 /**
- * One row: the wordmark, a thin divider, the four tabs in large type, the account chip on the right.
+ * One row: the wordmark, a thin divider, the tabs in large type, the account chip on the right.
  * `connected=false` is the Welcome variant: wordmark and the network label, nothing else.
  */
 export function TopBar({ connected, className }: { connected: boolean; className?: string }) {
@@ -27,12 +27,12 @@ export function TopBar({ connected, className }: { connected: boolean; className
   const appHref = useAppHref();
   return (
     <header className={cn("flex h-[88px] items-center justify-between gap-6", className)}>
-      <div className="flex min-w-0 items-center gap-6">
+      <div className="flex min-w-0 items-center gap-4 lg:gap-6">
         <Wordmark />
         {connected && (
           <>
             <span aria-hidden className="hidden h-8 w-px bg-line md:block" />
-            <nav aria-label="Main" className="hidden items-center gap-7 md:flex">
+            <nav aria-label="Main" className="hidden items-center gap-4 md:flex lg:gap-7">
               {TABS.map((t) => {
                 const on = t.active(pathname);
                 return (
@@ -40,7 +40,7 @@ export function TopBar({ connected, className }: { connected: boolean; className
                     key={t.href}
                     href={appHref(t.href)}
                     aria-current={on ? "page" : undefined}
-                    className={cn("t-tab rounded-md py-1 transition-colors duration-[240ms] ease-out focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-text", on ? "text-text" : "text-dim hover:text-muted active:text-text")}
+                    className={cn("t-tab rounded-md py-1 text-[20px]! lg:text-[32px]! transition-colors duration-[240ms] ease-out focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-text", on ? "text-text" : "text-dim hover:text-muted active:text-text")}
                   >
                     {t.label}
                   </Link>
