@@ -31,7 +31,7 @@ const RULES = [
   "Everyone starts with the same basket: 100 test USDC plus the free test XLM a new wallet gets, about 10,000. Both count.",
   "Your score is the return on that basket: everything the wallet holds, at Reflector oracle prices.",
   "Money or XLM added from outside takes the entry off the board. Use a new wallet and do not top it up.",
-  "If a swap pays more than the oracle price, the extra counts as capital, not profit.",
+  "Testnet pools often pay far more than the oracle price. Whatever a swap pays above the oracle price counts as capital, not profit, so it never raises your return.",
   "USD/TRY is off during the competition, since that feed is a test price we set. A rule on USD/TRY takes the entry off the board, so delete any you have.",
   "Each wallet can make about 10 swaps every 3 hours.",
   "Scores update about every 15 minutes. The final board is the one at the end time, after the top entries are checked.",
@@ -98,6 +98,26 @@ export default async function CompeteOverview({ searchParams }: { searchParams: 
             </Tile>
           ))}
         </section>
+
+        <Tile tone="outlined" id="testnet-prices" className="grid gap-4">
+          <Label tone="lime">Read this before you trade</Label>
+          <h2 className={SECTION_TITLE}>Testnet swap prices are not real prices.</h2>
+          <div className="grid max-w-[70ch] gap-3 text-[16px]">
+            <p>
+              Swaps run through Soroswap and Aquarius pools on Stellar testnet. Nobody keeps those pools in line with the
+              market, so they often pay several times the real price, and sometimes far more. Selling XLM, for example,
+              can bring back about five times what it is worth at the oracle price.
+            </p>
+            <p className="font-semibold">
+              Your score ignores that gap. Every holding is valued at Reflector oracle prices, and whatever a swap pays
+              above the oracle price counts as capital you started with, not profit.
+            </p>
+            <p className="text-muted">
+              So a generous swap can raise a wallet&apos;s value without raising its return: a wallet worth $8,000 can still
+              show 0%. Returns come from prices moving after your autopilot trades, not from the pool it trades with.
+            </p>
+          </div>
+        </Tile>
 
         {c && (
           <Tile className="grid gap-2">
