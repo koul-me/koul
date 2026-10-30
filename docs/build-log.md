@@ -691,3 +691,17 @@ daily leases workflow also runs to top them up.
 |---|---|
 | Create channels 0-7 with 200 XLM each from the keeper account | `35416372a3e7594ff8176ab8e6ad34fc0876dc4d083403a2d8b9f08d8e3ac28d` |
 | Create keeper channels 0-7 with 200 XLM each: the keeper's tick workers each pay from their own (one pending transaction per source account), instead of every tick waiting on the keeper account | `29e1f63cb5fd89ec31c8bd45ec9f4372ab0f82463e2680745ccc8d1f058aef06` |
+
+## More channel accounts before the competition (2026-10-30)
+
+Keeper workers from 8 to 32 and relay channels from 8 to 16 (`KEEPER_CHANNELS` in keeper.yml and on Vercel,
+`RELAY_CHANNELS` on Vercel, both in leases.yml). The first funding run failed with `op_underfunded`: 32 new accounts at
+200 XLM need 6,400 XLM and the keeper account held 5,993. It was topped up by merging two fresh friendbot accounts into
+it (5,993 to 25,993 XLM). With the keeper also skipping the tick simulation when `next_action` has nothing due, a pass
+over 69 wallets went from 12-15 s to 1.7 s.
+
+| Action | Tx |
+|---|---|
+| Friendbot account merged into the keeper `GAFHZTSL...XP6U` | `fca1518a13f4c4e99b12385648a8d1b7912f51ec277d242b071eb490d68a5609` |
+| Friendbot account merged into the keeper | `d0cbe95eabd658343126eb12f4e462bf23b11bf3efb2c91f6b7f2bb592934235` |
+| Create relay channels 8-15 and keeper channels 8-31 with 200 XLM each | `f5987a1a3650556c272e4acecbe57867a82f542f3961c1e7b1de51d51b57c14e` |
