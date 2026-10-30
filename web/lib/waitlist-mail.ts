@@ -4,8 +4,9 @@ import { sendMail as send } from "@/lib/mail";
 
 /**
  * The waitlist emails, through Resend's REST API: a confirmation to whoever joined, a notice to the owner
- * (WAITLIST_NOTIFY_TO) with an Approve link, and the invite once approved. Both are skipped without RESEND_API_KEY. A failed send is logged, never thrown, so it can
- * never fail a signup.
+ * (WAITLIST_NOTIFY_TO) with an Approve link, and the invite once approved. The first two go out only while the
+ * waitlist is closed (app/api/waitlist), to save the mail plan's daily quota. All are skipped without RESEND_API_KEY.
+ * A failed send is logged, never thrown, so it can never fail a signup.
  */
 /** Where links in the emails point; the Approve link never trusts a request's own host. */
 const SITE = process.env.WAITLIST_BASE_URL ?? "https://koul.me";

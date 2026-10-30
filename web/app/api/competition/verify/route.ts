@@ -1,9 +1,12 @@
 /**
- * GET ?token=: the link in the confirmation email. Marks the entry verified so the indexer starts scoring it, unless
- * the entry cap filled up while the link waited. The page ends with the Telegram step: winners are contacted there.
+ * GET ?token=: the link in the confirmation emails sent before the passkey signature confirmed entries on its own.
+ * Kept so those links still work: marks the entry verified so the indexer starts scoring it, unless the entry cap
+ * filled up while the link waited. No new links are sent. The page ends with the Telegram step: winners are contacted
+ * there.
  */
 import { COMP_KEYS, type CompetitionConfig, type EntrantRecord } from "@koul/core";
 import { TELEGRAM_URL } from "@/lib/community";
+import { takePlace } from "@/lib/competition-server";
 import { maxEntrantsOf } from "@/lib/competition-view";
 import { store } from "@/lib/redis";
 
@@ -23,13 +26,13 @@ export async function GET(request: Request): Promise<Response> {
   const redis = store();
   if (!redis || !/^[A-Za-z0-9_-]{20,64}$/.test(token)) return page("Link not valid", "<p>This confirmation link is broken.</p>", 400);
   const wallet = await redis.get<string>(COMP_KEYS.pending(token));
-  if (!wallet) return page("Link expired", "<p>This link was used or has expired. Enter again from the app to get a new one.</p>", 410);
+  if (!wallet) return page("Link expired", `<p>This link was used or has expired. If your handle is on the <a href="https://koul.me/compete/leaderboard">leaderboard</a>, you are already in. If not, enter again at <a href="https://app.koul.me/join">app.koul.me/join</a>: your passkey confirms the entry right away.</p>`, 410);
   const rec = await redis.get<EntrantRecord>(COMP_KEYS.entrant(wallet));
   if (!rec) return page("Entry not found", "<p>Enter again from the app.</p>", 404);
   if (!rec.verifiedAt) {
-    const [config, count] = await Promise.all([redis.get<CompetitionConfig>(COMP_KEYS.config), redis.scard(COMP_KEYS.entrants)]);
+    const config = await redis.get<CompetitionConfig>(COMP_KEYS.config);
     const max = maxEntrantsOf(config);
-    if (max !== null && count >= max) return page("Entries are full", `<p>All ${max} places were taken before this link was opened, so this entry does not count.</p><p><a href="https://koul.me/compete">Competition page</a></p>`, 409);
+    if (!(await takePlace(redis, wallet, max))) return page("Entries are full", `<p>All ${max} places were taken before this link was opened, so this entry does not count.</p><p><a href="https://koul.me/compete">Competition page</a></p>`, 409);
   }
   await Promise.all([
     redis.set(COMP_KEYS.entrant(wallet), { ...rec, verifiedAt: rec.verifiedAt ?? Date.now() }),

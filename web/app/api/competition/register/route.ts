@@ -1,14 +1,16 @@
 /**
  * POST { wallet, handle, email, acceptedTerms: true, assertion }: enter the competition. The assertion is the wallet's
- * passkey signing the challenge from /api/competition/challenge, so only the person who controls a wallet can enter it.
- * The entry counts once the email link is opened (/api/competition/verify). One entry per wallet, per handle and per email. The
- * entrant must accept the terms (koul.me/compete/terms), and entries close once a set `maxEntrants` is confirmed.
+ * passkey signing the challenge from /api/competition/challenge, so only the person who controls a wallet can enter it,
+ * and that signature confirms the entry: it is scored from the indexer's next run. One entry per wallet, per handle and
+ * per email. The entrant must accept the terms (koul.me/compete/terms), and entries close once `maxEntrants` is
+ * reached. The email is how winners can be reached; the "You're in" note to it goes out after the answer, best effort,
+ * because the mail plan has a small daily quota.
  */
-import { randomBytes, createHash } from "node:crypto";
+import { after } from "next/server";
 import { z } from "zod";
-import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig, type EntrantRecord } from "@koul/core";
+import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig } from "@koul/core";
+import { confirmEntry, sendEntryNote } from "@/lib/competition-server";
 import { maxEntrantsOf } from "@/lib/competition-view";
-import { sendMail } from "@/lib/mail";
 import { verifyAssertion, walletPasskeys } from "@/lib/passkey-proof";
 import { rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/redis";
@@ -22,9 +24,6 @@ const Body = z.object({
   acceptedTerms: z.boolean({ message: TERMS_MESSAGE }).refine((v) => v, TERMS_MESSAGE),
   assertion: z.object({ credentialId: z.string(), authenticatorData: z.string(), clientDataJSON: z.string(), signature: z.string() }),
 });
-
-const SITE = process.env.COMPETITION_BASE_URL ?? "https://koul.me";
-const emailKey = (email: string) => `koul:comp:email:${createHash("sha256").update(email).digest("hex")}`;
 
 export async function POST(request: Request): Promise<Response> {
   const limited = await rateLimit(request, "register");
@@ -47,25 +46,8 @@ export async function POST(request: Request): Promise<Response> {
   const problem = await verifyAssertion(await walletPasskeys(wallet), assertion, challenge);
   if (problem) return Response.json({ error: problem }, { status: 403 });
 
-  const existing = await redis.get<EntrantRecord>(COMP_KEYS.entrant(wallet));
-  if (existing?.verifiedAt) return Response.json({ error: `This wallet is already entered as ${existing.handle}` }, { status: 409 });
-  // Claims that are not the same pending entry are refused; a pending entry of this wallet can be redone.
-  const handleOwner = await redis.get<string>(COMP_KEYS.handle(handle));
-  if (handleOwner && handleOwner !== wallet) return Response.json({ error: "That handle is taken" }, { status: 409 });
-  const emailOwner = await redis.get<string>(emailKey(email));
-  if (emailOwner && emailOwner !== wallet) return Response.json({ error: "That email already has an entry" }, { status: 409 });
-
-  const now = Date.now();
-  const record: EntrantRecord = { wallet, handle, email, registeredAt: now, verifiedAt: null, acceptedTermsAt: now };
-  const token = randomBytes(24).toString("base64url");
-  if (existing && existing.handle.toLowerCase() !== handle.toLowerCase()) await redis.del(COMP_KEYS.handle(existing.handle));
-  await Promise.all([
-    redis.set(COMP_KEYS.entrant(wallet), record),
-    redis.set(COMP_KEYS.handle(handle), wallet),
-    redis.set(emailKey(email), wallet),
-    redis.set(COMP_KEYS.pending(token), wallet, { ex: 7 * 86400 }),
-  ]);
-  const link = `${SITE}/api/competition/verify?token=${token}`;
-  const sent = await sendMail(email, `Confirm your entry: ${config.name}`, `Open this link to confirm your Koul entry as ${handle}:\n${link}\n\nIf you did not enter, ignore this email.`, `<p>Open this link to confirm your Koul entry as <b>${handle}</b>:</p><p><a href="${link}">Confirm my entry</a></p><p>If you did not enter, ignore this email.</p>`);
-  return Response.json({ ok: true, handle, emailSent: sent });
+  const entered = await confirmEntry(redis, { wallet, handle, email, max, now: Date.now() });
+  if (!entered.ok) return Response.json({ error: entered.error }, { status: 409 });
+  after(() => sendEntryNote(email, handle, config.name));
+  return Response.json({ ok: true, handle });
 }
