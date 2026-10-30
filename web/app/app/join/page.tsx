@@ -82,7 +82,7 @@ export default function JoinPage() {
         <Tile tone="lime" className="grid gap-5">
           <CircleCheck className="size-9" aria-hidden />
           <h1 className="t-title">You&apos;re in</h1>
-          <p className="text-[17px]">You are entered as <b className="break-all">{state.handle}</b>. {phase === "upcoming" ? "Your score shows on your page once the competition starts." : "Your score shows on your page within a few minutes."}</p>
+          <p className="text-[17px]">You are entered as <b className="break-all">{state.handle}</b>. {phase === "upcoming" ? "Your score shows on your page once the competition starts." : "Your score shows on your page within about 15 minutes."}</p>
           <p className="text-[17px]">Only trades your autopilot makes count, so make sure it is running.</p>
           <div className="flex flex-wrap gap-3">
             <PillButton href={appHref("/autopilot")} variant="onLime" size="lg">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>

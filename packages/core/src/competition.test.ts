@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { basketUsd, capitalCheck, capitalOpening, counterpartyKind, flagsFor, fxRules, insideMoves, outsideUsd, rank, score, valueUsd, type Prices, type ScoredToken } from "./competition";
+import { basketUsd, capitalCheck, capitalOpening, chunkBySize, chunkPairs, commandBytes, counterpartyKind, flagsFor, fxRules, historyEveryMs, HISTORY_PUSHES_PER_DAY, insideMoves, outsideUsd, rank, score, valueUsd, type Prices, type ScoredToken } from "./competition";
 import type { Autopilot } from "./schema";
 
 const TOKENS: ScoredToken[] = [
@@ -152,5 +152,45 @@ describe("USD/TRY rules", () => {
 
   it("flags an entry whose autopilot used one", () => {
     expect(flagsFor({ netInUsd: 100, inUsd: 100, outUsd: 0, manualTxs: 0 }, { autopilotOnly: true, startingCapitalUsd: 100 }, { fx: true })).toEqual(["a rule on USD/TRY, a test price the team sets"]);
+  });
+});
+
+describe("Redis budget", () => {
+  const pair = (i: number, n: number): [string, string] => [`koul:comp:score:${i}`, "x".repeat(n)];
+
+  it("packs pairs in order under the byte limit, one MSET per group", () => {
+    const pairs = Array.from({ length: 10 }, (_, i) => pair(i, 100));
+    const groups = chunkPairs(pairs, 400);
+    expect(groups.flat()).toEqual(pairs);
+    expect(groups.map((g) => g.length)).toEqual([3, 3, 3, 1]);
+    for (const g of groups) expect(g.reduce((n, [k, v]) => n + k.length + v.length + 6, 0)).toBeLessThanOrEqual(400);
+  });
+
+  it("sends a pair larger than the limit alone, and nothing for no pairs", () => {
+    expect(chunkPairs([pair(1, 10), pair(2, 1000), pair(3, 10)], 400).map((g) => g.length)).toEqual([1, 1, 1]);
+    expect(chunkPairs([])).toEqual([]);
+  });
+
+  it("counts bytes, not characters", () => {
+    expect(chunkPairs([["k", "é".repeat(150)], ["k", "é".repeat(150)]], 400)).toHaveLength(2);
+    expect(chunkPairs([["k", "e".repeat(150)], ["k", "e".repeat(150)]], 400)).toHaveLength(1);
+  });
+
+  it("puts 300 entries' scores and totals and the board in two MSETs", () => {
+    const pairs = Array.from({ length: 300 }, (_, i) => [pair(i, 500), pair(i, 800)]).flat();
+    expect(chunkPairs([...pairs, pair(-1, 45_000)])).toHaveLength(2);
+  });
+
+  it("groups list commands by their size in the request", () => {
+    const cmds = Array.from({ length: 5 }, (_, i) => ["RPUSH", `koul:comp:history:${i}`, "y".repeat(150)]);
+    expect(commandBytes(["GET", "k"])).toBe(2 + 6 + 4);
+    expect(chunkBySize(cmds, commandBytes, 400).map((g) => g.length)).toEqual([2, 2, 1]);
+  });
+
+  it("keeps history hourly up to 300 entries and the pushes a day bounded past it", () => {
+    expect(historyEveryMs(1)).toBe(3600_000);
+    expect(historyEveryMs(300)).toBe(3600_000);
+    expect(historyEveryMs(1000)).toBe(200 * 60_000);
+    for (const n of [301, 1000, 5000]) expect((n * 86_400_000) / historyEveryMs(n)).toBeLessThanOrEqual(HISTORY_PUSHES_PER_DAY);
   });
 });

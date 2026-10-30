@@ -416,7 +416,7 @@ Routes for the frontend (types in `@koul/core`):
 |---|---|
 | `GET /api/competition` | `CompetitionInfo`: settings, verified entrants, last update |
 | `GET /api/competition/leaderboard?offset=0&limit=50` | `Leaderboard`: ranked rows (`LeaderboardRow`), total |
-| `GET /api/competition/entrant/:handle` | `EntrantView`: score, rank, value history every 15 minutes |
+| `GET /api/competition/entrant/:handle` | `EntrantView`: score, rank, value history hourly |
 | `POST /api/competition/challenge` `{ wallet }` | a one-time challenge and the wallet's passkey credential ids |
 | `POST /api/competition/register` `{ wallet, handle, email, assertion }` | the passkey signature confirms the entry and it is scored from then on; a "You're in" note is mailed best effort |
 | `GET /api/competition/verify?token=` | confirmation links mailed before entries were confirmed by passkey; still honoured |
