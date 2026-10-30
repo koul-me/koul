@@ -7,7 +7,13 @@
  * that came in from outside (the welcome grant, a deposit, a send from another wallet) is not profit, so it is netted
  * out: `pnl = value - net external inflows`, `return = pnl / net external inflows`. Swaps, supplies and repays move
  * money inside the wallet and change nothing until prices or interest do.
+ *
+ * XLM counts like any other token. Every entry starts with the same basket (100 USDC and the 10,000 test XLM friendbot
+ * puts in a new wallet); XLM the autopilot sells is an ordinary swap, and XLM sent in from outside is added capital.
+ * The wallet never pays its own fees (a transaction's source account does: the relayer or the keeper), so its XLM only
+ * moves when it is sent or swapped.
  */
+import type { Autopilot } from "./schema";
 
 /** Settings a run of the competition is held to. Stored by the organiser; null fields are not decided yet. */
 export interface CompetitionConfig {
@@ -18,15 +24,22 @@ export interface CompetitionConfig {
   endLedger: number | null;
   startsAt: string | null;
   endsAt: string | null;
-  /** The capital every entry starts with, in USD (the welcome grant). */
+  /** What the competition page shows as the starting capital, in USD; the capital check without `startingBasket`. */
   startingCapitalUsd: number;
+  /**
+   * What every entry starts with, in whole tokens by symbol ({ USDC: 100, XLM: 10000 }). Outside money above it, valued
+   * at the entry's opening prices, flags the entry. Absent: the check compares outside USD with `startingCapitalUsd`.
+   */
+  startingBasket?: Record<string, number>;
+  /** The most entries registration accepts (enforced by the register route; the indexer ignores it). Absent or null: no cap. */
+  maxEntrants?: number | null;
   /** What the winners get, as the competition page shows it ("$500 prize pool"); null or absent shows no prize. */
   prize?: string | null;
   /** When true, a move the autopilot did not make (a manual swap, supply or withdraw) flags the entry. */
   autopilotOnly: boolean;
   /**
-   * Tokens left out of value and flows. Default ["XLM"]: every new wallet gets 10,000 test XLM for fees, which would
-   * otherwise be most of its value and make every score follow the XLM price.
+   * Tokens left out of value and flows. Default none. Leaving XLM out opens a hole: a rule sells XLM for USDC, the XLM
+   * leg is not seen, and the USDC that comes back counts as a move inside the wallet, so value jumps with no flag.
    */
   excludeTokens?: string[];
 }
@@ -47,6 +60,11 @@ export type Prices = Record<string, number>;
 
 const units = (amount: bigint, decimals: number) => Number(amount) / 10 ** decimals;
 
+const priceOf = (t: ScoredToken, prices: Prices): number | undefined => {
+  const p = t.feed === null ? 1 : prices[t.feed];
+  return p !== undefined && Number.isFinite(p) ? p : undefined;
+};
+
 /** The wallet's value in USD. A token without a price counts as 0 and is listed in `unpriced`. */
 export function valueUsd(h: Holdings, tokens: readonly ScoredToken[], prices: Prices): { usd: number; unpriced: string[] } {
   let usd = units(h.supplied - h.borrowed, 7);
@@ -54,11 +72,63 @@ export function valueUsd(h: Holdings, tokens: readonly ScoredToken[], prices: Pr
   for (const t of tokens) {
     const amount = h.tokens[t.symbol] ?? 0n;
     if (amount === 0n) continue;
-    const price = t.feed === null ? 1 : prices[t.feed];
-    if (price === undefined || !Number.isFinite(price)) { unpriced.push(t.symbol); continue; }
+    const price = priceOf(t, prices);
+    if (price === undefined) { unpriced.push(t.symbol); continue; }
     usd += units(amount, t.decimals) * price;
   }
   return { usd, unpriced };
+}
+
+/** The starting basket in USD. A token the scoring does not value (excluded or unknown) counts 0; one without a price is listed. */
+export function basketUsd(basket: Record<string, number>, tokens: readonly ScoredToken[], prices: Prices): { usd: number; unpriced: string[] } {
+  let usd = 0;
+  const unpriced: string[] = [];
+  for (const [symbol, amount] of Object.entries(basket)) {
+    const t = tokens.find((x) => x.symbol === symbol);
+    if (!t || !amount) continue;
+    const price = priceOf(t, prices);
+    if (price === undefined) unpriced.push(symbol); else usd += amount * price;
+  }
+  return { usd, unpriced };
+}
+
+/**
+ * Outside money for the capital check: the opening value no flow explains plus every token that came in from outside
+ * minus what went out, all at the opening prices. Counting units rather than USD at the time means a price move between
+ * creation and the first scoring changes nothing; the basket is valued at the same prices.
+ */
+export function outsideUsd(moved: Record<string, string>, openingUsd: number, tokens: readonly ScoredToken[], prices: Prices): number {
+  let usd = openingUsd;
+  for (const [symbol, amount] of Object.entries(moved)) {
+    const t = tokens.find((x) => x.symbol === symbol);
+    const price = t && priceOf(t, prices);
+    if (t && price !== undefined) usd += units(BigInt(amount), t.decimals) * price;
+  }
+  return usd;
+}
+
+/** What the first scoring fixes for the capital check: the value no flow explains, flows at the opening prices; 0 under OPENING_TOLERANCE_USD. */
+export function capitalOpening(value: number, moved: Record<string, string>, swapEdgeUsd: number, tokens: readonly ScoredToken[], prices: Prices): number {
+  const unexplained = value - outsideUsd(moved, 0, tokens, prices) - swapEdgeUsd;
+  return unexplained > OPENING_TOLERANCE_USD ? unexplained : 0;
+}
+
+/** Slack on the basket: 1% for interest and swaps before the window, plus a dollar for rounding and the 1 USDC that opens the XOXNO account. */
+export const BASKET_TOLERANCE = 0.01;
+export const BASKET_SLACK_USD = 1;
+
+/** Outside money and the basket, both in USD at the entry's opening prices. */
+export interface CapitalCheck { outsideUsd: number; basketUsd: number }
+
+/** The capital check for an entry with a starting basket, once its opening prices are fixed; undefined otherwise. */
+export function capitalCheck(state: Pick<EntryState, "openingPrices" | "capitalOpeningUsd" | "outsideUnits">, basket: Record<string, number> | undefined, tokens: readonly ScoredToken[]): CapitalCheck | undefined {
+  if (!basket || !state.openingPrices) return undefined;
+  return { outsideUsd: outsideUsd(state.outsideUnits ?? {}, state.capitalOpeningUsd ?? 0, tokens, state.openingPrices), basketUsd: basketUsd(basket, tokens, state.openingPrices).usd };
+}
+
+/** Rules that read the team's mock FX oracle (USD/TRY): a price the team sets, so a rule on it is not a fair trade. */
+export function fxRules(autopilots: readonly (Pick<Autopilot, "rules"> | null)[]): number {
+  return autopilots.reduce((n, ap) => n + (ap?.rules.filter((r) => r.conditions.some((c) => c.type === "FxPrice")).length ?? 0), 0);
 }
 
 /**
@@ -79,6 +149,34 @@ export interface Flow {
   amount: string;
   usd: number;
   counterparty: string;
+}
+
+/** Opening the XOXNO account at the first Start autopilot supplies 1 USDC by hand; that one is not a manual move. */
+export const ACCOUNT_OPENING_USDC = 1_0000000n;
+
+/** One transfer of a scored token with a protocol (not outside money), from the wallet's side. */
+export interface InsideMove { txHash: string; token: string; incoming: boolean; amount: bigint; usd: number }
+
+/**
+ * Sorts the moves inside the wallet by transaction. One the autopilot did not fire is manual, except the supply that
+ * opens the XOXNO account. A token out and a different one back is a swap: what came back above what went out, both at
+ * the oracle price, is the venue's edge (capital, not profit); a swap that paid less is a real loss.
+ */
+export function insideMoves(moves: readonly InsideMove[], fired: ReadonlySet<string>): { manualTxs: number; swapEdgeUsd: number } {
+  const byTx = new Map<string, { outUsd: number; inUsd: number; tokens: Set<string>; usdcOut: bigint; other: boolean }>();
+  for (const m of moves) {
+    const t = byTx.get(m.txHash) ?? { outUsd: 0, inUsd: 0, tokens: new Set<string>(), usdcOut: 0n, other: false };
+    if (m.incoming) t.inUsd += m.usd; else t.outUsd += m.usd;
+    t.tokens.add(m.token);
+    if (m.token === "USDC" && !m.incoming) t.usdcOut += m.amount; else t.other = true;
+    byTx.set(m.txHash, t);
+  }
+  let manualTxs = 0, swapEdgeUsd = 0;
+  for (const [hash, t] of byTx) {
+    if (!fired.has(hash) && (t.other || t.usdcOut > ACCOUNT_OPENING_USDC)) manualTxs++;
+    if (t.tokens.size >= 2 && t.outUsd > 0 && t.inUsd > t.outUsd) swapEdgeUsd += t.inUsd - t.outUsd;
+  }
+  return { manualTxs, swapEdgeUsd };
 }
 
 export interface EntryTotals {
@@ -106,20 +204,30 @@ export interface EntrantScore extends EntryTotals {
   unpriced: string[];
   /** What swaps paid above fair value at the oracle price; netted out of the return (see EntryState). */
   swapEdgeUsd: number;
-  /** autopilotOnly and a manual move, or capital above the starting amount. */
+  /** autopilotOnly and a manual move, capital above the starting basket, or a rule on the mock FX oracle. */
   flagged: boolean;
   flagReasons: string[];
   ledger: number;
   updatedAt: number;
 }
 
-export function flagsFor(totals: EntryTotals & { swapEdgeUsd?: number }, config: Pick<CompetitionConfig, "autopilotOnly" | "startingCapitalUsd">): string[] {
+/**
+ * Why an entry is flagged. `capital` (with a starting basket) compares outside money with the basket at the opening
+ * prices; without it, outside USD is held to `startingCapitalUsd`. `fx`: the autopilot used a USD/TRY rule in the window.
+ */
+export function flagsFor(totals: EntryTotals & { swapEdgeUsd?: number }, config: Pick<CompetitionConfig, "autopilotOnly" | "startingCapitalUsd">, extra: { capital?: CapitalCheck; fx?: boolean } = {}): string[] {
   const reasons: string[] = [];
   if (config.autopilotOnly && totals.manualTxs > 0) reasons.push(`${totals.manualTxs} move${totals.manualTxs === 1 ? "" : "s"} not made by the autopilot`);
-  // Capital is outside money only; a swap's edge is netted out but is not something the person added. A cent of
-  // slack for rounding in the grant's own price.
-  const capital = totals.netInUsd - (totals.swapEdgeUsd ?? 0);
-  if (capital > config.startingCapitalUsd + 0.01) reasons.push(`added capital: ${capital.toFixed(2)} USD in, ${config.startingCapitalUsd} allowed`);
+  if (extra.capital) {
+    const { outsideUsd: o, basketUsd: b } = extra.capital;
+    if (o > b * (1 + BASKET_TOLERANCE) + BASKET_SLACK_USD) reasons.push(`added capital: ${o.toFixed(2)} USD in at opening prices, starting basket worth ${b.toFixed(2)}`);
+  } else {
+    // Capital is outside money only; a swap's edge is netted out but is not something the person added. A cent of
+    // slack for rounding in the grant's own price.
+    const capital = totals.netInUsd - (totals.swapEdgeUsd ?? 0);
+    if (capital > config.startingCapitalUsd + 0.01) reasons.push(`added capital: ${capital.toFixed(2)} USD in, ${config.startingCapitalUsd} allowed`);
+  }
+  if (extra.fx) reasons.push("a rule on USD/TRY, a test price the team sets");
   return reasons;
 }
 
@@ -171,7 +279,7 @@ export const COMP_KEYS = {
 } as const;
 
 /** What the registration stores per entrant. The email stays out of every public response. */
-export interface EntrantRecord { wallet: string; handle: string; email: string; registeredAt: number; verifiedAt: number | null }
+export interface EntrantRecord { wallet: string; handle: string; email: string; registeredAt: number; verifiedAt: number | null; acceptedTermsAt?: number }
 
 /** The indexer's running totals per entry. `toLedger` is the last ledger its events were read through. */
 export interface EntryState extends EntryTotals {
@@ -194,6 +302,14 @@ export interface EntryState extends EntryTotals {
    * window), fixed at the entry's first scoring and counted as capital, so it can never show up as profit.
    */
   openingUsd: number;
+  /** Reflector prices at the first scoring: the capital check values the basket and outside money at these. */
+  openingPrices?: Prices;
+  /** `openingUsd` again with the window's flows valued at `openingPrices`, for the capital check. */
+  capitalOpeningUsd?: number;
+  /** Net outside base units per token symbol over the window (+ in, - out), for the capital check. */
+  outsideUnits?: Record<string, string>;
+  /** The first ledger a run saw the autopilot with a USD/TRY rule; once set it stays, and rules are no longer read. */
+  fxSeenLedger?: number;
 }
 
 /** Below this, an unexplained opening value is interest or rounding, not money from before the window. */

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { HANDLE_PATTERN } from "@koul/core";
@@ -8,7 +9,7 @@ import { Label, Tile, TileLabel, fitValueClass } from "@/components/signal";
 import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
 import { HistoryChart } from "@/components/compete/history-chart";
 import { loadEntrant } from "@/lib/competition-load";
-import { agoOf, fmtPct, fmtSignedUsd, fmtUsd, phaseOf, previewOf } from "@/lib/competition-view";
+import { agoOf, entriesFull, fmtPct, fmtSignedUsd, fmtUsd, phaseOf, previewOf } from "@/lib/competition-view";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
       <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 py-6 md:px-8 md:py-10">
-        <CompeteHeader active={null} joinable={phase === "upcoming" || phase === "live"} />
+        <CompeteHeader active={null} joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
         <div className="grid gap-2">
           <h1 className="t-title break-all">{handle}</h1>
           <Label>{s ? `Scored ${agoOf(s.updatedAt, now)}` : "Waiting for the first score"}</Label>
@@ -41,6 +42,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
           <Tile tone="outlined" className="grid gap-2 border-danger">
             <TileLabel className="text-danger">Not ranked</TileLabel>
             <ul className="grid gap-1 text-[16px]">{s.flagReasons.map((r) => <li key={r}>{r}</li>)}</ul>
+            <p className="text-[15px] text-muted">Why this happens is in the <Link href="/compete/terms" className="text-accent-text">competition terms</Link>.</p>
           </Tile>
         )}
         <section className="grid grid-cols-2 gap-4 md:grid-cols-4" aria-label="Score">

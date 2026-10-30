@@ -1,20 +1,25 @@
 /**
- * POST { wallet, handle, email, assertion }: enter the competition. The assertion is the wallet's passkey signing the
- * challenge from /api/competition/challenge, so only the person who controls a wallet can enter it. The entry counts
- * once the email link is opened (/api/competition/verify). One entry per wallet, per handle and per email.
+ * POST { wallet, handle, email, acceptedTerms: true, assertion }: enter the competition. The assertion is the wallet's
+ * passkey signing the challenge from /api/competition/challenge, so only the person who controls a wallet can enter it.
+ * The entry counts once the email link is opened (/api/competition/verify). One entry per wallet, per handle and per email. The
+ * entrant must accept the terms (koul.me/compete/terms), and entries close once a set `maxEntrants` is confirmed.
  */
 import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig, type EntrantRecord } from "@koul/core";
+import { maxEntrantsOf } from "@/lib/competition-view";
 import { sendMail } from "@/lib/mail";
 import { verifyAssertion, walletPasskeys } from "@/lib/passkey-proof";
 import { rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/redis";
 
+const TERMS_MESSAGE = "Accept the competition terms to enter";
+
 const Body = z.object({
   wallet: z.string().regex(/^C[A-Z2-7]{55}$/),
   handle: z.string().regex(HANDLE_PATTERN, "A handle is 3 to 20 letters, digits or underscores"),
   email: z.string().trim().toLowerCase().email().max(254),
+  acceptedTerms: z.boolean({ message: TERMS_MESSAGE }).refine((v) => v, TERMS_MESSAGE),
   assertion: z.object({ credentialId: z.string(), authenticatorData: z.string(), clientDataJSON: z.string(), signature: z.string() }),
 });
 
@@ -33,6 +38,8 @@ export async function POST(request: Request): Promise<Response> {
 
   const config = await redis.get<CompetitionConfig>(COMP_KEYS.config);
   if (!config) return Response.json({ error: "There is no competition open right now" }, { status: 409 });
+  const max = maxEntrantsOf(config);
+  if (max !== null && (await redis.scard(COMP_KEYS.entrants)) >= max) return Response.json({ error: `Entries are full: all ${max} places are taken.` }, { status: 409 });
 
   // The challenge works once.
   const challenge = await redis.getdel<string>(COMP_KEYS.challenge(wallet));
@@ -48,7 +55,8 @@ export async function POST(request: Request): Promise<Response> {
   const emailOwner = await redis.get<string>(emailKey(email));
   if (emailOwner && emailOwner !== wallet) return Response.json({ error: "That email already has an entry" }, { status: 409 });
 
-  const record: EntrantRecord = { wallet, handle, email, registeredAt: Date.now(), verifiedAt: null };
+  const now = Date.now();
+  const record: EntrantRecord = { wallet, handle, email, registeredAt: now, verifiedAt: null, acceptedTermsAt: now };
   const token = randomBytes(24).toString("base64url");
   if (existing && existing.handle.toLowerCase() !== handle.toLowerCase()) await redis.del(COMP_KEYS.handle(existing.handle));
   await Promise.all([

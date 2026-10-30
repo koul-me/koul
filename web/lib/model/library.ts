@@ -87,7 +87,7 @@ export function shareLink(origin: string, rules: Rule[], name?: string): string 
   return `${origin}/autopilot?load=${encodeRules(rules, name)}`;
 }
 
-/** A name that is not taken yet: "Lira shield", then "Lira shield 2", and so on. */
+/** A name that is not taken yet: "My autopilot", then "My autopilot 2", and so on. */
 export function uniqueName(name: string, taken: string[]): string {
   const base = name.trim().slice(0, MAX_NAME) || "Autopilot";
   if (!taken.includes(base)) return base;

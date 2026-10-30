@@ -58,7 +58,7 @@ export function SaveToLibrary({ rules, defaultName, onDone, onCancel }: { rules:
           value={name}
           maxLength={MAX_NAME}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Lira shield"
+          placeholder="My autopilot"
           className="h-12 min-w-0 flex-1 rounded-full bg-surface-2 px-5 text-[16px] font-bold text-text placeholder:font-normal placeholder:text-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text"
         />
         <div className="flex gap-2">

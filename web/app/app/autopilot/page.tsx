@@ -38,6 +38,7 @@ import { SaveBar, type AccessAsk } from "@/components/autopilot-page/save-bar";
 import { Templates } from "@/components/autopilot-page/templates";
 import { useEditor } from "@/components/autopilot-page/use-editor";
 import { useAppOrigin } from "@/lib/app-base";
+import { FX_ON, fxProblem } from "@/lib/fx";
 
 const ACCESS_DAYS = 30;
 const OPEN_WITH_USDC = 1_0000000n;
@@ -67,7 +68,7 @@ export default function AutopilotPage() {
   // The chat: what Koul may quote, and what happens when a draft is accepted.
   // The chat speaks in the APY the app shows; the live values carry the pool's simple rate.
   const apy = (apr: number | null) => (apr === null ? null : aprToApy(apr));
-  const chatLive = React.useMemo<LiveContext>(() => ({ fx: values.live.fx, healthFactor: values.live.healthFactor, hasLoan: values.live.hasLoan, rateA: apy(values.live.rateA), rateB: apy(values.live.rateB), idleUsdc: values.live.idleUsdc, prices: Object.fromEntries(Object.entries(values.live.prices).filter(([, p]) => p && !p.stale).map(([s, p]) => [s, p!.usd])), holdings: values.live.holdings as Record<string, number> }), [values.live]);
+  const chatLive = React.useMemo<LiveContext>(() => ({ fx: FX_ON ? values.live.fx : null, healthFactor: values.live.healthFactor, hasLoan: values.live.hasLoan, rateA: apy(values.live.rateA), rateB: apy(values.live.rateB), idleUsdc: values.live.idleUsdc, prices: Object.fromEntries(Object.entries(values.live.prices).filter(([, p]) => p && !p.stale).map(([s, p]) => [s, p!.usd])), holdings: values.live.holdings as Record<string, number> }), [values.live]);
   const [highlight, setHighlight] = React.useState<string | null>(null);
   // What the chat changed while editing: the rows get CHANGED · UNDO until the change is undone or saved.
   const [chatChanges, setChatChanges] = React.useState<RuleChange[]>([]);
@@ -89,7 +90,8 @@ export default function AutopilotPage() {
   // Saving
   const rules = editor.rules;
   const contractCount = React.useMemo(() => toCoreAutopilot({ rules }, 0n).autopilot.rules.length, [rules]);
-  const problem = rules.map(pairingProblem).find((p) => p !== null) ?? null;
+  // A USD/TRY rule blocks the save while USD/TRY is off (lib/fx.ts); one switched off is not written, so it may stay.
+  const problem = rules.filter((r) => r.enabled).map(fxProblem).find((p) => p !== null) ?? rules.map(pairingProblem).find((p) => p !== null) ?? null;
   const needsPosition = pf.loaded && pf.accountId === null;
   const idle = pf.positions.idleUsdc;
   const openHub = bestPool(pools.pools)?.hub ?? 1;

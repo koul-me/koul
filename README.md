@@ -313,6 +313,11 @@ secrets; `ROUTER_V1`, `KOUL_POLICY`, `MOCK_FX` are the addresses above. `web/.en
 `OPENAI_API_KEY` for the sentence parser, `KEEPER_SECRET` for the demo funds routes. `oracle-admin` needs
 `ORACLE_ADMIN_SECRET`. Nothing secret is ever exposed under a `NEXT_PUBLIC_` name.
 
+**USD/TRY.** Rules on USD/TRY read `koul_mock_fx`, a price the team moves by hand, so the app ships with them off:
+no USD/TRY condition in the editor, the templates, the chat or the parser, and a save that carries one is refused.
+`NEXT_PUBLIC_KOUL_FX=on` (read at build time, `web/lib/fx.ts`) brings them back, and with it the demo runner
+(`NEXT_PUBLIC_KOUL_DEMO=1`).
+
 **Waitlist.** `NEXT_PUBLIC_KOUL_WAITLIST=open` collects emails on the landing (email field, with Open app beside it)
 and leaves the app open to anyone. `NEXT_PUBLIC_KOUL_WAITLIST=closed` (or `1`) also closes the app: every app page shows the waitlist in place (`web/proxy.ts`,
 rules in `web/lib/app-host.ts`) and the landing's Open app becomes an email field. The landing stays open.
@@ -394,13 +399,14 @@ requests through.
 
 **Competition.** Scoring rules and every shape live in `packages/core/src/competition.ts` (`@koul/core`):
 
-- Value is idle USDC + USDC supplied minus borrowed on XOXNO + every swap token at the Reflector price; XLM is left out
-  by default (it is the fee balance every wallet gets). Money from outside (a classic account, another smart wallet,
+- Value is idle USDC + USDC supplied minus borrowed on XOXNO + every swap token, XLM included, at the Reflector price
+  (`excludeTokens` can leave tokens out). Money from outside (a classic account, another smart wallet,
   a mint) is netted out: `pnl = value - net inflows`, `return = pnl / net inflows`. Value already in a wallet that no
   flow in the network's event window explains becomes opening capital, so it can never count as profit.
-- Flags (unranked): more capital than `startingCapitalUsd`, or, with `autopilotOnly`, a move the autopilot did not make
-  (the 1 USDC that opens the XOXNO account is allowed).
-- Indexer: `cd keeper && pnpm competition [--loop --every 120]`; settings with `pnpm competition config <file.json>`
+- Flags (unranked): outside money above the `startingBasket` (token units valued at the entry's opening prices, 1%
+  plus $1 slack; `startingCapitalUsd` without a basket), a rule on USD/TRY (the team's mock feed), or, with
+  `autopilotOnly`, a move the autopilot did not make (the 1 USDC that opens the XOXNO account is allowed).
+- Indexer: `cd keeper && pnpm competition [--loop --every 300]`; settings with `pnpm competition config <file.json>`
   (a `CompetitionConfig`), a manual entrant with `pnpm competition add <wallet> <handle>`. In production it runs from
   `.github/workflows/competition.yml` and stops at once while no competition is configured.
 
@@ -433,7 +439,7 @@ was created on, so create a wallet on the domain rather than expecting a local o
    appear with a reference. On the sandbox, press *Sandbox: pretend I sent the lira*. USDC lands in your wallet and
    the temporary account closes itself. Each step shows its technical detail and its transaction.
 3. **Write a rule in a sentence.** *Autopilots → New autopilot*, type for example _"whenever I have at least 10 USDC
-   sitting in my wallet put it into the pool that pays more, and pull everything out if the lira passes 50"_, and
+   sitting in my wallet put it into the pool that pays more, and repay my debt if my health drops under 1.25"_, and
    press *Turn into rules*. The rules appear as cards with the live value beside each condition and a mark on any
    value Koul filled in. Anything the router cannot do comes back as a note instead of an invented rule; try
    _"buy me gold when bitcoin dips"_ to see it refuse.
@@ -441,9 +447,9 @@ was created on, so create a wallet on the domain rather than expecting a local o
    confirmations it will take. Arming opens your XOXNO position if you have none, grants the scoped key, and stores
    the rules on-chain. Each step names its transaction.
 5. **Watch it fire.** The keeper simulates `tick`; when a rule is true it submits. *Activity* shows the run in plain
-   words with the observed values and a link to the transaction on stellar.expert. To force the lira exit, open the
-   oracle admin at https://koul-oracle.vercel.app/oracle and press *50.25 (lira shock)*: within a pass, the rule
-   withdraws to your wallet.
+   words with the observed values and a link to the transaction on stellar.expert. With `NEXT_PUBLIC_KOUL_FX=on`, a
+   lira exit can be forced: open the oracle admin at https://koul-oracle.vercel.app/oracle and press *50.25 (lira
+   shock)*, and within a pass the rule withdraws to your wallet.
 6. **See an out-of-policy action rejected.** In the repo, `cd keeper && pnpm session-deny` sends three agent-signed
    calls straight at the contracts, each one an allowlisted call a tick makes: a swap on the aggregator, a withdrawal
    from XOXNO to the wallet, and a USDC transfer to the aggregator. Each is rejected with `7110 NoSession`, because the

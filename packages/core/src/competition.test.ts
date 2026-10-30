@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { counterpartyKind, flagsFor, rank, score, valueUsd, type ScoredToken } from "./competition";
+import { basketUsd, capitalCheck, capitalOpening, counterpartyKind, flagsFor, fxRules, insideMoves, outsideUsd, rank, score, valueUsd, type Prices, type ScoredToken } from "./competition";
+import type { Autopilot } from "./schema";
 
 const TOKENS: ScoredToken[] = [
   { symbol: "USDC", id: "C-usdc", decimals: 7, feed: null },
   { symbol: "ETH", id: "C-eth", decimals: 7, feed: "ETH" },
   { symbol: "wBTC", id: "C-wbtc", decimals: 8, feed: "BTC" },
+  { symbol: "XLM", id: "C-xlm", decimals: 7, feed: "XLM" },
 ];
 
 describe("competition scoring", () => {
@@ -58,5 +60,97 @@ describe("swap edge", () => {
     // 100 in, 94 USD of edge from testnet pools: net in 194, capital still 100.
     expect(flagsFor({ netInUsd: 194, inUsd: 100, outUsd: 0, manualTxs: 0, swapEdgeUsd: 94 }, { autopilotOnly: true, startingCapitalUsd: 100 })).toEqual([]);
     expect(score(194.41, 194).returnPct).toBeCloseTo(0.21, 2);
+  });
+});
+
+describe("starting basket", () => {
+  const BASKET = { USDC: 100, XLM: 10_000 };
+  const XLM = (n: number) => (BigInt(n) * 10_000_000n).toString();
+  /** The capital check as the indexer runs it: the opening fixed at `open` prices, then the window's outside units. */
+  const check = (value: number, open: Prices, before: Record<string, string> = {}, after: Record<string, string> = {}, edge = 0) => {
+    const state = { openingPrices: open, capitalOpeningUsd: capitalOpening(value, before, edge, TOKENS, open), outsideUnits: { ...before } };
+    for (const [k, v] of Object.entries(after)) state.outsideUnits[k] = (BigInt(state.outsideUnits[k] ?? "0") + BigInt(v)).toString();
+    return flagsFor({ netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0 }, { autopilotOnly: true, startingCapitalUsd: 100 }, { capital: capitalCheck(state, BASKET, TOKENS) });
+  };
+  const at = (xlm: number, usdc: number, price: number) => usdc + xlm * price;
+
+  it("values the basket at the given prices and names a missing price", () => {
+    expect(basketUsd(BASKET, TOKENS, { XLM: 0.17 }).usd).toBeCloseTo(1800, 6);
+    expect(basketUsd(BASKET, TOKENS, {})).toEqual({ usd: 100, unpriced: ["XLM"] });
+  });
+
+  it("does not flag a wallet that holds the basket, at any price", () => {
+    expect(check(at(10_000, 100, 0.17), { XLM: 0.17 })).toEqual([]);
+    // Created at 0.15, first scored at 0.20: the opening and the basket move together.
+    expect(check(at(10_000, 100, 0.2), { XLM: 0.2 })).toEqual([]);
+    // 99 idle USDC and 1 supplied to open the XOXNO account, plus a little interest.
+    expect(check(at(10_000, 100.0005, 0.17), { XLM: 0.17 })).toEqual([]);
+  });
+
+  it("does not flag a wallet created in the window when the price moved before its first scoring", () => {
+    // Friendbot XLM and the 100 USDC came in at 0.15; outside units are valued at the opening price, not then.
+    const units = { XLM: XLM(10_000), USDC: "1000000000" };
+    expect(capitalOpening(at(10_000, 100, 0.2), units, 0, TOKENS, { XLM: 0.2 })).toBe(0);
+    expect(check(at(10_000, 100, 0.2), { XLM: 0.2 }, units)).toEqual([]);
+  });
+
+  it("flags a wallet that held more XLM than the basket before the window", () => {
+    expect(check(at(20_000, 100, 0.17), { XLM: 0.17 })).toEqual(["added capital: 3500.00 USD in at opening prices, starting basket worth 1800.00"]);
+  });
+
+  it("does not flag a wallet that spent some of its XLM", () => {
+    expect(check(at(5_000, 100, 0.17), { XLM: 0.17 })).toEqual([]);
+    expect(check(at(10_000, 100, 0.17), { XLM: 0.17 }, {}, { XLM: "-" + XLM(5_000) })).toEqual([]);
+  });
+
+  it("flags XLM sent in from outside during the window", () => {
+    expect(check(at(10_000, 100, 0.17), { XLM: 0.17 }, {}, { XLM: XLM(10_000) })).toHaveLength(1);
+    // Within the slack: 1% of the basket plus a dollar.
+    expect(check(at(10_000, 100, 0.17), { XLM: 0.17 }, {}, { XLM: XLM(100) })).toEqual([]);
+  });
+
+  it("leaves the capital check out until the opening is fixed, and without a basket", () => {
+    expect(capitalCheck({ outsideUnits: {} }, BASKET, TOKENS)).toBeUndefined();
+    expect(capitalCheck({ openingPrices: { XLM: 0.17 }, capitalOpeningUsd: 0, outsideUnits: {} }, undefined, TOKENS)).toBeUndefined();
+    expect(outsideUsd({ XLM: XLM(1_000) }, 50, TOKENS, { XLM: 0.2 })).toBeCloseTo(250, 6);
+  });
+});
+
+describe("moves inside the wallet", () => {
+  const sellXlm = [
+    { txHash: "a", token: "XLM", incoming: false, amount: 5_000_0000000n, usd: 850 },
+    { txHash: "a", token: "USDC", incoming: true, amount: 860_0000000n, usd: 860 },
+  ];
+
+  it("counts an autopilot XLM to USDC swap as a swap, with its edge, not as a manual move", () => {
+    expect(insideMoves(sellXlm, new Set(["a"]))).toEqual({ manualTxs: 0, swapEdgeUsd: 10 });
+    // The same swap by hand.
+    expect(insideMoves(sellXlm, new Set())).toEqual({ manualTxs: 1, swapEdgeUsd: 10 });
+    // A swap that paid less than the oracle price is a real loss, not negative capital.
+    expect(insideMoves([{ ...sellXlm[0]! }, { ...sellXlm[1]!, usd: 840 }], new Set(["a"])).swapEdgeUsd).toBe(0);
+  });
+
+  it("lets the 1 USDC that opens the XOXNO account through, and nothing more", () => {
+    const supply = (amount: bigint) => [{ txHash: "b", token: "USDC", incoming: false, amount, usd: Number(amount) / 1e7 }];
+    expect(insideMoves(supply(1_0000000n), new Set()).manualTxs).toBe(0);
+    expect(insideMoves(supply(2_0000000n), new Set()).manualTxs).toBe(1);
+  });
+});
+
+describe("USD/TRY rules", () => {
+  const ap = (...types: ("FxPrice" | "IdleBalance")[]): Pick<Autopilot, "rules"> => ({
+    rules: types.map((type) => ({
+      conditions: [type === "FxPrice" ? { type, asset: "TRY", cmp: "Below" as const, level: "1", max_age_secs: "900" } : { type, cmp: "AtOrAbove" as const, amount: "1" }],
+      match_all: true, action: { type: "WithdrawToWallet" as const, hub: 1, amount: { type: "All" as const } }, cooldown_ledgers: 0,
+    })),
+  });
+
+  it("counts the rules that read the mock FX oracle", () => {
+    expect(fxRules([ap("IdleBalance"), null])).toBe(0);
+    expect(fxRules([ap("FxPrice", "IdleBalance"), ap("FxPrice")])).toBe(2);
+  });
+
+  it("flags an entry whose autopilot used one", () => {
+    expect(flagsFor({ netInUsd: 100, inUsd: 100, outUsd: 0, manualTxs: 0 }, { autopilotOnly: true, startingCapitalUsd: 100 }, { fx: true })).toEqual(["a rule on USD/TRY, a test price the team sets"]);
   });
 });

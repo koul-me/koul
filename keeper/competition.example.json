@@ -1,0 +1,12 @@
+{
+  "id": "week1",
+  "name": "Koul Trading Competition",
+  "startsAt": "2026-10-30T15:00:00Z",
+  "endsAt": "2026-11-06T15:00:00Z",
+  "startingCapitalUsd": 100,
+  "startingBasket": { "USDC": 100, "XLM": 10000 },
+  "prize": "$300 prize pool: $150, $100 and $50 to the top three",
+  "autopilotOnly": true,
+  "excludeTokens": [],
+  "maxEntrants": 300
+}

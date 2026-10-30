@@ -7,10 +7,12 @@
  * - A bare number, or "make it 51", answers that question or changes the current draft.
  * - In editing mode, "make the lira exit 51" or "set rule 2 to 1.3" changes that rule in the list.
  * - Anything outside the router's vocabulary is unsupported, with what Koul can watch and do.
+ * - While USD/TRY is off (lib/fx.ts), a sentence about the lira or USD/TRY is unsupported with that note.
  */
 import { newId, POOLS, type Condition, type ConditionKind, type PoolId, type Rule } from "@/lib/model/autopilot";
 import { actionShort } from "@/lib/model/labels";
 import { parseSentence } from "@/lib/sentence";
+import { FX_OFF_NOTE, FX_ON } from "@/lib/fx";
 import type { ChatReply, ChatMessage } from "./reducer";
 import type { LiveContext } from "./schema";
 
@@ -25,7 +27,9 @@ const insertionIndex = (rules: Rule[], rule: Rule): number => {
   return i < 0 ? rules.length : i;
 };
 
-export const UNSUPPORTED = "Koul cannot do that. It can watch loan health, hub rates, USD/TRY, token prices and your wallet, and it can repay, move between hubs, supply, withdraw, or swap between USDC and XLM, ETH, SOL, XRP, BTC, USDT or EURC.";
+export const UNSUPPORTED = `Koul cannot do that. It can watch loan health, hub rates, ${FX_ON ? "USD/TRY, " : ""}token prices and your wallet, and it can repay, move between hubs, supply, withdraw, or swap between USDC and XLM, ETH, SOL, XRP, BTC, USDT or EURC.`;
+/** A sentence about the lira or USD/TRY, which has no answer while USD/TRY is off. */
+const ASKS_FX = /lira|usd ?\/ ?try|usdtry|dolar|\bkur\b|exchange rate|\bfx\b/i;
 
 function subjectOf(c: Condition): string {
   switch (c.kind) {
@@ -92,6 +96,7 @@ export function answerLocally(messages: ChatMessage[], rules: Rule[], mode: "liv
   const last = messages[messages.length - 1];
   const text = last?.role === "user" ? last.text.trim() : "";
   if (!text) return { kind: "unsupported", message: UNSUPPORTED };
+  if (!FX_ON && ASKS_FX.test(text)) return { kind: "unsupported", message: `${FX_OFF_NOTE} ${UNSUPPORTED.replace("Koul cannot do that. It", "Koul")}` };
   const prev = [...messages].reverse().find((m) => m.role === "koul");
   const value = numberIn(text);
   const onlyNumberOrMakeIt = value !== null && /^(?:make it|set it to|change it to|use)?\s*\d+(?:[.,]\d+)?\s*%?$/i.test(text);

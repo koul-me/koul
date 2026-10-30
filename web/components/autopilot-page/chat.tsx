@@ -18,18 +18,19 @@ import type { LiveContext } from "@/lib/chat/schema";
 import type { Rule } from "@/lib/model/autopilot";
 import { cooldownShort } from "@/lib/model/labels";
 import { cn } from "@/lib/utils";
+import { FX_ON } from "@/lib/fx";
 
 /** The send and stop buttons pop in and out rather than sitting there disabled. */
 const pop = { initial: { opacity: 0, scale: 0.6 }, animate: { opacity: 1, scale: 1 }, exit: { opacity: 0, scale: 0.6 }, transition: SPRING } as const;
 
 export const SUGGESTIONS: { label: string; text: string }[] = [
-  { label: "Exit if the lira drops", text: "Exit if the lira drops" },
+  FX_ON ? { label: "Exit if the lira drops", text: "Exit if the lira drops" } : { label: "Buy the XLM dip", text: "Buy XLM with 10 USDC from my wallet if its price drops 10% from today" },
   { label: "Chase the best rate", text: "Keep my USDC in whichever hub pays more" },
   { label: "Repay before liquidation", text: "Repay my debt from my wallet if my health drops under 1.25" },
   { label: "Put idle USDC to work", text: "Whenever I have more than 50 USDC sitting in my wallet, supply it to the hub that pays most" },
 ];
 
-const PLACEHOLDER = "Pull everything back to my wallet if USD/TRY passes 50";
+const PLACEHOLDER = FX_ON ? "Pull everything back to my wallet if USD/TRY passes 50" : "Sell half of my XLM for USDC if XLM goes over $0.25";
 
 export interface ChatProps {
   mode: "live" | "editing";

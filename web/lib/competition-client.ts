@@ -1,7 +1,7 @@
 /**
  * Entering the competition from the browser: ask for a challenge, have the wallet's passkey sign it (one prompt), send
  * the signature with the handle and email. The entry counts once the person opens the link in the email.
- *   const r = await enterCompetition({ wallet: w.address, handle: "ada", email: "ada@example.com" });
+ *   const r = await enterCompetition({ wallet: w.address, handle: "ada", email: "ada@example.com", acceptedTerms: true });
  */
 const b64urlToBytes = (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "=")), (c) => c.charCodeAt(0));
 const bytesToB64url = (b: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -14,7 +14,8 @@ function rpId(): string | undefined {
 
 export interface EnterResult { handle: string; emailSent: boolean }
 
-export async function enterCompetition(input: { wallet: string; handle: string; email: string }): Promise<EnterResult> {
+/** `acceptedTerms` is the "18 or older and accept the terms" box; the route refuses an entry without it. */
+export async function enterCompetition(input: { wallet: string; handle: string; email: string; acceptedTerms: true }): Promise<EnterResult> {
   const post = async (path: string, body: unknown) => {
     const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const json = (await r.json().catch(() => ({}))) as { error?: string };

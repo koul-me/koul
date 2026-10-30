@@ -4,6 +4,7 @@
  * place instead of inventing. A Claude-backed route can replace `parseSentence` with the same return shape.
  */
 import { makeRule, RULE_DEFAULTS, type ConditionKind, type Rule } from "@/lib/model/autopilot";
+import { FX_ON } from "@/lib/fx";
 
 export interface ParseResult {
   rules: Rule[];
@@ -78,9 +79,9 @@ export function parseSentence(input: string): ParseResult {
       rules.push(makeRule({ name: "Best rate", conditions: [{ kind: "rate_gap", comparator: "gte", value: value ?? RULE_DEFAULTS.rate_gap.value }], action: { kind: "move_to_best_pool", amount: "all" }, cooldownSec: cd ?? RULE_DEFAULTS.rate_gap.cooldownSec, inferred }));
       placed = true;
     }
-    // FX exit
+    // FX exit, only while USD/TRY is on (lib/fx.ts); otherwise the clause is reported as unplaced.
     // "the lira drops" is USD/TRY rising, the same exit.
-    if (/lira|try\b|usd\/try|dollar|dolar|kur|exchange rate|fx/.test(c) && /pass|cross|above|over|reach|hits?|goes? past|exceeds?|>=|>|drops?|falls?|weakens?|slides?|crash|geç|aş|üst|üzer|düş/.test(c) && !has("fx_price")) {
+    if (FX_ON && /lira|try\b|usd\/try|dollar|dolar|kur|exchange rate|fx/.test(c) && /pass|cross|above|over|reach|hits?|goes? past|exceeds?|>=|>|drops?|falls?|weakens?|slides?|crash|geç|aş|üst|üzer|düş/.test(c) && !has("fx_price")) {
       const v = num(c, /(?:pass(?:es)?|cross(?:es)?|above|over|reach(?:es)?|hits?|past|exceeds?|>=?)\s*(\d+(?:[.,]\d+)?)/) ?? num(c, /(\d+(?:[.,]\d+)?)(?:'?[yiıu]?[ıiuü])?\s*(?:geç|aş|üst|üzer)/) ?? num(c, /(\d{2}(?:[.,]\d+)?)/);
       const cd = cooldownFrom(c);
       const inferred: string[] = [];
@@ -96,6 +97,6 @@ export function parseSentence(input: string): ParseResult {
   const order: Record<ConditionKind, number> = { health_factor: 0, pool_rate: 1, rate_gap: 2, fx_price: 3, token_price: 4, token_balance: 5, idle_usdc: 6 };
   rules.sort((a, b) => order[a.conditions[0].kind] - order[b.conditions[0].kind]);
 
-  const name = rules.length === 3 ? "Lira shield" : rules.length === 1 ? rules[0].name : rules.length ? "My autopilot" : "Untitled autopilot";
+  const name = rules.length === 3 && has("fx_price") ? "Lira shield" : rules.length === 1 ? rules[0].name : rules.length ? "My autopilot" : "Untitled autopilot";
   return { rules, unplaced, name };
 }

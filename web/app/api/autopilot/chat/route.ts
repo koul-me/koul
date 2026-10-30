@@ -4,7 +4,8 @@
  * quick replies, or unsupported. A model answers when a parser key is configured; the local keyword answerer
  * otherwise. Whatever answers is checked against the schema and the router's pairing rules; a model answer that
  * fails is asked once more with the reason, and only a second failure is a 502 that the page shows as an error with
- * Retry. The key never leaves this process.
+ * Retry. The key never leaves this process. While USD/TRY is off (lib/fx.ts) the model is not offered "fx_price",
+ * any reading of it is withheld, and a reply that adds or changes a USD/TRY condition is rejected and asked again.
  */
 import { parserSettings } from "@koul/core/server";
 import { answerLocally } from "@/lib/chat/fallback";
@@ -13,18 +14,25 @@ import type { Rule } from "@/lib/model/autopilot";
 import { pairingProblem } from "@/lib/model/pairing";
 import { SWAP_TOKENS, TOKEN_SYMBOLS } from "@/lib/koul";
 import { rateLimit } from "@/lib/rate-limit";
+import { FX_OFF_NOTE, FX_ON, fxProblem } from "@/lib/fx";
 
 const TOKENS = SWAP_TOKENS.map((t) => `${t.symbol} (${t.name})`).join(", ");
 const SELL_ONLY = SWAP_TOKENS.filter((t) => !t.buys).map((t) => t.symbol).join(", ");
 
 export const runtime = "nodejs";
 
-const SYSTEM = `You are Koul, a savings autopilot on Stellar. Turn what the user says into rules the router can run, in a short conversation, and answer with exactly one call of the "reply" tool.
-Vocabulary. Conditions (kind, comparator "gte" or "lte", value): "fx_price" USD/TRY as people say it (48.79); "health_factor" loan health (liquidation at 1.00); "rate_gap" the difference between the two hubs' rates in percent points, only "gte"; "idle_usdc" USDC sitting in the wallet; "pool_rate" one hub's APY percent with "pool" "A" (hub 1) or "B" (hub 2); "token_price" a token's price in US dollars with "token" (XLM 0.17, ETH 2338); "token_balance" how much of a token the wallet holds, with "token". Actions (kind, amount "all", a number, or {"percent": 1..100} for a share of what the action could move, e.g. "half of my supplied USDC" is {"percent": 50}): "withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool" (only with a rate_gap condition, and rate_gap only with it), "supply_from_wallet" with "pool" (for "supply it to the hub that pays most" pick the pool with the higher rate in the live readings; that is supply_from_wallet, not move_to_best_pool), "sell_token" (swap a token in the wallet into USDC; a number is that token), "buy_token" (swap idle wallet USDC into a token; a number is USDC), "withdraw_to_token" (take supplied USDC out of the hubs and swap it into a token; a number is USDC), each with "token". Swaps run through the XOXNO aggregator and the router refuses any fill more than 1% under the oracle price. Swaps only between USDC and these tokens: ${TOKENS}. On testnet ${SELL_ONLY} can be sold but not bought; say so instead of drafting a buy of them. One to three conditions per rule ("match" "all" or "any"), "cooldownSec" the wait between runs (600 for exits and repayments, 3600 for yield moves and swaps unless the user says otherwise), "inferred" the field paths you filled in, "enabled" true. Never invent anything outside this list: no other tokens or token-to-token swaps, borrows, TRY payouts, transfers to other addresses, schedules by date.
+/** The system prompt. `fx` offers USD/TRY; without it the model is told USD/TRY is not available right now. */
+function systemPrompt(fx: boolean): string {
+  return `You are Koul, a savings autopilot on Stellar. Turn what the user says into rules the router can run, in a short conversation, and answer with exactly one call of the "reply" tool.
+Vocabulary. Conditions (kind, comparator "gte" or "lte", value): ${fx ? `"fx_price" USD/TRY as people say it (48.79); ` : ""}"health_factor" loan health (liquidation at 1.00); "rate_gap" the difference between the two hubs' rates in percent points, only "gte"; "idle_usdc" USDC sitting in the wallet; "pool_rate" one hub's APY percent with "pool" "A" (hub 1) or "B" (hub 2); "token_price" a token's price in US dollars with "token" (XLM 0.17, ETH 2338); "token_balance" how much of a token the wallet holds, with "token". Actions (kind, amount "all", a number, or {"percent": 1..100} for a share of what the action could move, e.g. "half of my supplied USDC" is {"percent": 50}): "withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool" (only with a rate_gap condition, and rate_gap only with it), "supply_from_wallet" with "pool" (for "supply it to the hub that pays most" pick the pool with the higher rate in the live readings; that is supply_from_wallet, not move_to_best_pool), "sell_token" (swap a token in the wallet into USDC; a number is that token), "buy_token" (swap idle wallet USDC into a token; a number is USDC), "withdraw_to_token" (take supplied USDC out of the hubs and swap it into a token; a number is USDC), each with "token". Swaps run through the XOXNO aggregator and the router refuses any fill more than 1% under the oracle price. Swaps only between USDC and these tokens: ${TOKENS}. On testnet ${SELL_ONLY} can be sold but not bought; say so instead of drafting a buy of them. One to three conditions per rule ("match" "all" or "any"), "cooldownSec" the wait between runs (600 for exits and repayments, 3600 for yield moves and swaps unless the user says otherwise), "inferred" the field paths you filled in, "enabled" true. Never invent anything outside this list: no other tokens or token-to-token swaps, borrows, TRY payouts, transfers to other addresses, schedules by date.${fx ? "" : ` USD/TRY is off: never write an "fx_price" condition. Rules the user already has may carry one; keep those unchanged and never add or change one. When the user asks about the lira, USD/TRY or the exchange rate, reply "unsupported" with a message that starts "${FX_OFF_NOTE}" and says what Koul can watch instead.`}
 Replies. "draft": the complete rule list to save, existing rules unchanged with their ids, the new or changed rule inserted where it should run (protection first, then exits, then yield moves; the router runs the first matching rule) and "position" its 1-based index; "message" one sentence, for a new rule say where it would run ("It would run second, before the rate rule."), for a change say what changed ("Changed rule 2 · 50.00 → 51.00"). "clarify": when one level is missing and you cannot infer it, ask one short question quoting today's reading and give two to four "choices" (numbers as strings) and the "pending" rule with a placeholder value. "unsupported": one sentence saying Koul cannot do that and what it can watch and do; do not guess.
-Follow-ups: a bare number or "make it 51" changes the level of the draft on the table (the last koul message carries "rules" and "position") or answers the pending question. In "editing" mode a sentence like "make the lira exit 51" changes that rule in the given list. Keep messages under 160 characters. New rule ids: "chat_<n>".`;
+Follow-ups: a bare number or "make it 51" changes the level of the draft on the table (the last koul message carries "rules" and "position") or answers the pending question. In "editing" mode a sentence like ${fx ? `"make the lira exit 51"` : `"set the health rule to 1.3"`} changes that rule in the given list. Keep messages under 160 characters. New rule ids: "chat_<n>".`;
+}
 
-const REPLY_TOOL = {
+const CONDITION_KINDS = ["fx_price", "health_factor", "rate_gap", "idle_usdc", "pool_rate", "token_price", "token_balance"] as const;
+
+/** The reply tool. `fx` keeps "fx_price" among the condition kinds: USD/TRY is on, or the user's rules already carry one. */
+const replyTool = (fx: boolean) => ({
   name: "reply",
   description: "The one reply to the user: a draft rule list, a clarifying question, or unsupported.",
   input_schema: {
@@ -38,7 +46,7 @@ const REPLY_TOOL = {
         type: "object", additionalProperties: false, required: ["id", "name", "conditions", "match", "action", "cooldownSec", "inferred", "enabled"],
         properties: {
           id: { type: "string" }, name: { type: "string" },
-          conditions: { type: "array", minItems: 1, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["kind", "comparator", "value"], properties: { kind: { type: "string", enum: ["fx_price", "health_factor", "rate_gap", "idle_usdc", "pool_rate", "token_price", "token_balance"] }, comparator: { type: "string", enum: ["gte", "lte"] }, value: { type: "number" }, pool: { type: "string", enum: ["A", "B"] }, token: { type: "string", enum: TOKEN_SYMBOLS } } } },
+          conditions: { type: "array", minItems: 1, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["kind", "comparator", "value"], properties: { kind: { type: "string", enum: fx ? CONDITION_KINDS : CONDITION_KINDS.filter((k) => k !== "fx_price") }, comparator: { type: "string", enum: ["gte", "lte"] }, value: { type: "number" }, pool: { type: "string", enum: ["A", "B"] }, token: { type: "string", enum: TOKEN_SYMBOLS } } } },
           match: { type: "string", enum: ["all", "any"] },
           action: { type: "object", additionalProperties: false, required: ["kind", "amount"], properties: { kind: { type: "string", enum: ["withdraw_to_wallet", "repay_from_wallet", "move_to_best_pool", "supply_from_wallet", "sell_token", "buy_token", "withdraw_to_token"] }, amount: { oneOf: [{ type: "string", enum: ["all"] }, { type: "number" }, { type: "object", additionalProperties: false, required: ["percent"], properties: { percent: { type: "integer", minimum: 1, maximum: 100 } } }] }, pool: { type: "string", enum: ["A", "B"] }, token: { type: "string", enum: TOKEN_SYMBOLS } } },
           cooldownSec: { type: "integer" }, inferred: { type: "array", items: { type: "string" } }, enabled: { type: "boolean" },
@@ -49,11 +57,13 @@ const REPLY_TOOL = {
       pending: { type: "object" },
     },
   },
-} as const;
+});
 
 /** `rejected` is why the previous answer failed the checks; the model sees it and answers again. */
 async function askModel(req: ChatRequest, rejected?: string): Promise<unknown> {
   const { provider, apiKey, model, baseUrl } = parserSettings();
+  const SYSTEM = systemPrompt(FX_ON);
+  const REPLY_TOOL = replyTool(FX_ON || req.rules.some((r) => r.conditions.some((c) => c.kind === "fx_price")));
   const user = JSON.stringify({ mode: req.mode, live: req.live, rules: req.rules, conversation: req.messages, ...(rejected ? { your_previous_reply_was_rejected: rejected } : {}) });
   if (provider === "anthropic") {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -81,9 +91,12 @@ async function askModel(req: ChatRequest, rejected?: string): Promise<unknown> {
 
 /** Everything a reply must satisfy beyond its shape: the router's pairings, and existing rules kept as they were. */
 function checkReply(reply: ChatReplyWire, req: ChatRequest): string | null {
+  const known = new Map(req.rules.map((r) => [r.id, JSON.stringify(r)]));
   for (const r of [...(reply.rules ?? []), ...(reply.pending ? [reply.pending] : [])]) {
     const problem = pairingProblem(r as Rule);
     if (problem) return problem;
+    // A USD/TRY rule the user already has may ride along unchanged; a new or changed one may not while it is off.
+    if (known.get(r.id) !== JSON.stringify(r) && fxProblem(r)) return FX_OFF_NOTE;
   }
   if (reply.kind === "draft" && reply.rules) {
     const known = new Map(req.rules.map((r) => [r.id, r]));
@@ -100,7 +113,8 @@ export async function POST(request: Request): Promise<Response> {
   try { raw = await request.json(); } catch { return Response.json({ error: "Invalid JSON" }, { status: 400 }); }
   const parsed = chatRequestSchema.safeParse(raw);
   if (!parsed.success) return Response.json({ error: "The request does not match the chat contract" }, { status: 400 });
-  const req = parsed.data;
+  // While USD/TRY is off the model never sees a reading of it.
+  const req: ChatRequest = FX_ON ? parsed.data : { ...parsed.data, live: { ...parsed.data.live, fx: null } };
   const { apiKey } = parserSettings();
   let rejected: string | undefined;
   // The local answerer is deterministic, so only a model gets a second try.

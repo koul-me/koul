@@ -18,6 +18,7 @@ import { fmtUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DEMO_ON, DemoSection } from "@/components/account/demo";
 import { useAppHref } from "@/lib/app-base";
+import { TELEGRAM_URL } from "@/lib/community";
 
 /** Two decimals from one coin up; below that, enough to show a swap's worth of ETH or BTC (0.006421). */
 const fmtCoin = (n: number) => n.toLocaleString("en-US", n >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 });
@@ -105,13 +106,20 @@ export default function AccountPage() {
         <div className="mt-2 divide-y divide-line">
           <KeyValue label="Method" value="PASSKEY" />
           <KeyValue label="Network" value="TESTNET" />
+          {TELEGRAM_URL && (
+            <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-12 items-center justify-between gap-4 py-2 transition-colors hover:text-accent-text">
+              <Label>Community</Label>
+              <span className="text-[15px] font-semibold">Koul on Telegram</span>
+            </a>
+          )}
           <label className="flex min-h-12 cursor-pointer items-center justify-between gap-4 py-2">
             <Label>Light theme</Label>
             <Switch checked={light} onCheckedChange={(v) => switchTheme(v ? "light" : "dark")} aria-label="Light theme" disabled={!mounted} className={cn(!mounted && "[&_*]:!transition-none")} />
           </label>
         </div>
         <div className="mt-4 grid gap-3 md:mt-auto">
-          <PillButton variant="ghost" size="lg" full onClick={() => void fund()} disabled={funding} aria-busy={funding}>{funding ? "Asking friendbot" : "Get test XLM"}</PillButton>
+          {/* Only for a wallet with no XLM: a top-up is XLM from outside, which takes a competition entry off the board. */}
+          {pf.positions.idleXlm === 0 && <PillButton variant="ghost" size="lg" full onClick={() => void fund()} disabled={funding} aria-busy={funding}>{funding ? "Asking friendbot" : "Get test XLM"}</PillButton>}
           <PillButton variant="outline" size="lg" full onClick={() => void w.disconnect()}>Disconnect</PillButton>
         </div>
       </Tile>

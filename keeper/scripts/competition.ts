@@ -4,15 +4,16 @@
  * the moves the autopilot did not make, value the holdings at the Reflector price, and write the score. Then rank
  * everyone and write the board the web routes serve. Scoring rules: @koul/core competition.ts.
  *   pnpm competition [--loop] [--every 120]      index once, or every N seconds
- *   pnpm competition config <file.json>          store the competition settings (CompetitionConfig)
+ *   pnpm competition config <file.json> [--dry]  store the competition settings (CompetitionConfig); a missing
+ *                                                startLedger/endLedger is worked out from startsAt/endsAt
  *   pnpm competition add <wallet> <handle>       add an entrant by hand (testing, or a support case)
  * Without settings stored, it does nothing.
  */
 import { readFileSync } from "node:fs";
 import { Address, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import {
-  COMP_KEYS, KoulReader, OPENING_TOLERANCE_USD, SWAP_TOKENS, rpcMessage, USDC_TESTNET, XOXNO_POSITION_NFT, counterpartyKind, flagsFor, rank, score, valueUsd,
-  type CompetitionConfig, type EntrantRecord, type EntrantScore, type EntryState, type Flow, type LeaderboardRow, type Prices, type ScoredToken,
+  COMP_KEYS, KoulReader, OPENING_TOLERANCE_USD, SWAP_TOKENS, rpcMessage, USDC_TESTNET, XOXNO_POSITION_NFT, capitalCheck, capitalOpening, counterpartyKind, flagsFor, fxRules, insideMoves, rank, score, valueUsd,
+  type CompetitionConfig, type EntrantRecord, type EntrantScore, type EntryState, type Flow, type InsideMove, type LeaderboardRow, type Prices, type ScoredToken,
 } from "@koul/core";
 import { TESTNET, XOXNO, keeperKeypair, loadEnv } from "../src/lib/common";
 import { pipeline, redis } from "../src/lib/status";
@@ -22,11 +23,11 @@ const server = new rpc.Server(TESTNET.rpcUrl);
 const REFLECTOR = "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63";
 const ROUTER = env.ROUTER_V1 ?? "CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D";
 const ALL_TOKENS: ScoredToken[] = [{ ...USDC_TESTNET, feed: null }, ...SWAP_TOKENS.map((t) => ({ symbol: t.symbol, id: t.id, decimals: t.decimals, feed: t.feed }))];
-/** Set per run from the settings: every wallet gets 10,000 test XLM for fees, which is gas, not capital. */
+/** Set per run from the settings' excludeTokens (none by default: XLM counts). */
 let TOKENS: ScoredToken[] = ALL_TOKENS;
 let BY_ID = new Map(TOKENS.map((t) => [t.id, t]));
-/** Opening the XOXNO account at the first Start autopilot supplies 1 USDC by hand; that one is not a manual move. */
-const ACCOUNT_OPENING_USDC = 1_0000000n;
+/** Testnet closes a ledger every 5 s (measured 5.0005 s over the last 100,000 on 2026-10-30). */
+const LEDGER_SECONDS = 5;
 const HISTORY_EVERY_MS = 15 * 60_000;
 const PARALLEL = 8;
 const PAGE = 200;
@@ -132,6 +133,16 @@ async function holdings(wallet: string, state: EntryState, sac: SacBalances, sac
   return { tokens, supplied, borrowed };
 }
 
+/**
+ * Whether the wallet's autopilots carry a rule on the mock FX oracle (every FxPrice condition reads it). Read once per
+ * run, and not at all once seen: the flag stays for the rest of the competition.
+ */
+async function checkFx(wallet: string, state: EntryState, latest: number): Promise<void> {
+  if (state.fxSeenLedger !== undefined) return;
+  const ids = await reader.listIds(wallet);
+  if (fxRules(await Promise.all(ids.map((id) => reader.readAutopilot(wallet, id)))) > 0) state.fxSeenLedger = latest;
+}
+
 async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest: number, oldest: number, prices: Prices, walletWasm: Set<string>, sac: SacBalances, sacTokens: Set<string>): Promise<EntrantScore> {
   const state = parse<EntryState>(await redis(env, "GET", COMP_KEYS.totals(rec.wallet))) ?? { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: config.startLedger - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
   state.swapEdgeUsd ??= 0;
@@ -140,9 +151,8 @@ async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest:
   const newFlows: Flow[] = [];
   if (from <= end) {
     const { transfers, fired } = await walletActivity(rec.wallet, from, end);
-    const internalByTx = new Map<string, { usdcToProtocol: bigint; other: boolean }>();
-    /** Per transaction, the USD at the oracle price of what went out to protocols and what came back. */
-    const swapLegs = new Map<string, { outUsd: number; inUsd: number; tokens: Set<string> }>();
+    const inside: InsideMove[] = [];
+    const outside = state.outsideUnits ??= {};
     for (const e of transfers) {
       const token = BY_ID.get(e.contractId?.toString() ?? "");
       if (!token) continue;
@@ -163,24 +173,14 @@ async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest:
       if (where === "external") {
         newFlows.push({ ledger: e.ledger, txHash: e.txHash, token: token.symbol, amount: (incoming ? amount : -amount).toString(), usd: incoming ? usd : -usd, counterparty });
         if (incoming) state.inUsd += usd; else state.outUsd += usd;
+        outside[token.symbol] = (BigInt(outside[token.symbol] ?? "0") + (incoming ? amount : -amount)).toString();
       } else {
-        const legs = swapLegs.get(e.txHash) ?? { outUsd: 0, inUsd: 0, tokens: new Set<string>() };
-        if (incoming) legs.inUsd += usd; else legs.outUsd += usd;
-        legs.tokens.add(token.symbol);
-        swapLegs.set(e.txHash, legs);
-      }
-      if (where !== "external" && !fired.has(e.txHash)) {
-        const t = internalByTx.get(e.txHash) ?? { usdcToProtocol: 0n, other: false };
-        if (token.symbol === "USDC" && !incoming) t.usdcToProtocol += amount; else t.other = true;
-        internalByTx.set(e.txHash, t);
+        inside.push({ txHash: e.txHash, token: token.symbol, incoming, amount, usd });
       }
     }
-    for (const t of internalByTx.values()) if (t.other || t.usdcToProtocol > ACCOUNT_OPENING_USDC) state.manualTxs++;
-    // A swap is a transaction with a token going out and a different one coming back. What came back above what went
-    // out, both at the oracle price, is the venue's edge: capital, not profit. A swap that paid less is a real loss.
-    for (const legs of swapLegs.values()) {
-      if (legs.tokens.size >= 2 && legs.outUsd > 0 && legs.inUsd > legs.outUsd) state.swapEdgeUsd += legs.inUsd - legs.outUsd;
-    }
+    const moved = insideMoves(inside, fired);
+    state.manualTxs += moved.manualTxs;
+    state.swapEdgeUsd += moved.swapEdgeUsd;
     state.toLedger = end;
     state.flows += newFlows.length;
   }
@@ -189,10 +189,14 @@ async function indexEntry(rec: EntrantRecord, config: CompetitionConfig, latest:
   if (Number.isNaN(state.openingUsd ?? Number.NaN)) {
     const unexplained = value.usd - (state.inUsd - state.outUsd + state.swapEdgeUsd);
     state.openingUsd = unexplained > OPENING_TOLERANCE_USD ? unexplained : 0;
+    // The capital check values the basket and every outside flow at these same prices, so price moves never flag.
+    state.openingPrices = { ...prices };
+    state.capitalOpeningUsd = capitalOpening(value.usd, state.outsideUnits ?? {}, state.swapEdgeUsd, TOKENS, prices);
   }
   state.netInUsd = state.inUsd - state.outUsd + state.openingUsd + state.swapEdgeUsd;
   const { pnlUsd, returnPct } = score(value.usd, state.netInUsd);
-  const flagReasons = flagsFor(state, config);
+  if (latest <= end) await checkFx(rec.wallet, state, latest).catch(() => undefined);
+  const flagReasons = flagsFor(state, config, { capital: capitalCheck(state, config.startingBasket, TOKENS), fx: state.fxSeenLedger !== undefined });
   const now = Date.now();
   const result: EntrantScore = {
     wallet: rec.wallet, handle: rec.handle, valueUsd: value.usd, pnlUsd, returnPct, netInUsd: state.netInUsd, inUsd: state.inUsd, outUsd: state.outUsd,
@@ -226,7 +230,7 @@ async function prices(): Promise<Prices> {
 async function run(): Promise<boolean> {
   const config = parse<CompetitionConfig>(await redis(env, "GET", COMP_KEYS.config));
   if (!config) { console.log(`${stamp()} competition: no settings stored, nothing to do`); return false; }
-  const excluded = new Set(config.excludeTokens ?? ["XLM"]);
+  const excluded = new Set(config.excludeTokens ?? []);
   TOKENS = ALL_TOKENS.filter((t) => !excluded.has(t.symbol));
   BY_ID = new Map(TOKENS.map((t) => [t.id, t]));
   const wallets = ((await redis(env, "SMEMBERS", COMP_KEYS.entrants)) as string[] | null) ?? [];
@@ -236,6 +240,9 @@ async function run(): Promise<boolean> {
   const latest = health.latestLedger!, oldest = (health.oldestLedger ?? 1) + 1;
   if (latest < config.startLedger) { console.log(`${stamp()} competition: starts at ledger ${config.startLedger}, now ${latest}`); return true; }
   const p = await prices();
+  // A basket token without a price would value most of every wallet at 0 (XLM) or fix a wrong opening: skip the run.
+  const missing = TOKENS.filter((t) => t.feed !== null && config.startingBasket?.[t.symbol] && p[t.feed] === undefined).map((t) => t.symbol);
+  if (missing.length) { console.log(`${stamp()} competition: no Reflector price for ${missing.join(", ")}, skipping this run`); return true; }
   // Every entrant's wallet runs the same smart-account wasm; a transfer with one of those is between people.
   const walletWasm = new Set((await Promise.all(records.map((r) => wasmHash(r.wallet)))).filter((h): h is string => h !== null));
   // Built-in tokens (no wasm of their own) can be read from their ledger entries, all entrants at once.
@@ -258,12 +265,24 @@ async function run(): Promise<boolean> {
 
 // ---- Commands ----
 
+/** The ledger that closes at `iso`, from the latest one and the testnet's 5 s close time; exact to a ledger or two over a week. */
+async function ledgerAt(iso: string): Promise<number> {
+  const l = await server.getLatestLedger();
+  return l.sequence + Math.round((Date.parse(iso) / 1000 - Number(l.closeTime)) / LEDGER_SECONDS);
+}
+
 const [cmd, a1, a2] = process.argv.slice(2);
 if (cmd === "config") {
   const config = JSON.parse(readFileSync(a1!, "utf8")) as CompetitionConfig;
+  if (config.startLedger === undefined && config.startsAt) config.startLedger = await ledgerAt(config.startsAt);
+  if (config.endLedger === undefined) config.endLedger = config.endsAt ? await ledgerAt(config.endsAt) : null;
   for (const k of ["id", "name", "startLedger", "startingCapitalUsd", "autopilotOnly"] as const) if (config[k] === undefined) throw new Error(`config needs ${k}`);
-  await redis(env, "SET", COMP_KEYS.config, JSON.stringify(config));
-  console.log(`stored: ${config.name}, ledgers ${config.startLedger} to ${config.endLedger ?? "open"}, ${config.startingCapitalUsd} USD each, autopilot only: ${config.autopilotOnly}`);
+  const unknown = Object.keys(config.startingBasket ?? {}).filter((s) => !ALL_TOKENS.some((t) => t.symbol === s) || config.excludeTokens?.includes(s));
+  if (unknown.length) throw new Error(`startingBasket has tokens the scoring does not value: ${unknown.join(", ")}`);
+  const dry = process.argv.includes("--dry");
+  if (!dry) await redis(env, "SET", COMP_KEYS.config, JSON.stringify(config));
+  const basket = config.startingBasket ? Object.entries(config.startingBasket).map(([s, n]) => `${n} ${s}`).join(" + ") : `${config.startingCapitalUsd} USD`;
+  console.log(`${dry ? "would store (--dry)" : "stored"}: ${config.name}, ledgers ${config.startLedger} to ${config.endLedger ?? "open"}, ${basket} each, autopilot only: ${config.autopilotOnly}, entrants: ${config.maxEntrants ?? "no cap"}`);
 } else if (cmd === "add") {
   const rec: EntrantRecord = { wallet: a1!, handle: a2!, email: "", registeredAt: Date.now(), verifiedAt: Date.now() };
   await pipeline(env, [["SET", COMP_KEYS.entrant(rec.wallet), JSON.stringify(rec)], ["SET", COMP_KEYS.handle(rec.handle), rec.wallet], ["SADD", COMP_KEYS.entrants, rec.wallet]]);

@@ -6,6 +6,7 @@
 import type { Action as CoreAction, Amount as CoreAmount, Autopilot as CoreAutopilot, Condition as CoreCondition, Rule as CoreRule } from "@koul/core";
 import { LEDGER_SECONDS, MAX_PRICE_AGE_SECS, SWAP_SLIPPAGE_BPS, XOXNO, tokenById, tokenBySymbol, tryPerUsdToUsdPerTry, usdPerTryToTryPerUsd, type TokenSymbol } from "@/lib/koul";
 import { hubName } from "@/lib/model/hubs";
+import { FX_ON } from "@/lib/fx";
 
 // ---------------------------------------------------------------- pools
 
@@ -354,7 +355,7 @@ export interface Template {
   rules: () => Rule[];
 }
 
-export const TEMPLATES: Template[] = [
+const ALL_TEMPLATES: Template[] = [
   {
     id: "put-to-work",
     name: "Put it to work",
@@ -401,6 +402,9 @@ export const TEMPLATES: Template[] = [
     rules: () => [makeRule({ name: "Stay safe", conditions: [{ kind: "health_factor", comparator: "lte", value: 1.25 }], action: { kind: "repay_from_wallet", amount: "all" }, cooldownSec: 5 })],
   },
 ];
+
+/** The templates on offer: the ones that read USD/TRY only while it is on (lib/fx.ts). */
+export const TEMPLATES: Template[] = ALL_TEMPLATES.filter((t) => FX_ON || !t.rules().some((r) => r.conditions.some((c) => c.kind === "fx_price")));
 
 // ---------------------------------------------------------------- adapter to the router's Autopilot
 
@@ -539,7 +543,7 @@ function actionOf(a: CoreAction): { kind: ActionKind; token?: TokenSymbol; decim
   }
 }
 
-const RULE_NAMES: Record<ActionKind, (token: TokenSymbol) => string> = { supply_from_wallet: () => "Put it to work", move_to_best_pool: () => "Best rate", repay_from_wallet: () => "Stay safe", withdraw_to_wallet: () => "Lira exit", sell_token: (t) => `Sell ${t}`, buy_token: (t) => `Buy ${t}`, withdraw_to_token: (t) => `Into ${t}` };
+const RULE_NAMES: Record<ActionKind, (token: TokenSymbol) => string> = { supply_from_wallet: () => "Put it to work", move_to_best_pool: () => "Best rate", repay_from_wallet: () => "Stay safe", withdraw_to_wallet: () => (FX_ON ? "Lira exit" : "Withdraw"), sell_token: (t) => `Sell ${t}`, buy_token: (t) => `Buy ${t}`, withdraw_to_token: (t) => `Into ${t}` };
 
 export interface FoldedRules { rules: Rule[]; /** contract rule index -> index into `rules` */ contractToUi: number[] }
 
