@@ -168,8 +168,8 @@ export async function opsProblems(now = Date.now()): Promise<string[]> {
 
 /** A pass slower than this means rules react late; past it the keeper needs more channels, a faster RPC or a split. */
 const SLOW_PASS_MS = 60_000;
-/** The indexer runs every few minutes; a board older than this while the competition runs means it stopped. */
-const STALE_BOARD_MS = 15 * 60_000;
+/** The indexer runs every 15 minutes; a board older than three runs while the competition runs means it stopped. */
+const STALE_BOARD_MS = 45 * 60_000;
 
 /** What grows with users: keeper ticks failing, passes slowing down, the competition board going stale. */
 async function loadProblems(now: number): Promise<string[]> {

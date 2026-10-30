@@ -114,7 +114,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
               "What the wallet is worth is everything it holds, in US dollars at Reflector oracle prices: USDC, XLM, every other token, and USDC supplied on XOXNO minus anything borrowed. Testnet exchange prices are never used, because anyone can move them.",
               "Only trades your autopilot makes count. Write your rules in Koul and start the autopilot; it trades for you.",
               "If a swap pays more than the token is worth at the Reflector price, the extra is treated as added capital, not profit. Only price moves over time score.",
-              "Scores update every few minutes during the Competition. Two entries with the same return, rounded to four decimal places of a percent, share a rank.",
+              "Scores update about every 15 minutes during the Competition. Two entries with the same return, rounded to four decimal places of a percent, share a rank.",
             ]} />
           </Section>
 
@@ -184,7 +184,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
           <Section n={18} title="Privacy">
             <List items={[
               "Your handle, your wallet address, your score and your wallet's trades are public on the leaderboard. Wallet activity is public on the Stellar testnet anyway.",
-              "Your email is never shown. We use it only to run the Competition (contacting you about your entry and its results, contacting winners) and to send Koul updates. You can ask us to stop sending updates at any time.",
+              "Your email is never shown. We use it only to run the Competition (contacting you about your entry and its results, contacting winners). We do not send marketing email, and we do not share your email with anyone.",
               "We keep entry data for as long as the Competition and its payouts need it, and as the law requires.",
             ]} />
           </Section>

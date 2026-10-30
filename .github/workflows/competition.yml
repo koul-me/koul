@@ -1,6 +1,9 @@
-# Competition indexer: scores every verified entrant every five minutes and rewrites the leaderboard (see
+# Competition indexer: scores every verified entrant every 15 minutes and rewrites the leaderboard (see
 # keeper/scripts/competition.ts). With no competition configured it stops after one check, so the hourly schedule
-# costs seconds until there is one. Five minutes, not two: a run costs about five Redis commands per entrant.
+# costs seconds until there is one. Redis is Upstash's free plan (500,000 commands a month): a run reads and writes in
+# a few MGET/MSETs (about 4 commands at 300 entrants) plus an hourly history push per entrant, about 8,000 commands a
+# day at 300 entrants and not much more at 1,000 (the history interval stretches). Each run logs what it spent. The
+# web app's stale-board alert (web/lib/status-server.ts) allows 45 minutes, three runs.
 name: competition
 
 on:
@@ -26,11 +29,11 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Index every five minutes for 5h40m
+      - name: Index every 15 minutes for 5h40m
         working-directory: keeper
         env:
           KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
           KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
           KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
           ROUTER_V1: ${{ vars.ROUTER_V1 || 'CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D' }}
-        run: timeout 340m pnpm competition --loop --every 300 || [ $? -eq 124 ]
+        run: timeout 340m pnpm competition --loop --every 900 || [ $? -eq 124 ]

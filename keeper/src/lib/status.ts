@@ -28,6 +28,14 @@ export interface Heartbeat {
 }
 
 let warned = false;
+let spent = 0;
+
+/** Redis commands sent since the last call, then zero: every command inside a pipeline counts, as Upstash bills them. */
+export function takeCommandCount(): number {
+  const n = spent;
+  spent = 0;
+  return n;
+}
 
 export async function redis(env: Record<string, string | undefined>, ...command: (string | number)[]): Promise<unknown> {
   const url = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL;
@@ -36,6 +44,7 @@ export async function redis(env: Record<string, string | undefined>, ...command:
     if (!warned) { console.log(`${new Date().toISOString()} status   no KV_REST_API_URL / KV_REST_API_TOKEN, not reporting`); warned = true; }
     return null;
   }
+  spent++;
   try {
     const r = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(command.map(String)) });
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
@@ -64,7 +73,25 @@ export async function pipeline(env: Record<string, string | undefined>, commands
   const url = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL;
   const token = env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token || commands.length === 0) return commands.map(() => null);
+  spent += commands.length;
   const r = await fetch(`${url}/pipeline`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(commands.map((c) => c.map(String))) });
   if (!r.ok) throw new Error(`redis pipeline ${r.status} ${await r.text()}`);
   return ((await r.json()) as { result?: unknown; error?: string }[]).map((x) => (x.error ? null : x.result ?? null));
+}
+
+/**
+ * One command whose failure must stop the caller (a read it cannot score without, a write it must not take as done):
+ * throws on a failed request or a Redis error, where redis() only logs. Null without a store.
+ */
+export async function exec(env: Record<string, string | undefined>, command: (string | number)[]): Promise<unknown> {
+  const url = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL;
+  const token = env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  spent++;
+  const r = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(command.map(String)) });
+  const text = await r.text();
+  let body: { result?: unknown; error?: string } = {};
+  try { body = JSON.parse(text) as typeof body; } catch { body = { error: text }; }
+  if (!r.ok || body.error) throw new Error(`redis ${command[0]} ${r.status} ${body.error ?? ""}`.trim());
+  return body.result ?? null;
 }

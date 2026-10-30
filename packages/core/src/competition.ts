@@ -310,7 +310,54 @@ export interface EntryState extends EntryTotals {
   outsideUnits?: Record<string, string>;
   /** The first ledger a run saw the autopilot with a USD/TRY rule; once set it stays, and rules are no longer read. */
   fxSeenLedger?: number;
+  /** Points pushed onto the history list, so it is only trimmed once it can be over HISTORY_POINTS. */
+  historyPoints?: number;
 }
 
 /** Below this, an unexplained opening value is interest or rounding, not money from before the window. */
 export const OPENING_TOLERANCE_USD = 1;
+
+// ---- The indexer's Redis budget ----
+//
+// Production Redis is Upstash's free plan: 500,000 commands a month, each command inside a pipeline counted, but one
+// MGET or MSET is one command whatever the number of keys. So the indexer reads and writes the per-entry strings in a
+// few MGET/MSETs a run, and only the lists (flows, history) cost a command per entry.
+
+/** The longest an entry's history list gets (hourly points: about four months); its flows list keeps FLOW_POINTS. */
+export const HISTORY_POINTS = 3000;
+export const FLOW_POINTS = 500;
+/** History pushes a day across all entries. Up to 300 entries that is a point an hour each; past it the interval stretches. */
+export const HISTORY_PUSHES_PER_DAY = 7200;
+const HOUR_MS = 3600_000;
+
+/** How often each entry gets a history point: hourly, or longer once the field is big enough to spend HISTORY_PUSHES_PER_DAY. */
+export function historyEveryMs(entries: number): number {
+  return Math.max(HOUR_MS, Math.ceil((entries * 24 * HOUR_MS) / HISTORY_PUSHES_PER_DAY));
+}
+
+/** Largest request body the indexer sends (an MSET, a pipeline of list pushes); Upstash's free plan refuses over 1 MB. */
+export const REQUEST_MAX_BYTES = 400_000;
+
+const utf8 = (s: string) => new TextEncoder().encode(s).length;
+
+/** A command's size in a request body: each part as a JSON string, with its quotes and comma. */
+export const commandBytes = (parts: readonly (string | number)[]): number => parts.reduce<number>((n, p) => n + utf8(String(p)) + 3, 2);
+
+/** Items in order, in groups whose sizes add up to at most `maxBytes`; an item larger than that goes alone. */
+export function chunkBySize<T>(items: readonly T[], bytes: (item: T) => number, maxBytes = REQUEST_MAX_BYTES): T[][] {
+  const out: T[][] = [];
+  let group: T[] = [], size = 0;
+  for (const item of items) {
+    const n = bytes(item);
+    if (group.length && size + n > maxBytes) { out.push(group); group = []; size = 0; }
+    group.push(item);
+    size += n;
+  }
+  if (group.length) out.push(group);
+  return out;
+}
+
+/** Key-value pairs in groups that each fit one MSET request. */
+export function chunkPairs(pairs: readonly (readonly [string, string])[], maxBytes = REQUEST_MAX_BYTES): (readonly [string, string])[][] {
+  return chunkBySize(pairs, ([k, v]) => utf8(k) + utf8(v) + 6, maxBytes);
+}

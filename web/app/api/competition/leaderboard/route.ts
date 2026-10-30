@@ -1,4 +1,4 @@
-/** GET ?offset=0&limit=50: one page of the ranked board, refreshed by the indexer every couple of minutes. */
+/** GET ?offset=0&limit=50: one page of the ranked board, refreshed by the indexer about every 15 minutes. */
 import { leaderboard } from "@/lib/competition-server";
 
 export const dynamic = "force-dynamic";

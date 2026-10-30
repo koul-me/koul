@@ -33,7 +33,7 @@ const RULES = [
   "If a swap pays more than the oracle price, the extra counts as capital, not profit.",
   "USD/TRY is off during the competition, since that feed is a test price we set. A rule on USD/TRY takes the entry off the board, so delete any you have.",
   "Each wallet can make about 10 swaps every 3 hours.",
-  "Scores update every few minutes. The final board is the one at the end time, after the top entries are checked.",
+  "Scores update about every 15 minutes. The final board is the one at the end time, after the top entries are checked.",
   "Prizes are paid in USDC on Stellar mainnet: $150 for first, $100 for second, $50 for third.",
   "Winners are contacted in the Koul Telegram group, so you must join it to be paid.",
   "One entry per person, wallet and email. You must be 18 or older.",
