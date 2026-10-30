@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { FitValue, fitValueClass, Label, Loadable, PillButton, Sk, Tile, TileLabel } from "@/components/signal";
+import { FitValue, Label, Loadable, PillButton, Sk, Tile, TileLabel } from "@/components/signal";
 import { useCountUp } from "@/lib/count-up";
 import { fmtUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ export function PnlTile({ pnl, pnlPct, loading }: { pnl: number | null; pnlPct: 
       <TileLabel>PNL</TileLabel>
       <Loadable loading={loading} skeleton={skeleton} className="mt-auto">
         {pnl !== null && shown !== null ? (
-          <div className={cn(fitValueClass(text), pnl >= 0 ? "text-accent-text" : "text-danger")}>{text}</div>
+          <FitValue text={text} className={pnl >= 0 ? "text-accent-text" : "text-danger"} />
         ) : (
           <div className="flex h-9 items-center md:h-12"><span aria-label="No value" className="block h-1.5 w-12 rounded-full bg-dim" /></div>
         )}

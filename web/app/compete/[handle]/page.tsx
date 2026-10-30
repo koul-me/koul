@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import { PAGE_TITLE, STAT_VALUE } from "@/components/compete/type";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { HANDLE_PATTERN } from "@koul/core";
 import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
-import { Label, Tile, TileLabel, fitValueClass } from "@/components/signal";
+import { FitValue, Label, Tile, TileLabel } from "@/components/signal";
 import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
 import { HistoryChart } from "@/components/compete/history-chart";
 import { loadEntrant } from "@/lib/competition-load";
@@ -32,10 +33,10 @@ export default async function EntrantPage({ params, searchParams }: Props) {
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 py-6 md:px-8 md:py-10">
-        <CompeteHeader active={null} joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
+      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
+        <CompeteHeader section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
         <div className="grid gap-2">
-          <h1 className="t-title break-all">{handle}</h1>
+          <h1 className={`${PAGE_TITLE} break-all`}>{handle}</h1>
           <Label>{s ? `Scored ${agoOf(s.updatedAt, now)}` : "Waiting for the first score"}</Label>
         </div>
         {s?.flagged && (
@@ -89,7 +90,7 @@ function Stat({ label, value, lime }: { label: string; value: string; lime?: boo
   return (
     <Tile tone={lime ? "lime" : "surface"} className="grid gap-2 p-5">
       <TileLabel className={lime ? "text-on-lime" : undefined}>{label}</TileLabel>
-      <span className={fitValueClass(value)}>{value}</span>
+      <FitValue text={value} base={STAT_VALUE} />
     </Tile>
   );
 }

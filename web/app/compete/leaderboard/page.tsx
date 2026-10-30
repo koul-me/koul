@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PAGE_TITLE } from "@/components/compete/type";
 import Link from "next/link";
 import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
@@ -26,10 +27,10 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 py-6 md:px-8 md:py-10">
-        <CompeteHeader active="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
+      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
+        <CompeteHeader section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
         <div className="grid gap-2">
-          <h1 className="t-title">Leaderboard</h1>
+          <h1 className={PAGE_TITLE}>Leaderboard</h1>
           <Label>
             Return on the starting basket · {board.total} {board.total === 1 ? "trader" : "traders"} · scored {agoOf(board.updatedAt, now)}
           </Label>

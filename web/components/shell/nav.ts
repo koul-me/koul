@@ -10,7 +10,7 @@ export const TABS: Tab[] = [
   { href: "/", label: "Home", icon: House, active: (p) => p === "/" },
   { href: "/autopilot", label: "Autopilot", icon: SlidersHorizontal, active: (p) => p.startsWith("/autopilot") },
   { href: "/activity", label: "Activity", icon: List, active: (p) => p.startsWith("/activity") },
-  { href: "/join", label: "Compete", icon: Trophy, active: (p) => p.startsWith("/join") },
+  { href: "/join", label: "Compete", icon: Trophy, active: (p) => p.startsWith("/join") || p.startsWith("/compete") },
   { href: "/account", label: "Account", icon: User, active: (p) => p.startsWith("/account") || p.startsWith("/deposit") || p.startsWith("/withdraw") },
 ];
 

@@ -1,22 +1,37 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { KoulMark } from "@/components/brand/koul-mark";
 import { PillButton } from "@/components/signal";
 import { TELEGRAM_URL } from "@/lib/community";
-import { cn } from "@/lib/utils";
+import { isAppHost } from "@/lib/app-host";
+import { CompeteAppBar } from "./app-bar";
+import { SectionNav, type Section } from "./section-nav";
 
-const link = "label inline-flex min-h-11 items-center rounded-full px-3 transition-colors hover:text-text";
+/** This request's host is the app's (app.koul.me, app.localhost): the competition pages then use the app's frame. */
+export async function onAppHost(): Promise<boolean> {
+  return isAppHost((await headers()).get("host") ?? "");
+}
 
-/** The competition pages' header: the wordmark home, the two pages, and Join while entries are open. */
-export function CompeteHeader({ active, joinable }: { active: "compete" | "leaderboard" | null; joinable: boolean }) {
+/**
+ * The competition pages' header and section row. On the app host: the app's own bar, so the wordmark leads back
+ * into the app. On koul.me: the wordmark to the landing and Join while entries are open. The section row
+ * (Overview, Leaderboard, My entry) is the same on both.
+ */
+export async function CompeteHeader({ section, joinable }: { section: Section; joinable: boolean }) {
+  const app = await onAppHost();
+  const entryHref = app ? "/join" : "/app/join";
   return (
-    <header className="flex items-center justify-between gap-3">
-      <a href="https://koul.me" className="inline-flex items-center gap-2 text-[24px] font-extrabold tracking-tight"><KoulMark className="size-7" />KOUL</a>
-      <nav className="flex items-center gap-1" aria-label="Competition">
-        <Link href="/compete" className={cn(link, active === "compete" ? "text-text" : "text-muted", "hidden sm:inline-flex")}>Competition</Link>
-        <Link href="/compete/leaderboard" className={cn(link, active === "leaderboard" ? "text-text" : "text-muted")}>Leaderboard</Link>
-        {joinable && <PillButton href="/app/join" size="md" className="ml-2">Join</PillButton>}
-      </nav>
-    </header>
+    <div className="grid gap-5">
+      {app ? (
+        <CompeteAppBar />
+      ) : (
+        <header className="flex items-center justify-between gap-3">
+          <a href="https://koul.me" className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</a>
+          {joinable && <PillButton href={entryHref} size="md">Join</PillButton>}
+        </header>
+      )}
+      <SectionNav active={section} entryHref={entryHref} />
+    </div>
   );
 }
 

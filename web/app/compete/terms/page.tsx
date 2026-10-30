@@ -6,6 +6,7 @@
  * The window and the starting capital come from the stored competition config; the prize split is fixed here because
  * the config only holds the display string.
  */
+import { PAGE_TITLE } from "@/components/compete/type";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ThemeColor } from "@/components/shell/theme-color";
@@ -44,11 +45,11 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <ThemeColor />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 py-6 md:px-8 md:py-10">
-        <CompeteHeader active={null} joinable={joinable} />
+      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
+        <CompeteHeader section="overview" joinable={joinable} />
         <div className="grid gap-3">
           <Label tone="lime">Koul Trading Competition</Label>
-          <h1 className="t-title">Official rules and participant agreement</h1>
+          <h1 className={PAGE_TITLE}>Official rules and participant agreement</h1>
           <p className="max-w-[60ch] text-[17px] text-muted">
             Please read these terms before you enter. The short version is on the <Link href="/compete#rules" className="text-accent-text underline-offset-4 hover:underline">competition page</Link>. If the two ever differ, these terms apply.
           </p>

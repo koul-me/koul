@@ -6,6 +6,8 @@
  * the entry, so "You're in" shows right away, with the entrant page and the last step: the Telegram group, where
  * winners are contacted. Without a wallet the app frame shows Welcome first and comes back here.
  */
+import { PAGE_TITLE } from "@/components/compete/type";
+import { SectionNav } from "@/components/compete/section-nav";
 import * as React from "react";
 import { ArrowRight, ArrowUpRight, CircleCheck } from "lucide-react";
 import { HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionInfo } from "@koul/core";
@@ -25,6 +27,16 @@ const field = "h-14 w-full rounded-full bg-surface-2 px-5 text-[17px] text-text 
 type State = { kind: "idle" } | { kind: "signing" } | { kind: "entered"; handle: string } | { kind: "error"; message: string };
 
 export default function JoinPage() {
+  const appHref = useAppHref();
+  return (
+    <div className="grid gap-5">
+      <SectionNav active="entry" entryHref={appHref("/join")} />
+      <JoinBody />
+    </div>
+  );
+}
+
+function JoinBody() {
   const w = useWallet();
   const appHref = useAppHref();
   const [info, setInfo] = React.useState<CompetitionInfo | null | undefined>(undefined);
@@ -113,7 +125,7 @@ export default function JoinPage() {
   if (!c || phase === "none" || phase === "ended") {
     return (
       <Tile className="grid max-w-[640px] gap-4">
-        <h1 className="t-title">{phase === "ended" ? "This competition has finished" : "No competition is open right now"}</h1>
+        <h1 className={PAGE_TITLE}>{phase === "ended" ? "This competition has finished" : "No competition is open right now"}</h1>
         <p className="text-[16px] text-muted">{phase === "ended" ? "See how it ended on the leaderboard." : "The next one is announced on the competition page."}</p>
         <PillButton href={phase === "ended" ? "/compete/leaderboard" : "/compete"} variant="outline" className="justify-self-start">{phase === "ended" ? "Leaderboard" : "Competition page"}</PillButton>
       </Tile>
@@ -126,7 +138,7 @@ export default function JoinPage() {
       <div className="grid max-w-[640px] gap-4">
         <Tile tone="lime" className="grid gap-5">
           <CircleCheck className="size-9" aria-hidden />
-          <h1 className="t-title">You&apos;re in</h1>
+          <h1 className={PAGE_TITLE}>You&apos;re in</h1>
           <p className="text-[17px]">You are entered as <b className="break-all">{as}</b>. {phase === "upcoming" ? "Your score shows on your page once the competition starts." : "Your score shows on your page within about 15 minutes."}</p>
           <p className="text-[17px]">Only trades your autopilot makes count, so make sure it is running.</p>
           <div className="flex flex-wrap gap-3">
@@ -148,7 +160,7 @@ export default function JoinPage() {
   if (entriesFull(info)) {
     return (
       <Tile className="grid max-w-[640px] gap-4">
-        <h1 className="t-title">Entries are full</h1>
+        <h1 className={PAGE_TITLE}>Entries are full</h1>
         <p className="text-[16px] text-muted">Every place in this competition is taken. You can still follow it on the leaderboard.</p>
         <PillButton href="/compete/leaderboard" variant="outline" className="justify-self-start">Leaderboard</PillButton>
       </Tile>
@@ -160,7 +172,7 @@ export default function JoinPage() {
       <Tile className="grid content-start gap-6">
         <div className="grid gap-3">
           <Label tone="lime">{c.name}</Label>
-          <h1 className="t-title">Enter the competition</h1>
+          <h1 className={PAGE_TITLE}>Enter the competition</h1>
           {c.startsAt && <p className="text-[16px] text-muted">{phase === "upcoming" ? "Starts" : "Started"} {dayOf(c.startsAt)}, {timeOf(c.startsAt)}.</p>}
         </div>
         {overBasket && (

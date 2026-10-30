@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SECTION_TITLE } from "@/components/compete/type";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { AutoRefresh } from "@/components/status/auto-refresh";
@@ -53,13 +54,13 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 py-6 md:px-8 md:py-10">
-        <CompeteHeader active="compete" joinable={joinable} />
+      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
+        <CompeteHeader section="overview" joinable={joinable} />
 
         <Tile tone="lime" className="grid gap-8 p-6 md:p-10">
           <div className="grid gap-4">
             <Label tone="onLime">Trading competition</Label>
-            <h1 className="t-headline max-w-[13ch]">Your autopilot vs. everyone&apos;s.</h1>
+            <h1 className="max-w-[14ch] text-[40px] font-extrabold leading-[0.95] tracking-[-0.04em] md:text-[64px]">Your autopilot vs. everyone&apos;s.</h1>
           </div>
           {c ? (
             <>
@@ -92,7 +93,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
           {steps.map((s, i) => (
             <Tile key={s.title} className="grid content-start gap-3">
               <span className="mono text-muted">{String(i + 1).padStart(2, "0")}</span>
-              <h2 className="text-[24px] font-extrabold tracking-tight">{s.title}</h2>
+              <h2 className="text-[20px] font-extrabold tracking-tight">{s.title}</h2>
               <p className="text-[16px] text-muted">{s.line}</p>
               {s === TELEGRAM_STEP && TELEGRAM_URL && <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="label inline-flex min-h-11 items-center gap-2 text-accent-text">Open Telegram<ArrowUpRight className="size-4" aria-hidden /></a>}
             </Tile>
@@ -102,7 +103,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
         {c && (
           <Tile className="grid gap-2">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <h2 className="t-tab">Leaderboard</h2>
+              <h2 className={SECTION_TITLE}>Leaderboard</h2>
               {board.total > 0 && <Label>Scored {agoOf(board.updatedAt, now)}</Label>}
             </div>
             {board.rows.length > 0 ? (
@@ -117,7 +118,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
         )}
 
         <Tile id="rules" className="grid gap-5">
-          <h2 className="t-tab">Rules</h2>
+          <h2 className={SECTION_TITLE}>Rules</h2>
           <ol className="grid gap-4">
             {RULES.map((r, i) => (
               <li key={i} className="grid grid-cols-[2.5rem_1fr] gap-2 text-[16px]">
@@ -140,7 +141,7 @@ function Fact({ label, value, note }: { label: string; value: string; note?: str
   return (
     <div className="grid content-start gap-1">
       <span className="label opacity-70">{label}</span>
-      <span className="text-[22px] font-extrabold leading-tight tracking-tight md:text-[26px]">{value}</span>
+      <span className="text-[19px] font-extrabold leading-tight tracking-tight md:text-[22px]">{value}</span>
       {note && <span className="mono opacity-70">{note}</span>}
     </div>
   );
