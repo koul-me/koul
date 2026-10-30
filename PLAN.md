@@ -24,6 +24,16 @@ router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` sinc
 Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
+2026-10-30 (competition launch prep): one-week competition, $300 ($150/$100/$50), Telegram group for winners.
+Scoring counts XLM: every entry starts with the same basket (100 USDC + 10,000 XLM) and outside money is held to it in
+token units at the entry's opening prices; a USD/TRY rule flags an entry; optional `maxEntrants`. USD/TRY is off in the
+app behind `NEXT_PUBLIC_KOUL_FX`. `/compete/terms` (placeholders to fill), 18+ terms checkbox on `/join`, Telegram
+links from `NEXT_PUBLIC_KOUL_TELEGRAM_URL`, banner on landing and Home. Keeper: 32 workers, 16 relay channels, tick
+simulation skipped when `next_action` is None, grants and ids kept 60 s, wallet order shuffled per pass (1.7 s for 69
+wallets). Alerts for failing ticks, slow passes, a stale board and unreadable Redis. The duplicate keeper workflow in
+atahanyild/koul is disabled; the keeper runs only in koul-me/koul. Settings: `keeper/competition.example.json`, stored
+with `pnpm competition config` (sign-up opens when stored).
+
 2026-10-29 (status and app fixes): koul.me/status (public: health, last check, pass time, trades in the last hour from
 the router's on-chain runs, a day of charts) and /status/private behind STATUS_SECRET (problems, failure reasons,
 leases, balances, relay failures); low balances and repeated relay failures email the owner. The keeper keeps each
