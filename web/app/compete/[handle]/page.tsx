@@ -7,7 +7,7 @@ import { HANDLE_PATTERN } from "@koul/core";
 import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { FitValue, Label, Tile, TileLabel } from "@/components/signal";
-import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
+import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { HistoryChart } from "@/components/compete/history-chart";
 import { loadEntrant } from "@/lib/competition-load";
 import { agoOf, entriesFull, fmtPct, fmtSignedUsd, fmtUsd, phaseOf, previewOf } from "@/lib/competition-view";
@@ -33,8 +33,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
-        <CompeteHeader section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
+      <CompetePage section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
         <div className="grid gap-2">
           <h1 className={`${PAGE_TITLE} break-all`}>{handle}</h1>
           <Label>{s ? `Scored ${agoOf(s.updatedAt, now)}` : "Waiting for the first score"}</Label>
@@ -81,7 +80,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
           </a>
         )}
         <CompeteFooter />
-      </main>
+      </CompetePage>
     </>
   );
 }

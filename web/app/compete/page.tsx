@@ -6,7 +6,7 @@ import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { Label, PillButton, Tile, TileLabel } from "@/components/signal";
 import { BoardTable } from "@/components/compete/board-table";
-import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
+import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { Countdown } from "@/components/compete/countdown";
 import { TELEGRAM_URL } from "@/lib/community";
 import { loadCompetition } from "@/lib/competition-load";
@@ -41,7 +41,7 @@ const RULES = [
 ];
 
 
-export default async function CompetePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+export default async function CompeteOverview({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const preview = previewOf((await searchParams).preview);
   const { info, board, now } = await loadCompetition(preview, 10);
   const c = info.config;
@@ -54,8 +54,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
-        <CompeteHeader section="overview" joinable={joinable} />
+      <CompetePage section="overview" joinable={joinable}>
 
         <Tile tone="lime" className="grid gap-8 p-6 md:p-10">
           <div className="grid gap-4">
@@ -132,7 +131,7 @@ export default async function CompetePage({ searchParams }: { searchParams: Prom
         </Tile>
 
         <CompeteFooter />
-      </main>
+      </CompetePage>
     </>
   );
 }

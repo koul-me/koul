@@ -5,7 +5,7 @@ import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { Label, PillButton, Tile } from "@/components/signal";
 import { BoardTable } from "@/components/compete/board-table";
-import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
+import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { loadBoard } from "@/lib/competition-load";
 import { TELEGRAM_URL } from "@/lib/community";
 import { agoOf, entriesFull, phaseOf, previewOf } from "@/lib/competition-view";
@@ -27,8 +27,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
-        <CompeteHeader section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)} />
+      <CompetePage section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
         <div className="grid gap-2">
           <h1 className={PAGE_TITLE}>Leaderboard</h1>
           <Label>
@@ -56,7 +55,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           {TELEGRAM_URL && <p>Winners are contacted in the <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="text-accent-text">Koul Telegram group</a>. Join it if you entered.</p>}
         </div>
         <CompeteFooter />
-      </main>
+      </CompetePage>
     </>
   );
 }

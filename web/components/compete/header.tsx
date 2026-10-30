@@ -13,25 +13,32 @@ export async function onAppHost(): Promise<boolean> {
 }
 
 /**
- * The competition pages' header and section row. On the app host: the app's own bar, so the wordmark leads back
- * into the app. On koul.me: the wordmark to the landing and Join while entries are open. The section row
- * (Overview, Leaderboard, My entry) is the same on both.
+ * The competition pages' frame. On the app host it is the app's own (components/shell/app-shell.tsx Frame): the same
+ * width, side padding and bar, with the section row where /join shows it, so Overview, Leaderboard and My entry line
+ * up when you move between them. On koul.me: a narrower page, the wordmark to the landing and Join while entries
+ * are open. The section row (Overview, Leaderboard, My entry) is the same on both.
  */
-export async function CompeteHeader({ section, joinable }: { section: Section; joinable: boolean }) {
-  const app = await onAppHost();
-  const entryHref = app ? "/join" : "/app/join";
-  return (
-    <div className="grid gap-5">
-      {app ? (
+export async function CompetePage({ section, joinable, children }: { section: Section; joinable: boolean; children: React.ReactNode }) {
+  if (await onAppHost()) {
+    return (
+      <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
         <CompeteAppBar />
-      ) : (
-        <header className="flex items-center justify-between gap-3">
-          <a href="https://koul.me" className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</a>
-          {joinable && <PillButton href={entryHref} size="md">Join</PillButton>}
-        </header>
-      )}
-      <SectionNav active={section} entryHref={entryHref} />
-    </div>
+        <main className="grid gap-5">
+          <SectionNav active={section} entryHref="/join" />
+          {children}
+        </main>
+      </div>
+    );
+  }
+  return (
+    <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-16 md:px-8 md:pb-10">
+      <header className="flex items-center justify-between gap-3">
+        <a href="https://koul.me" className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</a>
+        {joinable && <PillButton href="/app/join" size="md">Join</PillButton>}
+      </header>
+      <SectionNav active={section} entryHref="/app/join" />
+      {children}
+    </main>
   );
 }
 

@@ -14,7 +14,7 @@ export function CompeteAppBar() {
   const connected = !!w.address;
   return (
     <AppBaseProvider base="">
-      <TopBar connected={connected} className="-my-4 md:-my-2" />
+      <TopBar connected={connected} />
       {connected && <BottomTabs />}
     </AppBaseProvider>
   );

@@ -11,7 +11,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { Label, Tile } from "@/components/signal";
-import { CompeteFooter, CompeteHeader } from "@/components/compete/header";
+import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { TELEGRAM_URL } from "@/lib/community";
 import { loadCompetition } from "@/lib/competition-load";
 import { entriesFull, longDateOf, maxEntrantsOf, phaseOf, previewOf } from "@/lib/competition-view";
@@ -45,8 +45,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <ThemeColor />
-      <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-28 md:px-8 md:pt-6 md:pb-10">
-        <CompeteHeader section="overview" joinable={joinable} />
+      <CompetePage section="overview" joinable={joinable}>
         <div className="grid gap-3">
           <Label tone="lime">Koul Trading Competition</Label>
           <h1 className={PAGE_TITLE}>Official rules and participant agreement</h1>
@@ -197,7 +196,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
         </Tile>
 
         <CompeteFooter />
-      </main>
+      </CompetePage>
     </>
   );
 }
