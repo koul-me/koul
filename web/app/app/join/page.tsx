@@ -10,9 +10,12 @@ import * as React from "react";
 import { ArrowRight, ArrowUpRight, CircleCheck } from "lucide-react";
 import { HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionInfo } from "@koul/core";
 import { Label, PillButton, Tile, TileLabel } from "@/components/signal";
+import { useTokenPrices } from "@/hooks/use-market";
+import { usePortfolio, useTokenHoldings } from "@/hooks/use-portfolio";
 import { useWallet } from "@/hooks/use-wallet";
 import { useAppHref } from "@/lib/app-base";
 import { TELEGRAM_URL } from "@/lib/community";
+import { SWAP_TOKENS } from "@/lib/koul";
 import { enterCompetition } from "@/lib/competition-client";
 import { dayOf, entriesFull, phaseOf, previewInfo, previewOf, timeOf } from "@/lib/competition-view";
 import { cn } from "@/lib/utils";
@@ -30,6 +33,9 @@ export default function JoinPage() {
   const [email, setEmail] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
   const [state, setState] = React.useState<State>({ kind: "idle" });
+  const pf = usePortfolio();
+  const holdings = useTokenHoldings();
+  const { prices } = useTokenPrices();
 
   React.useEffect(() => {
     let live = true;
@@ -66,6 +72,16 @@ export default function JoinPage() {
 
   const c = info?.config ?? null;
   const phase = phaseOf(c, now);
+  // A wallet made before the competition can enter too, but one already worth more than the starting basket (more
+  // test USDC from Deposit, a friendbot top-up) is flagged at its first scoring. Same slack as the indexer's check.
+  const usdOf = (symbol: string) => (symbol === "USDC" ? 1 : prices[symbol as keyof typeof prices]?.usd);
+  const basket = Object.entries(c?.startingBasket ?? {}).reduce<number | null>((sum, [symbol, n]) => { const p = usdOf(symbol); return sum === null || p === undefined ? null : sum + n * p; }, 0);
+  const xlmUsd = usdOf("XLM");
+  const worth = pf.loaded && xlmUsd !== undefined
+    ? pf.positions.idleUsdc + pf.positions.supplied.A + pf.positions.supplied.B - pf.positions.borrowed.A - pf.positions.borrowed.B + pf.positions.idleXlm * xlmUsd
+      + SWAP_TOKENS.filter((t) => t.symbol !== "XLM").reduce((sum, t) => sum + (holdings[t.symbol] ?? 0) * (usdOf(t.symbol) ?? 0), 0)
+    : null;
+  const overBasket = basket !== null && basket > 0 && worth !== null && worth > basket * 1.01 + 1;
   if (!c || phase === "none" || phase === "ended") {
     return (
       <Tile className="grid max-w-[640px] gap-4">
@@ -118,6 +134,12 @@ export default function JoinPage() {
           <h1 className="t-title">Enter the competition</h1>
           {c.startsAt && <p className="text-[16px] text-muted">{phase === "upcoming" ? "Starts" : "Started"} {dayOf(c.startsAt)}, {timeOf(c.startsAt)}.</p>}
         </div>
+        {overBasket && (
+          <div role="alert" className="grid gap-1 rounded-[var(--radius-tile)] border border-danger p-4 text-[15px]">
+            <b className="text-danger">This wallet would not be ranked</b>
+            <span>It holds more than the starting basket ({Object.entries(c.startingBasket ?? {}).map(([s, n]) => `${n.toLocaleString("en-US")} ${s}`).join(" and ")}), so it would show as Not ranked. To compete, make a new wallet: Disconnect on the Account page, then Create wallet, and enter with that one.</span>
+          </div>
+        )}
         <form onSubmit={submit} className="grid gap-4" noValidate>
           <label className="grid gap-2">
             <span className="t-tile-label text-muted">Handle on the leaderboard</span>
