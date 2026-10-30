@@ -4,11 +4,12 @@
  */
 import { after } from "next/server";
 import { alertOwner, readKeeperStatus } from "@/lib/keeper-status";
+import { sendMail } from "@/lib/mail";
 import { opsProblems } from "@/lib/status-server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   try {
     const status = await readKeeperStatus();
     if (!status) return Response.json({ error: "Keeper status is not set up" }, { status: 503 });
@@ -20,7 +21,15 @@ export async function GET(): Promise<Response> {
     });
     return Response.json(status, { headers: { "cache-control": "no-store" } });
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", route: "/api/keeper/status", message: error instanceof Error ? error.message : String(error) }));
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(JSON.stringify({ level: "error", route: "/api/keeper/status", message }));
+    // The usual alert keeps its once-an-hour lock in Redis, so a Redis outage (or its quota running out) would go
+    // unreported. keeper-watch asks with ?watch=1 every ten minutes; only that ask mails, so visitors never do.
+    const to = process.env.KEEPER_ALERT_TO ?? process.env.WAITLIST_NOTIFY_TO;
+    if (to && new URL(request.url).searchParams.get("watch") === "1") {
+      const text = `Reading the keeper status failed, most likely Redis (Upstash) is down or out of quota: ${message}`;
+      after(() => sendMail(to, "Koul status cannot read Redis", text, `<p>${text}</p>`).then(() => undefined));
+    }
     return Response.json({ error: "Keeper status is unavailable" }, { status: 502 });
   }
 }

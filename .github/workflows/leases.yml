@@ -33,4 +33,7 @@ jobs:
         working-directory: keeper
         env:
           KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          # Keep in step with KEEPER_CHANNELS in keeper.yml and RELAY_CHANNELS on Vercel.
+          KEEPER_CHANNELS: 32
+          RELAY_CHANNELS: 16
         run: pnpm channels
