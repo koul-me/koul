@@ -33,6 +33,10 @@ export default function JoinPage() {
   const [email, setEmail] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
   const [state, setState] = React.useState<State>({ kind: "idle" });
+  // The handle this wallet is already entered as (undefined while asking), and whether the typed handle is taken.
+  const [entry, setEntry] = React.useState<{ wallet: string; handle: string | null } | null>(null);
+  const entered = entry && entry.wallet === w.address ? entry.handle : undefined;
+  const [taken, setTaken] = React.useState<boolean | null>(null);
   const pf = usePortfolio();
   const holdings = useTokenHoldings();
   const { prices } = useTokenPrices();
@@ -52,7 +56,31 @@ export default function JoinPage() {
     return () => { live = false; };
   }, []);
 
-  const handleProblem = handle && !HANDLE_PATTERN.test(handle) ? "3 to 20 letters, digits or underscores" : RESERVED_HANDLES.has(handle.toLowerCase()) ? "That handle is taken" : null;
+  React.useEffect(() => {
+    const wallet = w.address;
+    if (!wallet) return;
+    let live = true;
+    fetch(`/api/competition/status?wallet=${wallet}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { entered: string | null } | null) => { if (live) setEntry({ wallet, handle: j?.entered ?? null }); })
+      .catch(() => { if (live) setEntry({ wallet, handle: null }); });
+    return () => { live = false; };
+  }, [w.address]);
+
+  // Asked a moment after typing stops; the register route claims the handle again, so this only saves a passkey prompt.
+  React.useEffect(() => {
+    if (!HANDLE_PATTERN.test(handle)) return;
+    let live = true;
+    const t = window.setTimeout(() => {
+      fetch(`/api/competition/status?handle=${encodeURIComponent(handle)}${w.address ? `&wallet=${w.address}` : ""}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: { handleTaken: boolean | null } | null) => { if (live) setTaken(j?.handleTaken ?? null); })
+        .catch(() => {});
+    }, 350);
+    return () => { live = false; window.clearTimeout(t); setTaken(null); };
+  }, [handle, w.address]);
+
+  const handleProblem = handle && !HANDLE_PATTERN.test(handle) ? "3 to 20 letters, digits or underscores" : RESERVED_HANDLES.has(handle.toLowerCase()) || taken ? "That handle is taken" : null;
   const ready = HANDLE_PATTERN.test(handle) && !handleProblem && /\S+@\S+\.\S+/.test(email) && agreed && !!w.address;
 
   const submit = async (e: React.FormEvent) => {
@@ -68,7 +96,7 @@ export default function JoinPage() {
     }
   };
 
-  if (info === undefined || now === null) return <Tile className="h-[420px] animate-pulse" aria-busy />;
+  if (info === undefined || now === null || (w.address && entered === undefined)) return <Tile className="h-[420px] animate-pulse" aria-busy />;
 
   const c = info?.config ?? null;
   const phase = phaseOf(c, now);
@@ -92,17 +120,18 @@ export default function JoinPage() {
     );
   }
 
-  if (state.kind === "entered") {
+  if (state.kind === "entered" || entered) {
+    const as = state.kind === "entered" ? state.handle : entered!;
     return (
       <div className="grid max-w-[640px] gap-4">
         <Tile tone="lime" className="grid gap-5">
           <CircleCheck className="size-9" aria-hidden />
           <h1 className="t-title">You&apos;re in</h1>
-          <p className="text-[17px]">You are entered as <b className="break-all">{state.handle}</b>. {phase === "upcoming" ? "Your score shows on your page once the competition starts." : "Your score shows on your page within about 15 minutes."}</p>
+          <p className="text-[17px]">You are entered as <b className="break-all">{as}</b>. {phase === "upcoming" ? "Your score shows on your page once the competition starts." : "Your score shows on your page within about 15 minutes."}</p>
           <p className="text-[17px]">Only trades your autopilot makes count, so make sure it is running.</p>
           <div className="flex flex-wrap gap-3">
             <PillButton href={appHref("/autopilot")} variant="onLime" size="lg">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>
-            <PillButton href={`/compete/${state.handle}`} variant="onLimeOutline" size="lg">Your page<ArrowRight className="size-5" aria-hidden /></PillButton>
+            <PillButton href={`/compete/${as}`} variant="onLimeOutline" size="lg">Your page<ArrowRight className="size-5" aria-hidden /></PillButton>
           </div>
         </Tile>
         {TELEGRAM_URL && (
