@@ -1,0 +1,50 @@
+# Stores the competition settings in production Redis (`pnpm competition config`), then starts the indexer at once
+# instead of at its next hourly slot. Sign-up opens the moment settings are stored. The file is a CompetitionConfig in
+# keeper/ on master (see keeper/competition.example.json); a missing startLedger/endLedger is worked out from the dates.
+# Run it with dry on first: it prints what it would store and changes nothing.
+name: competition-config
+
+on:
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "Settings file in keeper/"
+        default: competition.example.json
+        required: true
+      dry:
+        description: "Only print what would be stored"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Store the settings
+        working-directory: keeper
+        env:
+          KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+          FILE: ${{ inputs.file }}
+          DRY: ${{ inputs.dry && '--dry' || '' }}
+        run: pnpm competition config "$FILE" $DRY
+      - name: Start the indexer
+        if: ${{ !inputs.dry }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run competition --repo "$GITHUB_REPOSITORY"
