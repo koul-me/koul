@@ -1,8 +1,7 @@
 /**
- * DRAFT FOR REVIEW. The official rules and participant agreement for the Koul Trading Competition. Not reviewed by a
- * lawyer yet. Before launch, fill the bracketed placeholders below (ORGANIZER, COUNTRY, GOVERNING_LAW, CONTACT) and
- * review EXCLUDED_REGIONS, which defaults to the comprehensively sanctioned jurisdictions. Nothing on the visible page
- * says "draft"; the placeholders show in brackets until they are filled.
+ * The official rules and participant agreement for the Koul Trading Competition. Not reviewed by a lawyer. The
+ * organizer is the Koul team, not a company or a named person (decided 2026-10-30); questions go to the Telegram group.
+ * EXCLUDED_REGIONS defaults to the comprehensively sanctioned jurisdictions.
  *
  * The window and the starting capital come from the stored competition config; the prize split is fixed here because
  * the config only holds the display string.
@@ -22,12 +21,6 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
-// ---------------------------------------------------------------- placeholders to fill before launch
-const ORGANIZER = "[ORGANIZER LEGAL NAME]";
-const COUNTRY = "[COUNTRY]";
-const GOVERNING_LAW = "[GOVERNING LAW: e.g. the laws of COUNTRY]";
-const COURTS = "[COURTS: e.g. the courts of CITY, COUNTRY]";
-const CONTACT = "[CONTACT EMAIL]";
 /** REVIEW: defaults to the comprehensively sanctioned jurisdictions; check against the organizer's own obligations. */
 const EXCLUDED_REGIONS = ["Cuba", "Iran", "North Korea", "Syria", "the Crimea, Donetsk and Luhansk regions of Ukraine"];
 
@@ -63,7 +56,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
 
         <Tile className="grid gap-10 md:p-10">
           <Section n={1} title="Organizer">
-            <P>The Koul Trading Competition (the &ldquo;Competition&rdquo;) is run by <Ph>{ORGANIZER}</Ph>, of <Ph>{COUNTRY}</Ph> (the &ldquo;Organizer&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). Koul is the Organizer&apos;s product at koul.me.</P>
+            <P>The Koul Trading Competition (the &ldquo;Competition&rdquo;) is run by the Koul team (koul.me) (the &ldquo;Organizer&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;).</P>
           </Section>
 
           <Section n={2} title="Agreement">
@@ -194,11 +187,11 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
           </Section>
 
           <Section n={20} title="Governing law">
-            <P>These terms are governed by <Ph>{GOVERNING_LAW}</Ph>. Any dispute is subject to the exclusive jurisdiction of <Ph>{COURTS}</Ph>, unless the law where you live gives you the right to bring it elsewhere.</P>
+            <P>These terms are governed by the laws of the Republic of T&uuml;rkiye, unless the law where you live gives you rights that cannot be set aside.</P>
           </Section>
 
           <Section n={21} title="Contact">
-            <P>Questions about the Competition or these terms: <Ph>{CONTACT}</Ph>{TELEGRAM_URL ? <>, or ask in the <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="text-accent-text underline-offset-4 hover:underline">Koul Telegram group</a></> : null}.</P>
+            <P>Questions about the Competition or these terms: ask in the {TELEGRAM_URL ? <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="text-accent-text underline-offset-4 hover:underline">Koul Telegram group</a> : "Koul Telegram group"}.</P>
           </Section>
         </Tile>
 
@@ -235,11 +228,6 @@ function List({ items }: { items: string[] }) {
       ))}
     </ul>
   );
-}
-
-/** A value still to be filled in before launch, shown in brackets so it cannot be missed. */
-function Ph({ children }: { children: React.ReactNode }) {
-  return <span className="mono rounded bg-surface-2 px-1.5 py-0.5 text-[14px] text-accent-text">{children}</span>;
 }
 
 /** "a, b or c". */
