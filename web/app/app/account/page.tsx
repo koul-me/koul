@@ -106,6 +106,10 @@ export default function AccountPage() {
         <div className="mt-2 divide-y divide-line">
           <KeyValue label="Method" value="PASSKEY" />
           <KeyValue label="Network" value="TESTNET" />
+          <a href={appHref("/join")} className="flex min-h-12 items-center justify-between gap-4 py-2 transition-colors hover:text-accent-text">
+            <Label>Competition</Label>
+            <span className="text-[15px] font-semibold">Enter the trading competition</span>
+          </a>
           {TELEGRAM_URL && (
             <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="flex min-h-12 items-center justify-between gap-4 py-2 transition-colors hover:text-accent-text">
               <Label>Community</Label>
