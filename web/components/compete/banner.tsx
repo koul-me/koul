@@ -3,7 +3,7 @@
 /**
  * The slim competition banner on the landing page and the app's Home (the landing's fuller section is
  * components/landing/competition.tsx, on the same data). Before the start it gives the date and the
- * prize, during the competition the entrant count; after the end, or with no competition stored, it renders nothing.
+ * prize, during the competition that it is live; after the end, or with no competition stored, it renders nothing.
  * It reads GET /api/competition in the browser so the landing stays static. `?preview=` works here too in development.
  * Join goes to app.koul.me/join through the app base; the competition pages live on koul.me and on every other host.
  */
@@ -52,7 +52,6 @@ export function CompetitionBanner({ variant, className }: { variant: "strip" | "
 
   const q = preview ? `?preview=${preview}` : "";
   const full = entriesFull(info);
-  const n = info.entrants;
   // "Trading" and the hour drop below 640 px so the banner stays two rows on a phone.
   const lead = <><span className="hidden sm:inline">Trading competition</span><span className="sm:hidden">Competition</span></>;
   const line = phase === "upcoming" ? (
@@ -61,7 +60,7 @@ export function CompetitionBanner({ variant, className }: { variant: "strip" | "
       {c.prize ? `: ${c.prize}` : ""}.
     </>
   ) : (
-    <>{lead} is live: {n} {n === 1 ? "entrant" : "entrants"}.</>
+    <>{lead} is live.</>
   );
 
   const body = (
