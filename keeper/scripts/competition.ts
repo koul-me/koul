@@ -280,7 +280,11 @@ if (cmd === "config") {
   const unknown = Object.keys(config.startingBasket ?? {}).filter((s) => !ALL_TOKENS.some((t) => t.symbol === s) || config.excludeTokens?.includes(s));
   if (unknown.length) throw new Error(`startingBasket has tokens the scoring does not value: ${unknown.join(", ")}`);
   const dry = process.argv.includes("--dry");
-  if (!dry) await redis(env, "SET", COMP_KEYS.config, JSON.stringify(config));
+  if (!dry) {
+    await redis(env, "SET", COMP_KEYS.config, JSON.stringify(config));
+    // redis() only warns without credentials, so read the settings back before saying they are stored.
+    if (await redis(env, "GET", COMP_KEYS.config) !== JSON.stringify(config)) throw new Error("the settings did not reach Redis (KV_REST_API_URL / KV_REST_API_TOKEN?)");
+  }
   const basket = config.startingBasket ? Object.entries(config.startingBasket).map(([s, n]) => `${n} ${s}`).join(" + ") : `${config.startingCapitalUsd} USD`;
   console.log(`${dry ? "would store (--dry)" : "stored"}: ${config.name}, ledgers ${config.startLedger} to ${config.endLedger ?? "open"}, ${basket} each, autopilot only: ${config.autopilotOnly}, entrants: ${config.maxEntrants ?? "no cap"}`);
 } else if (cmd === "add") {
