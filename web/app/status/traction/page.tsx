@@ -75,7 +75,8 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           <Headline label="Trades last 24 h" o={o} t={t} pick={(c) => String(c.trades24h)} />
           <Headline label="Trades last 7 days" o={o} t={t} pick={(c) => String(c.trades7d)} />
           <Headline label="Trades total" o={o} t={t} pick={(c) => String(c.trades)} note="every rule the router ran" />
-          <Headline label="Swap volume" o={o} t={t} pick={(c) => usd(c.volumeUsd)} note={`${o.swaps} swaps`} />
+          <Headline label="Swap volume" o={o} t={t} pick={(c) => usd(c.volumeUsd)} note={`${o.swaps} swaps · what went in, at oracle prices`} />
+          <Headline label="Paid out by pools" o={o} t={t} pick={(c) => usd(c.volumeOutUsd)} note={o.volumeUsd > 0 ? `${(o.volumeOutUsd / o.volumeUsd).toFixed(1)}x the input · testnet pools overpay` : "testnet pools overpay"} />
           <Headline label="Trades per autopilot" o={o} t={t} pick={(c) => (c.tradesPerAutopilot === null ? "-" : c.tradesPerAutopilot.toFixed(1))} />
           <Headline label="Wallets created" o={o} t={t} pick={(c) => String(c.created)} note={f.since === null ? "counting from the next new wallet" : `since ${day(f.since)}`} />
         </section>
@@ -99,6 +100,7 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
             <ChartTile slot="day" title="Users, cumulative" unit="user" units="users" points={days.map((d) => ({ at: d.at, value: d.cumulativeUsers }))} />
             <ChartTile slot="day" title="Trades" unit="trade" units="trades" points={days.map((d) => ({ at: d.at, value: d.trades }))} />
             <ChartTile slot="day" title="Swap volume" unit="USD" decimals={2} points={days.map((d) => ({ at: d.at, value: d.volumeUsd }))} />
+            <ChartTile slot="day" title="Paid out by pools" unit="USD" decimals={2} points={days.map((d) => ({ at: d.at, value: d.volumeOutUsd }))} />
             <ChartTile slot="day" title="Active wallets" unit="wallet" units="wallets" points={days.map((d) => ({ at: d.at, value: d.active }))} />
             {live.length > 0
               ? <ChartTile slot="day" title="Live autopilots" unit="autopilot" units="autopilots" points={live} />
@@ -114,11 +116,11 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           <TileLabel>Top wallets by trades{withTeam ? "" : ", organic"}</TileLabel>
           {rows.length === 0 ? <span className="text-[16px]">No wallets yet.</span> : (
             <div className="overflow-x-auto">
-              <table className="mono w-full min-w-[720px] text-left">
+              <table className="mono w-full min-w-[800px] text-left">
                 <thead>
                   <tr className="text-muted">
                     <th className="py-1 font-normal">Wallet</th><th className="py-1 font-normal">Tag</th><th className="py-1 font-normal">First seen</th><th className="py-1 font-normal">Last trade</th>
-                    <th className="py-1 text-right font-normal">Trades</th><th className="py-1 text-right font-normal">Volume</th><th className="py-1 text-right font-normal">Rules</th><th className="py-1 pl-3 font-normal">Tokens</th>
+                    <th className="py-1 text-right font-normal">Trades</th><th className="py-1 text-right font-normal">Volume</th><th className="py-1 text-right font-normal">Paid out</th><th className="py-1 text-right font-normal">Rules</th><th className="py-1 pl-3 font-normal">Tokens</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,6 +132,7 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
                       <td className="py-1">{when(w.lastTrade)}</td>
                       <td className="py-1 text-right">{w.trades}</td>
                       <td className="py-1 text-right">{usd(w.volumeUsd)}</td>
+                      <td className="py-1 text-right text-muted">{usd(w.volumeOutUsd)}</td>
                       <td className="py-1 text-right">{w.rules}</td>
                       <td className="py-1 pl-3 text-muted">{w.tokens.join("/") || "-"}</td>
                     </tr>
@@ -143,7 +146,7 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           History from {when(s.historyFrom)}; the RPC keeps seven days, so what is stored is the only record.
           {s.gaps.length > 0 && ` Missed: ${s.gaps.map((g) => `ledgers ${g.fromLedger}-${g.toLedger}`).join(", ")}.`}
           {s.unpriced > 0 && ` ${s.unpriced} swaps had no Reflector price and count $0.`}
-          {" "}Volume is each swap&apos;s input at the Reflector price when it was collected, never the testnet pools&apos; output.
+          {" "}Volume is each swap&apos;s input at the Reflector price when it was collected. &quot;Paid out by pools&quot; is the output at the same prices (USDC at $1): testnet pools pay several times the oracle price, so it runs well above the input and will not hold on mainnet.
           Live autopilots before {day(s.live[0]?.at ?? null)} are not recorded, and each day keeps the team split of its time.
           Tag a wallet as team with <code>SADD koul:traction:team &lt;wallet&gt;</code>.
         </Label>
