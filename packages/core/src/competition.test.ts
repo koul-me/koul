@@ -130,10 +130,11 @@ describe("moves inside the wallet", () => {
     expect(insideMoves([{ ...sellXlm[0]! }, { ...sellXlm[1]!, usd: 840 }], new Set(["a"])).swapEdgeUsd).toBe(0);
   });
 
-  it("lets the 1 USDC that opens the XOXNO account through, and nothing more", () => {
+  it("lets USDC go to and come back from lending by hand: Put to work, a withdraw, the account opening", () => {
     const supply = (amount: bigint) => [{ txHash: "b", token: "USDC", incoming: false, amount, usd: Number(amount) / 1e7 }];
     expect(insideMoves(supply(1_0000000n), new Set()).manualTxs).toBe(0);
-    expect(insideMoves(supply(2_0000000n), new Set()).manualTxs).toBe(1);
+    expect(insideMoves(supply(8228_7400000n), new Set()).manualTxs).toBe(0);
+    expect(insideMoves([{ txHash: "c", token: "USDC", incoming: true, amount: 50_0000000n, usd: 50 }], new Set()).manualTxs).toBe(0);
   });
 });
 

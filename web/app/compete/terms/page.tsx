@@ -114,7 +114,7 @@ export default async function TermsPage({ searchParams }: { searchParams: Promis
           <Section n={9} title="What takes an entry off the board">
             <P>These do not disqualify you from future competitions, but the entry is shown as &ldquo;Not ranked&rdquo; and cannot win:</P>
             <List items={[
-              "A move the autopilot did not make: a manual swap, supply, borrow, repay, withdraw or send.",
+              "A swap the autopilot did not make. Moving your own USDC in or out of lending by hand (supply, withdraw, borrow, repay) is allowed; money sent in from outside counts as added capital.",
               "Money or tokens added from outside the wallet's starting basket, including more test USDC or more test XLM from any source.",
               "A rule on USD/TRY. That price is a test feed the Koul team sets, so any autopilot rule that reads it takes the entry off the board.",
             ]} />

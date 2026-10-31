@@ -35,7 +35,7 @@ export interface CompetitionConfig {
   maxEntrants?: number | null;
   /** What the winners get, as the competition page shows it ("$500 prize pool"); null or absent shows no prize. */
   prize?: string | null;
-  /** When true, a move the autopilot did not make (a manual swap, supply or withdraw) flags the entry. */
+  /** When true, a swap the autopilot did not make flags the entry; moving USDC in or out of lending does not. */
   autopilotOnly: boolean;
   /**
    * Tokens left out of value and flows. Default none. Leaving XLM out opens a hole: a rule sells XLM for USDC, the XLM
@@ -151,8 +151,6 @@ export interface Flow {
   counterparty: string;
 }
 
-/** Opening the XOXNO account at the first Start autopilot supplies 1 USDC by hand; that one is not a manual move. */
-export const ACCOUNT_OPENING_USDC = 1_0000000n;
 
 /** One transfer of a scored token with a protocol (not outside money), from the wallet's side. */
 export interface InsideMove { txHash: string; token: string; incoming: boolean; amount: bigint; usd: number }
@@ -163,17 +161,20 @@ export interface InsideMove { txHash: string; token: string; incoming: boolean; 
  * the oracle price, is the venue's edge (capital, not profit); a swap that paid less is a real loss.
  */
 export function insideMoves(moves: readonly InsideMove[], fired: ReadonlySet<string>): { manualTxs: number; swapEdgeUsd: number } {
-  const byTx = new Map<string, { outUsd: number; inUsd: number; tokens: Set<string>; usdcOut: bigint; other: boolean }>();
+  const byTx = new Map<string, { outUsd: number; inUsd: number; tokens: Set<string> }>();
   for (const m of moves) {
-    const t = byTx.get(m.txHash) ?? { outUsd: 0, inUsd: 0, tokens: new Set<string>(), usdcOut: 0n, other: false };
+    const t = byTx.get(m.txHash) ?? { outUsd: 0, inUsd: 0, tokens: new Set<string>() };
     if (m.incoming) t.inUsd += m.usd; else t.outUsd += m.usd;
     t.tokens.add(m.token);
-    if (m.token === "USDC" && !m.incoming) t.usdcOut += m.amount; else t.other = true;
     byTx.set(m.txHash, t);
   }
   let manualTxs = 0, swapEdgeUsd = 0;
   for (const [hash, t] of byTx) {
-    if (!fired.has(hash) && (t.other || t.usdcOut > ACCOUNT_OPENING_USDC)) manualTxs++;
+    // Only a swap the autopilot did not make is a manual move. USDC alone going to or coming back from lending
+    // (Put to work, a withdraw, the 1 USDC that opens the XOXNO account) moves the person's own money and trades
+    // nothing, so it no longer takes an entry off the board (changed 2026-10-31, after the app's own Put to work
+    // button flagged two entries).
+    if (!fired.has(hash) && t.tokens.size >= 2) manualTxs++;
     if (t.tokens.size >= 2 && t.outUsd > 0 && t.inUsd > t.outUsd) swapEdgeUsd += t.inUsd - t.outUsd;
   }
   return { manualTxs, swapEdgeUsd };

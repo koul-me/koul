@@ -204,7 +204,7 @@ function JoinBody() {
       <Tile className="grid content-start gap-4">
         <TileLabel>Before you enter</TileLabel>
         <Point title="Use a new wallet">Everyone starts with {c.startingCapitalUsd} test USDC plus the free test XLM. Adding money or XLM takes the entry off the board.</Point>
-        <Point title="Let the autopilot trade">Write your rules on the Autopilot page and start it. A swap or supply you make yourself takes the entry off the board.</Point>
+        <Point title="Let the autopilot trade">Write your rules on the Autopilot page and start it. A swap you make yourself takes the entry off the board; putting USDC to work or withdrawing it is fine.</Point>
         <Point title="One passkey prompt">It proves this wallet is yours and confirms your entry. Nothing is signed on chain and nothing moves.</Point>
         {TELEGRAM_URL && (
           <Point title="Join the Telegram group">

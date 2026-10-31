@@ -27,7 +27,7 @@ const STEPS = [
 const TELEGRAM_STEP = { title: "Join the Telegram group", line: "Winners are contacted there, so join before the end." };
 
 const RULES = [
-  "Only trades your autopilot makes count. A manual swap, supply or withdraw takes the entry off the board.",
+  "Only trades your autopilot makes count. A swap you make yourself takes the entry off the board. Moving your USDC in or out of lending (Put to work, Withdraw) is fine.",
   "Everyone starts with the same basket: 100 test USDC plus the free test XLM a new wallet gets, about 10,000. Both count.",
   "Your score is the return on that basket: everything the wallet holds, at Reflector oracle prices.",
   "Money or XLM added from outside takes the entry off the board. Use a new wallet and do not top it up.",
