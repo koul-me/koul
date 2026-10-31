@@ -24,6 +24,14 @@ router; BTC, USDT and EURC sell only on testnet). Router wasm `263641f1...` sinc
 Wallets on the old router `CBHRTWXA...` save their rules again. The keeper schedule runs in
 `atahanyild/koul` (it holds the secrets) and checks out this repo. Details in docs/build-log.md.
 
+2026-10-31 (traction): private `/status/traction` (STATUS_SECRET cookie): users, autopilots, rules, trades, swap
+volume, created → autopilot → traded funnel, daily charts and top wallets, organic apart from the team (three bots,
+`koul:traction:team`, plus the 57 load-test wallets of 2026-10-28 recognised from their events). Collected hourly by
+`pnpm traction` (`.github/workflows/traction.yml`, 5 Redis commands a run) from the router's events and views; the RPC
+keeps events seven days, so the first run must land before about 2026-11-01 22:00 UTC to keep the router's first day (deployed
+2026-10-25 22:34 UTC). Dry run on 2026-10-31: 85 wallets; organic 24 users with an autopilot, 46 rules, 91 trades,
+$6,584 swap volume; team and load test 60 users, 743 trades. README "Operations".
+
 2026-10-30 (competition launch prep): one-week competition, $300 ($150/$100/$50), Telegram group for winners.
 Scoring counts XLM: every entry starts with the same basket (100 USDC + 10,000 XLM) and outside money is held to it in
 token units at the entry's opening prices; a USD/TRY rule flags an entry; optional `maxEntrants`. USD/TRY is off in the

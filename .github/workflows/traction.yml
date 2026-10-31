@@ -1,0 +1,41 @@
+# Traction collector: reads the router's new events every hour, folds them into the per-day and per-wallet numbers
+# and takes a live count of users, autopilots and rules for the private /status/traction page (see
+# keeper/scripts/traction.ts). The RPC keeps events about seven days, so a gap longer than that loses history; the
+# run records any gap it finds. Redis is Upstash's free plan (500,000 commands a month, shared with the keeper and the
+# indexer): a run sends 5 commands (GET and SET the state, SMEMBERS the team, LPUSH and LTRIM the snapshot), 120 a
+# day, about 3,600 a month. Each run logs what it spent. No secret but Redis: the views are read-only simulations.
+name: traction
+
+on:
+  schedule:
+    - cron: "53 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: traction
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Collect
+        working-directory: keeper
+        env:
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+          ROUTER_V1: ${{ vars.ROUTER_V1 || 'CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D' }}
+        run: pnpm traction
