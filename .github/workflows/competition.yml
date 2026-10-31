@@ -11,6 +11,10 @@ on:
     - cron: "29 * * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: write
+
 concurrency:
   group: competition
   cancel-in-progress: false
@@ -36,4 +40,13 @@ jobs:
           KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
           KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
           ROUTER_V1: ${{ vars.ROUTER_V1 || 'CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D' }}
-        run: timeout 340m pnpm competition --loop --every 900 || [ $? -eq 124 ]
+          GH_TOKEN: ${{ github.token }}
+        # A run that reaches its time limit starts the next one itself: the hourly schedule alone left the board
+        # unscored for over an hour on 2026-10-31 when GitHub skipped scheduled runs. A run whose loop ends because
+        # the competition is over (or none is stored) exits without starting another.
+        run: |
+          set +e
+          timeout 340m pnpm competition --loop --every 900
+          code=$?
+          if [ "$code" -eq 124 ]; then gh workflow run competition.yml --ref "$GITHUB_REF_NAME"; exit 0; fi
+          exit "$code"
