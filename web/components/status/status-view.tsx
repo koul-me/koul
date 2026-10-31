@@ -11,7 +11,7 @@ const ago = (t: number | null, now: number) => {
   return s < 60 ? `${s} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
 };
 
-function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
+export function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <Tile className="grid gap-2 p-5">
       <TileLabel>{label}</TileLabel>
@@ -21,19 +21,19 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   );
 }
 
-function ChartTile({ title, unit, units, decimals, points }: { title: string; unit: string; units?: string; decimals?: number; points: { at: number; value: number | null }[] }) {
+export function ChartTile({ title, unit, units, decimals, points, slot = "quarter" }: { title: string; unit: string; units?: string; decimals?: number; points: { at: number; value: number | null }[]; slot?: "quarter" | "day" }) {
   const rows = points.filter((p) => p.value !== null);
   return (
     <Tile className="grid gap-4 p-5">
       <TileLabel>{title}</TileLabel>
-      <BarChart points={points} unit={unit} units={units} decimals={decimals} label={title} />
+      <BarChart points={points} unit={unit} units={units} decimals={decimals} label={title} slot={slot} />
       <details>
         <summary className="label cursor-pointer text-muted">Show as table</summary>
         <div className="mt-3 max-h-64 overflow-y-auto">
         <table className="mono w-full text-left">
-          <thead><tr className="text-muted"><th className="py-1 font-normal">Quarter hour</th><th className="py-1 text-right font-normal">{title}</th></tr></thead>
+          <thead><tr className="text-muted"><th className="py-1 font-normal">{slot === "day" ? "Day (UTC)" : "Quarter hour"}</th><th className="py-1 text-right font-normal">{title}</th></tr></thead>
           <tbody>
-            {rows.map((p) => <tr key={p.at} className="border-t border-line"><td className="py-1">{new Date(p.at).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}</td><td className="py-1 text-right">{p.value!.toFixed(decimals ?? 0)} {p.value === 1 ? unit : units ?? unit}</td></tr>)}
+            {rows.map((p) => <tr key={p.at} className="border-t border-line"><td className="py-1">{slot === "day" ? new Date(p.at).toISOString().slice(0, 10) : new Date(p.at).toLocaleString([], { hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}</td><td className="py-1 text-right">{p.value!.toFixed(decimals ?? 0)} {p.value === 1 ? unit : units ?? unit}</td></tr>)}
           </tbody>
         </table>
         </div>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Label, Tile, TileLabel } from "@/components/signal";
 import { AutoRefresh } from "@/components/status/auto-refresh";
@@ -24,6 +25,12 @@ export default async function PrivateStatusPage() {
       <ThemeColor />
       <AutoRefresh />
       <StatusView s={s} now={s.readAt}>
+        <Link href="/status/traction" className="block">
+          <Tile className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <TileLabel>Traction</TileLabel>
+            <span className="text-[16px] underline">Users, autopilots, trades and volume over time</span>
+          </Tile>
+        </Link>
         <Tile className="grid gap-3 p-5">
           <TileLabel>Problems</TileLabel>
           {p.problems.length === 0 ? <span className="text-[16px]">None.</span> : <ul className="grid gap-1">{p.problems.map((x) => <li key={x} className="text-[16px] text-danger">{x}</li>)}</ul>}

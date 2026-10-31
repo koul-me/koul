@@ -2,7 +2,8 @@
 
 /**
  * A day of quarter hours as thin bars, one series, one axis: the status page's pass time and trades. Hovering a bar
- * (or focusing it) shows its time and value; a missing quarter is a gap, not a zero.
+ * (or focusing it) shows its time and value; a missing quarter is a gap, not a zero. `slot="day"` draws one bar per UTC
+ * day instead (the traction page), labelled by date.
  */
 import * as React from "react";
 
@@ -10,9 +11,10 @@ export interface BarPoint { at: number; value: number | null }
 
 const W = 960, H = 140, PAD_TOP = 4, PAD_BOTTOM = 0;
 const hhmm = (t: number) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const date = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** `unit` and `units`: "trade" / "trades", or the same word twice ("s"). */
-export function BarChart({ points, unit, units = unit, decimals = 0, label }: { points: BarPoint[]; unit: string; units?: string; decimals?: number; label: string }) {
+export function BarChart({ points, unit, units = unit, decimals = 0, label, slot: bucket = "quarter" }: { points: BarPoint[]; unit: string; units?: string; decimals?: number; label: string; slot?: "quarter" | "day" }) {
   const [hover, setHover] = React.useState<number | null>(null);
   const max = Math.max(1, ...points.map((p) => p.value ?? 0));
   const slot = W / points.length;
@@ -25,7 +27,7 @@ export function BarChart({ points, unit, units = unit, decimals = 0, label }: { 
     <figure className="relative" aria-label={label}>
       {/* Labels are HTML, not SVG text: the plot scales to its tile and SVG text would shrink with it. */}
       <div className="mono mb-1 text-muted">{fmt(max)}</div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-36 w-full" role="img" aria-label={`${label}, last 24 hours, up to ${fmt(max)}`} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-36 w-full" role="img" aria-label={`${label}, ${bucket === "day" ? `${points.length} days` : "last 24 hours"}, up to ${fmt(max)}`} onMouseLeave={() => setHover(null)}>
         <line x1={0} x2={W} y1={PAD_TOP + plotH} y2={PAD_TOP + plotH} className="stroke-line" strokeWidth={1} />
         {points.map((p, i) => {
           const x = i * slot + (slot - bar) / 2;
@@ -45,13 +47,15 @@ export function BarChart({ points, unit, units = unit, decimals = 0, label }: { 
           );
         })}
       </svg>
-      <div className="mono mt-1 flex justify-between text-muted"><span>24 h ago</span><span>now</span></div>
+      {bucket === "day"
+        ? <div className="mono mt-1 flex justify-between text-muted"><span>{points.length ? date(points[0]!.at) : ""}</span><span>{points.length ? date(points[points.length - 1]!.at) : ""}</span></div>
+        : <div className="mono mt-1 flex justify-between text-muted"><span>24 h ago</span><span>now</span></div>}
       {h && (
         <figcaption
           className="pointer-events-none absolute top-6 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] shadow-sm"
           style={{ left: `clamp(0px, calc(${((hover! + 0.5) / points.length) * 100}% - 70px), calc(100% - 140px))` }}
         >
-          <div className="mono text-muted">{hhmm(h.at)} – {hhmm(h.at + 15 * 60_000)}</div>
+          <div className="mono text-muted">{bucket === "day" ? date(h.at) : `${hhmm(h.at)} – ${hhmm(h.at + 15 * 60_000)}`}</div>
           <div className="mono text-text">{h.value === null ? "no data" : fmt(h.value)}</div>
         </figcaption>
       )}

@@ -397,6 +397,20 @@ days to 90, paid by the keeper account and never above 40 XLM an entry. It runs 
 (and per wallet for the money routes) with Upstash Ratelimit, `web/lib/rate-limit.ts`. A limiter outage lets
 requests through.
 
+**Traction.** `koul.me/status/traction` sits behind the same STATUS_SECRET cookie as `/status/private` (linked from
+it): users with an autopilot, live autopilots, rules, trades (24 h, 7 days, total), swap volume, trades per
+autopilot and wallets created, organic apart from the team, with daily charts, a created → autopilot → traded funnel
+and the top wallets. `cd keeper && pnpm traction [--dry]` collects it: it reads the router's events from its stored
+cursor (the first run from the oldest ledger the RPC keeps, about seven days, so Redis holds the only history after
+that), folds them into per-day and per-wallet numbers (`packages/core/src/traction.ts`, tested) and counts live
+autopilots and rules from the views. Swap volume is each swap's input at the Reflector price when collected, never
+the testnet pools' output. Everything, cursor included, is one string in `koul:traction:state` written with one SET,
+so a re-run never counts an event twice; live counts go on `koul:traction:snapshots`. It runs hourly from
+`.github/workflows/traction.yml` at 5 Redis commands a run. Team wallets are `koul:traction:team` (the three bots are
+added by the script; `SADD koul:traction:team <wallet>` tags another, retroactively); the 57 wallets of the
+2026-10-28 load test are recognised from their events. The test USDC route adds each wallet to
+`koul:traction:created` on its first grant, so "created" counts only from that deploy on.
+
 **Competition.** Scoring rules and every shape live in `packages/core/src/competition.ts` (`@koul/core`):
 
 - Value is idle USDC + USDC supplied minus borrowed on XOXNO + every swap token, XLM included, at the Reflector price

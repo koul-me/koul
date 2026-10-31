@@ -26,6 +26,7 @@
     "anchor:withdraw": "tsx scripts/anchor-withdraw.ts",
     "leases": "tsx scripts/leases.ts",
     "competition": "tsx scripts/competition.ts",
+    "traction": "tsx scripts/traction.ts",
     "channels": "tsx scripts/channels.ts"
   },
   "dependencies": {
