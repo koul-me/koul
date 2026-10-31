@@ -10,6 +10,11 @@ on:
   schedule:
     - cron: "53 * * * *"
   workflow_dispatch:
+    inputs:
+      rebuild:
+        description: "Count every event the RPC still keeps again from nothing (see keeper/scripts/traction.ts)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,4 +43,5 @@ jobs:
           KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
           KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
           ROUTER_V1: ${{ vars.ROUTER_V1 || 'CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D' }}
-        run: pnpm traction
+          REBUILD: ${{ inputs.rebuild && '--rebuild' || '' }}
+        run: pnpm traction $REBUILD

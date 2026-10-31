@@ -55,6 +55,8 @@ export interface TractionWallet {
   trades: number;
   swaps: number;
   volumeUsd: number;
+  /** What the swaps paid out, at the same prices (USDC at $1): testnet pools overpay, so this runs well above volumeUsd. Absent in state written before it existed. */
+  volumeOutUsd?: number;
   sets: number;
   clears: number;
   /** Autopilot ids ever saved. */
@@ -66,8 +68,8 @@ export interface TractionWallet {
   live: { autopilots: number; rules: number };
 }
 
-/** One wallet's day: [fired, swaps, volumeUsd, sets, clears]. */
-export type DayCell = [number, number, number, number, number];
+/** One wallet's day: [fired, swaps, volumeUsd, sets, clears, volumeOutUsd]; cells written before the last one existed have five. */
+export type DayCell = [number, number, number, number, number, number?];
 
 export interface TractionState {
   v: 1;
@@ -104,7 +106,7 @@ export type RouterEvent =
   | { id: string; at: number; type: "autopilot_set"; user: string; autopilotId: number; rules: number }
   | { id: string; at: number; type: "autopilot_cleared"; user: string; autopilotId: number }
   | { id: string; at: number; type: "fired"; user: string; kind: string; amount: bigint }
-  | { id: string; at: number; type: "swapped"; user: string; tokenIn: string; tokenOut: string; amountIn: bigint };
+  | { id: string; at: number; type: "swapped"; user: string; tokenIn: string; tokenOut: string; amountIn: bigint; amountOut: bigint };
 
 export function emptyTraction(router: string): TractionState {
   return { v: 1, router, cursor: null, lastEventId: null, toLedger: 0, historyFrom: null, gaps: [], wallets: [], days: {}, hours: {}, unpriced: 0, updatedAt: 0 };
@@ -129,25 +131,26 @@ export function routerEvent(id: string, at: number, topics: unknown[], value: un
   if (name === "autopilot_cleared") return { id, at, type: name, user, autopilotId: Number(v.autopilot_id) };
   // Router v1 (before 2026-09-20) emitted `Fired { branch, ... }`, not an autopilot run.
   if (name === "fired" && typeof v.kind === "string") return { id, at, type: name, user, kind: v.kind, amount: BigInt(v.amount as bigint) };
-  if (name === "swapped") return { id, at, type: name, user, tokenIn: String(v.token_in), tokenOut: String(v.token_out), amountIn: BigInt(v.amount_in as bigint) };
+  if (name === "swapped") return { id, at, type: name, user, tokenIn: String(v.token_in), tokenOut: String(v.token_out), amountIn: BigInt(v.amount_in as bigint), amountOut: BigInt(v.amount_out as bigint) };
   return null;
 }
 
 const KNOWN = [{ symbol: USDC_TESTNET.symbol, id: USDC_TESTNET.id, decimals: USDC_TESTNET.decimals, feed: null as string | null }, ...SWAP_TOKENS.map((t) => ({ symbol: t.symbol as string, id: t.id as string, decimals: t.decimals as number, feed: t.feed as string | null }))];
 const BY_ID = new Map(KNOWN.map((t) => [t.id, t]));
 export const tokenSymbol = (id: string) => BY_ID.get(id)?.symbol ?? id;
-/** Feeds a swap's input can need a price from. */
+/** Feeds a swap's input or output can need a price from. */
 export const TRACTION_FEEDS = [...new Set(KNOWN.map((t) => t.feed).filter((f): f is string => f !== null))];
 
 /**
- * What a swap moved, in USD: the input at the Reflector price when the run reads it. Never the output: testnet pools
- * pay several times the oracle price, so the amount out would inflate volume. Null when the token has no price.
+ * An amount of a token in USD at the Reflector price when the run reads it (USDC at $1); null when it has no price.
+ * Volume is the input this way. The output priced the same way is shown beside it: testnet pools pay several times
+ * the oracle price, so it runs well above the input and would not survive mainnet.
  */
-export function swapUsd(tokenIn: string, amountIn: bigint, prices: Prices): number | null {
-  const t = BY_ID.get(tokenIn);
+export function swapUsd(token: string, amount: bigint, prices: Prices): number | null {
+  const t = BY_ID.get(token);
   if (!t) return null;
   const price = t.feed === null ? 1 : prices[t.feed];
-  return price === undefined ? null : (Number(amountIn) / 10 ** t.decimals) * price;
+  return price === undefined ? null : (Number(amount) / 10 ** t.decimals) * price;
 }
 
 const cents = (n: number) => Math.round(n * 100) / 100;
@@ -192,8 +195,11 @@ export function applyEvents(prev: TractionState, events: RouterEvent[], prices: 
       const usd = swapUsd(e.tokenIn, e.amountIn, prices);
       if (usd === null) s.unpriced++;
       w.swaps++; cell[1]++;
+      const out = swapUsd(e.tokenOut, e.amountOut, prices) ?? 0;
       w.volumeUsd = cents(w.volumeUsd + (usd ?? 0));
+      w.volumeOutUsd = cents((w.volumeOutUsd ?? 0) + out);
       cell[2] = cents(cell[2] + (usd ?? 0));
+      cell[5] = cents((cell[5] ?? 0) + out);
       for (const t of [tokenSymbol(e.tokenIn), tokenSymbol(e.tokenOut)]) if (!w.tokens.includes(t)) w.tokens.push(t);
     }
   }
@@ -255,14 +261,15 @@ export interface TractionCounts {
   trades: number;
   swaps: number;
   volumeUsd: number;
+  volumeOutUsd: number;
   /** Trades over autopilots ever saved; null with none. */
   tradesPerAutopilot: number | null;
   /** From `koul:traction:created`, which only counts from the deploy that added it. */
   created: number;
   kinds: Record<string, number>;
 }
-export interface TractionDay { day: string; at: number; newUsers: number; cumulativeUsers: number; trades: number; swaps: number; volumeUsd: number; active: number; sets: number; clears: number }
-export interface TractionRow { address: string; group: TractionGroup; firstSeen: number | null; lastTrade: number | null; trades: number; swaps: number; volumeUsd: number; autopilots: number; rules: number; tokens: string[] }
+export interface TractionDay { day: string; at: number; newUsers: number; cumulativeUsers: number; trades: number; swaps: number; volumeUsd: number; volumeOutUsd: number; active: number; sets: number; clears: number }
+export interface TractionRow { address: string; group: TractionGroup; firstSeen: number | null; lastTrade: number | null; trades: number; swaps: number; volumeUsd: number; volumeOutUsd: number; autopilots: number; rules: number; tokens: string[] }
 export interface TractionSummary {
   updatedAt: number;
   toLedger: number;
@@ -281,7 +288,7 @@ export interface TractionSummary {
   loadTest: number;
 }
 
-const zeroCounts = (): TractionCounts => ({ users: 0, autopilots: 0, rules: 0, usersEver: 0, trades24h: 0, trades7d: 0, trades: 0, swaps: 0, volumeUsd: 0, tradesPerAutopilot: null, created: 0, kinds: {} });
+const zeroCounts = (): TractionCounts => ({ users: 0, autopilots: 0, rules: 0, usersEver: 0, trades24h: 0, trades7d: 0, trades: 0, swaps: 0, volumeUsd: 0, volumeOutUsd: 0, tradesPerAutopilot: null, created: 0, kinds: {} });
 
 /**
  * Everything the page shows, split organic / team with today's team set (so a newly tagged wallet leaves organic in
@@ -297,7 +304,7 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
     if (w.live.autopilots > 0) c.users++;
     c.autopilots += w.live.autopilots; c.rules += w.live.rules;
     if (w.firstSeen !== null || w.sets > 0) c.usersEver++;
-    c.trades += w.trades; c.swaps += w.swaps; c.volumeUsd += w.volumeUsd;
+    c.trades += w.trades; c.swaps += w.swaps; c.volumeUsd += w.volumeUsd; c.volumeOutUsd += w.volumeOutUsd ?? 0;
     autopilotsEver[k] += w.ids.length;
     for (const [kind, n] of Object.entries(w.kinds)) c.kinds[kind] = (c.kinds[kind] ?? 0) + n;
   });
@@ -312,6 +319,7 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
   }
   for (const k of ["organic", "team"] as const) {
     counts[k].volumeUsd = cents(counts[k].volumeUsd);
+    counts[k].volumeOutUsd = cents(counts[k].volumeOutUsd);
     counts[k].tradesPerAutopilot = autopilotsEver[k] ? counts[k].trades / autopilotsEver[k] : null;
   }
   const index = new Map(s.wallets.map((w, i) => [w.address, i]));
@@ -342,13 +350,14 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
     let total = before;
     for (let at = Date.parse(`${firstDay}T00:00:00Z`); at <= now; at += DAY_MS) {
       const day = utcDay(at);
-      const row: TractionDay = { day, at, newUsers: newBy.get(day) ?? 0, cumulativeUsers: 0, trades: 0, swaps: 0, volumeUsd: 0, active: 0, sets: 0, clears: 0 };
+      const row: TractionDay = { day, at, newUsers: newBy.get(day) ?? 0, cumulativeUsers: 0, trades: 0, swaps: 0, volumeUsd: 0, volumeOutUsd: 0, active: 0, sets: 0, clears: 0 };
       for (const [i, c] of Object.entries(s.days[day] ?? {})) {
         if (!keep(groups[Number(i)]!)) continue;
-        row.trades += c[0]; row.swaps += c[1]; row.volumeUsd += c[2]; row.sets += c[3]; row.clears += c[4];
+        row.trades += c[0]; row.swaps += c[1]; row.volumeUsd += c[2]; row.sets += c[3]; row.clears += c[4]; row.volumeOutUsd += c[5] ?? 0;
         if (c[0] > 0) row.active++;
       }
       row.volumeUsd = cents(row.volumeUsd);
+      row.volumeOutUsd = cents(row.volumeOutUsd);
       total += row.newUsers;
       row.cumulativeUsers = total;
       out.push(row);
@@ -357,7 +366,7 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
   };
   const lastOfDay = new Map<string, TractionSnapshot>();
   for (const p of [...snapshots].sort((a, b) => a.at - b.at)) lastOfDay.set(utcDay(p.at), p);
-  const wallets: TractionRow[] = s.wallets.map((w, i) => ({ address: w.address, group: groups[i]!, firstSeen: w.firstSeen, lastTrade: w.lastTrade, trades: w.trades, swaps: w.swaps, volumeUsd: w.volumeUsd, autopilots: w.live.autopilots, rules: w.live.rules, tokens: w.tokens }))
+  const wallets: TractionRow[] = s.wallets.map((w, i) => ({ address: w.address, group: groups[i]!, firstSeen: w.firstSeen, lastTrade: w.lastTrade, trades: w.trades, swaps: w.swaps, volumeUsd: w.volumeUsd, volumeOutUsd: w.volumeOutUsd ?? 0, autopilots: w.live.autopilots, rules: w.live.rules, tokens: w.tokens }))
     .sort((a, b) => b.trades - a.trades || b.volumeUsd - a.volumeUsd || (a.firstSeen ?? 0) - (b.firstSeen ?? 0));
   return {
     updatedAt: s.updatedAt, toLedger: s.toLedger, historyFrom: s.historyFrom, gaps: s.gaps, unpriced: s.unpriced,

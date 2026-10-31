@@ -14,12 +14,26 @@ const NOW = at("2026-10-31T12:00:00Z");
 
 const set = (n: number, user: string, when: string): RouterEvent => ({ id: id(n), at: at(when), type: "autopilot_set", user, autopilotId: 1, rules: 2 });
 const fired = (n: number, user: string, when: string, kind = "swap"): RouterEvent => ({ id: id(n), at: at(when), type: "fired", user, kind, amount: 10_0000000n });
-const swap = (n: number, user: string, when: string, tokenIn = USDC, amountIn = 40_0000000n, tokenOut = ETH): RouterEvent => ({ id: id(n), at: at(when), type: "swapped", user, tokenIn, tokenOut, amountIn });
+const swap = (n: number, user: string, when: string, tokenIn = USDC, amountIn = 40_0000000n, tokenOut = ETH, amountOut = 500000n): RouterEvent => ({ id: id(n), at: at(when), type: "swapped", user, tokenIn, tokenOut, amountIn, amountOut });
 
 describe("traction aggregation", () => {
+  it("keeps what the pools paid out beside the input, and reads state written before it existed", () => {
+    // 40 USDC in, 0.05 ETH out ($200 at $4,000): the pool paid five times the oracle price. Then 0.01 ETH in for 180 USDC.
+    const s = applyEvents(emptyTraction("R"), [swap(1, A, "2026-10-31T01:00:00Z"), swap(2, A, "2026-10-31T02:00:00Z", ETH, 100000n, USDC, 180_0000000n)], PRICES, NOW);
+    expect(s.wallets[0]).toMatchObject({ volumeUsd: 80, volumeOutUsd: 380 });
+    expect(s.days["2026-10-31"]![0]).toEqual([0, 2, 80, 0, 0, 380]);
+    const old = structuredClone(s);
+    delete old.wallets[0]!.volumeOutUsd;
+    old.days["2026-10-31"]![0] = [0, 2, 80, 0, 0];
+    const sum = tractionSummary(old, [], new Set(), [], NOW);
+    expect(sum.organic).toMatchObject({ volumeUsd: 80, volumeOutUsd: 0 });
+    expect(sum.days.organic.at(-1)).toMatchObject({ volumeUsd: 80, volumeOutUsd: 0 });
+    expect(tractionSummary(s, [], new Set(), [], NOW).wallets[0]).toMatchObject({ volumeUsd: 80, volumeOutUsd: 380 });
+  });
+
   it("reads the router's events and ignores anything else", () => {
     expect(routerEvent("x", 1, ["autopilot_set", A], { autopilot_id: 1, account_id: 7n, rules: 3 })).toEqual({ id: "x", at: 1, type: "autopilot_set", user: A, autopilotId: 1, rules: 3 });
-    expect(routerEvent("x", 1, ["swapped", A], { token_in: USDC, token_out: ETH, amount_in: 5n, amount_out: 99n, min_out: 1n })).toMatchObject({ type: "swapped", tokenIn: USDC, amountIn: 5n });
+    expect(routerEvent("x", 1, ["swapped", A], { token_in: USDC, token_out: ETH, amount_in: 5n, amount_out: 99n, min_out: 1n })).toMatchObject({ type: "swapped", tokenIn: USDC, amountIn: 5n, amountOut: 99n });
     expect(routerEvent("x", 1, ["fired", A], { branch: "fx" })).toBeNull();
     expect(routerEvent("x", 1, ["transfer", A], { amount: 1n })).toBeNull();
   });
@@ -45,8 +59,8 @@ describe("traction aggregation", () => {
     const [a, b] = s.wallets;
     expect(a).toMatchObject({ address: A, firstSeen: at("2026-10-30T23:50:00Z"), trades: 2, swaps: 1, volumeUsd: 40, sets: 1, kinds: { swap: 1, supply: 1 }, tokens: ["USDC", "ETH"], lastTrade: at("2026-10-31T00:05:00Z") });
     expect(b).toMatchObject({ trades: 1, swaps: 1, volumeUsd: 40, clears: 1, ids: [1] });
-    expect(s.days["2026-10-30"]).toEqual({ 0: [1, 1, 40, 1, 0] });
-    expect(s.days["2026-10-31"]).toEqual({ 0: [1, 0, 0, 0, 0], 1: [1, 1, 40, 1, 1] });
+    expect(s.days["2026-10-30"]).toEqual({ 0: [1, 1, 40, 1, 0, 200] });
+    expect(s.days["2026-10-31"]).toEqual({ 0: [1, 0, 0, 0, 0], 1: [1, 1, 40, 1, 1, 0.05] });
     expect(s.lastEventId).toBe(id(8));
   });
 

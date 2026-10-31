@@ -6,6 +6,9 @@
  *   pnpm traction          collect once
  *   pnpm traction --dry    read and print the numbers and the commands it would send, write nothing
  *   pnpm traction --dry --out <file>   also save the state and snapshot as JSON, to render the page locally
+ *   pnpm traction --rebuild   count every event the RPC still keeps again from nothing (the live-count history
+ *                             is kept): for a number added later, while the events it needs are still inside the
+ *                             seven days. Everything older than that is lost from the new state, so check first.
  * Team wallets: the bots in TEAM_WALLETS are added to `koul:traction:team` here; tag another with
  * `SADD koul:traction:team <wallet>` (it leaves organic in every past day too).
  *
@@ -25,6 +28,7 @@ import { exec, pipeline, takeCommandCount } from "../src/lib/status";
 
 const env = loadEnv();
 const dry = process.argv.includes("--dry");
+const rebuild = process.argv.includes("--rebuild");
 const server = new rpc.Server(TESTNET.rpcUrl);
 const REFLECTOR = "CCYOZJCOPG34LLQQ7N24YXBM7LL62R7ONMZ3G6WZAAYPB5OYKOMJRN63";
 const ROUTER = env.ROUTER_V1 ?? "CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D";
@@ -111,10 +115,17 @@ async function run(): Promise<void> {
   // exec, not redis(): a failed read must stop the run, never look like a first run that starts the history over.
   const stored = (await exec(env, ["GET", TRACTION_KEYS.state])) as string | null;
   const team = new Set(((await exec(env, ["SMEMBERS", TRACTION_KEYS.team])) as string[] | null) ?? []);
-  const prev: TractionState = stored ? (JSON.parse(stored) as TractionState) : emptyTraction(ROUTER);
+  const prev: TractionState = stored && !rebuild ? (JSON.parse(stored) as TractionState) : emptyTraction(ROUTER);
   if (prev.router !== ROUTER) throw new Error(`the stored traction is for router ${prev.router}, not ${ROUTER}; DEL ${TRACTION_KEYS.state} to start over`);
   const health = await server.getHealth();
   const oldest = (health.oldestLedger ?? 1) + 1;
+  if (rebuild && stored) {
+    // The old history may start before what the RPC keeps now: a rebuild would silently drop those days.
+    const was = JSON.parse(stored) as TractionState;
+    const first = Math.min(...was.wallets.flatMap((w) => [w.firstSeen, w.lastTrade]).filter((t): t is number => t !== null));
+    const closed = Number((health as { oldestLedgerCloseTime?: string }).oldestLedgerCloseTime ?? 0) * 1000;
+    if (!closed || first < closed) throw new Error(`--rebuild would lose events from ${new Date(first).toISOString()}: the RPC now starts at ${closed ? new Date(closed).toISOString() : "an unknown time"}`);
+  }
   let from: { cursor: string } | { startLedger: number };
   let state = prev;
   if (prev.cursor && cursorLedger(prev.cursor) >= oldest) from = { cursor: prev.cursor };
@@ -164,6 +175,7 @@ async function run(): Promise<void> {
     line("trades total", o.trades, t.trades);
     line("swaps", o.swaps, t.swaps);
     line("swap volume", fmtUsd(o.volumeUsd), fmtUsd(t.volumeUsd));
+    line("paid out by pools", fmtUsd(o.volumeOutUsd), fmtUsd(t.volumeOutUsd));
     line("trades per autopilot", o.tradesPerAutopilot?.toFixed(2) ?? "-", t.tradesPerAutopilot?.toFixed(2) ?? "-");
     line("runs by kind", JSON.stringify(o.kinds), JSON.stringify(t.kinds));
     console.log(`\nday         new  users  trades  swaps   volume     active  saves  clears   | all wallets: new  trades  volume`);
@@ -185,7 +197,7 @@ async function run(): Promise<void> {
     const set = results[commands.findIndex((c) => c[0] === "SET")];
     if (set !== "OK") console.log(`${stamp()} traction: the state did not reach Redis (KV_REST_API_URL / KV_REST_API_TOKEN?); nothing is stored`);
   }
-  console.log(`${stamp()} traction: ${dry ? "DRY " : ""}${range} to ledger ${read.latest} in ${((Date.now() - started) / 1000).toFixed(1)}s; ${state.wallets.length} wallets, organic ${sum.organic.users} users / ${sum.organic.autopilots} autopilots / ${sum.organic.rules} rules / ${sum.organic.trades} trades, team ${sum.team.users} / ${sum.team.autopilots} / ${sum.team.rules} / ${sum.team.trades}; state ${(body.length / 1000).toFixed(1)} KB; ${takeCommandCount()} redis commands`);
+  console.log(`${stamp()} traction: ${dry ? "DRY " : ""}${rebuild ? "REBUILD " : ""}${range} to ledger ${read.latest} in ${((Date.now() - started) / 1000).toFixed(1)}s; ${state.wallets.length} wallets, organic ${sum.organic.users} users / ${sum.organic.autopilots} autopilots / ${sum.organic.rules} rules / ${sum.organic.trades} trades, team ${sum.team.users} / ${sum.team.autopilots} / ${sum.team.rules} / ${sum.team.trades}; state ${(body.length / 1000).toFixed(1)} KB; ${takeCommandCount()} redis commands`);
 }
 
 try {
