@@ -27,9 +27,10 @@ export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?
             <td className="py-3">
               <a href={href(r.handle)} className="text-[15px] font-semibold transition-colors hover:text-accent-text">{r.handle}</a>
               {r.flagged && <Label tone="dim" className="ml-3">Not ranked</Label>}
+              {r.pending && <Label tone="dim" className="ml-3">Scoring soon</Label>}
             </td>
-            <td className="mono hidden py-3 text-right text-[14px] md:table-cell">{fmtUsd(r.valueUsd)}</td>
-            <td className="mono hidden py-3 text-right text-[14px] md:table-cell">{fmtSignedUsd(r.pnlUsd)}</td>
+            <td className="mono hidden py-3 text-right text-[14px] md:table-cell">{r.pending ? "–" : fmtUsd(r.valueUsd)}</td>
+            <td className="mono hidden py-3 text-right text-[14px] md:table-cell">{r.pending ? "–" : fmtSignedUsd(r.pnlUsd)}</td>
             <td className={cn("mono py-3 text-right text-[14px]", !r.flagged && r.rank === 1 && "text-accent-text")}>{fmtPct(r.returnPct)}</td>
           </tr>
         ))}

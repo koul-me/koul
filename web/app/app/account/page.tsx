@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 import { DEMO_ON, DemoSection } from "@/components/account/demo";
 import { useAppHref } from "@/lib/app-base";
 import { TELEGRAM_URL } from "@/lib/community";
+import { useCompetitionEntry } from "@/hooks/use-competition-entry";
+import { EntryWarning } from "@/components/compete/entry-warning";
 
 /** Two decimals from one coin up; below that, enough to show a swap's worth of ETH or BTC (0.006421). */
 const fmtCoin = (n: number) => n.toLocaleString("en-US", n >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 });
@@ -37,6 +39,9 @@ export default function AccountPage() {
   });
   const { resolvedTheme, setTheme } = useTheme();
   const [funding, setFunding] = React.useState(false);
+  // Entered in the competition: test XLM is outside money, so the first tap only asks.
+  const entry = useCompetitionEntry();
+  const [xlmArmed, setXlmArmed] = React.useState(false);
   const address = w.address ?? "";
   const shortAddress = address ? `${address.slice(0, 8)}…${address.slice(-8)}` : "";
   const supplied = pf.positions.supplied.A + pf.positions.supplied.B;
@@ -123,7 +128,8 @@ export default function AccountPage() {
         </div>
         <div className="mt-4 grid gap-3 md:mt-auto">
           {/* Only for a wallet with no XLM: a top-up is XLM from outside, which takes a competition entry off the board. */}
-          {pf.positions.idleXlm === 0 && <PillButton variant="ghost" size="lg" full onClick={() => void fund()} disabled={funding} aria-busy={funding}>{funding ? "Asking friendbot" : "Get test XLM"}</PillButton>}
+          {pf.positions.idleXlm === 0 && entry && <EntryWarning handle={entry} what="Test XLM from friendbot" />}
+          {pf.positions.idleXlm === 0 && <PillButton variant="ghost" size="lg" full onClick={() => { if (entry && !xlmArmed) { setXlmArmed(true); return; } void fund(); }} disabled={funding} aria-busy={funding}>{funding ? "Asking friendbot" : entry && xlmArmed ? "Add anyway: leave the board" : "Get test XLM"}</PillButton>}
           <PillButton variant="outline" size="lg" full onClick={() => void w.disconnect()}>Disconnect</PillButton>
         </div>
       </Tile>

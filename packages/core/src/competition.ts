@@ -254,7 +254,11 @@ export const RESERVED_HANDLES: ReadonlySet<string> = new Set(["leaderboard", "jo
 
 export interface CompetitionInfo { config: CompetitionConfig | null; entrants: number; updatedAt: number | null }
 
-export interface LeaderboardRow { rank: number | null; handle: string; wallet: string; valueUsd: number; pnlUsd: number; returnPct: number | null; flagged: boolean }
+export interface LeaderboardRow {
+  rank: number | null; handle: string; wallet: string; valueUsd: number; pnlUsd: number; returnPct: number | null; flagged: boolean;
+  /** Confirmed but not scored yet (the indexer runs every 15 minutes): listed so a new entrant sees themselves at once. */
+  pending?: boolean;
+}
 export interface Leaderboard { rows: LeaderboardRow[]; total: number; offset: number; updatedAt: number | null }
 
 export interface HistoryPoint { at: number; valueUsd: number; returnPct: number | null }

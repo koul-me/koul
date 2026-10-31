@@ -17,6 +17,8 @@ import { AmountInput, parseAmount } from "./amount-input";
 import { DEPOSIT_OPTIONS, FlowFrame, type Method } from "./flow-frame";
 import { Steps } from "./steps";
 import { useAppHref } from "@/lib/app-base";
+import { useCompetitionEntry } from "@/hooks/use-competition-entry";
+import { EntryWarning } from "@/components/compete/entry-warning";
 
 const STEP_LABELS = ["Verified", "Send", "Convert", "Arrives"];
 /** How long a details row may stay a skeleton before the page says the anchor has not answered. */
@@ -53,6 +55,7 @@ function DetailsMissing({ label }: { label: string }) {
 }
 
 export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
+  const entry = useCompetitionEntry();
   const appHref = useAppHref();
   const router = useRouter();
   const fx = useFx();
@@ -141,7 +144,7 @@ export function DepositBank({ method, onMethod }: { method: Method; onMethod: (m
       title="Deposit"
       method={method}
       onMethod={onMethod}
-      options={DEPOSIT_OPTIONS}
+      options={DEPOSIT_OPTIONS} notice={entry ? <EntryWarning handle={entry} what="A bank deposit" /> : undefined}
       action={<PillButton size="lg" full disabled={!canContinue} aria-busy={runner.busy} onClick={() => void runner.start("in", { amountTry: lira, amountUsdc: usdc, rate: rate ?? 0 })}>{runner.busy ? "Getting bank details" : "Continue"}</PillButton>}
     >
       <Tile className="grid gap-5">

@@ -23,8 +23,13 @@ export async function competitionInfo(): Promise<CompetitionInfo> {
 
 export async function leaderboard(offset: number, limit: number): Promise<Leaderboard> {
   const r = redis();
-  const [board, updatedAt] = await Promise.all([r.get<LeaderboardRow[]>(COMP_KEYS.board), r.get<number>(COMP_KEYS.updatedAt)]);
-  const rows = board ?? [];
+  const [board, updatedAt, entrants] = await Promise.all([r.get<LeaderboardRow[]>(COMP_KEYS.board), r.get<number>(COMP_KEYS.updatedAt), r.smembers(COMP_KEYS.entrants)]);
+  // Entrants confirmed since the last scoring run go at the end, marked pending, until the indexer scores them.
+  const scored = new Set((board ?? []).map((b) => b.wallet));
+  const fresh = entrants.filter((w) => !scored.has(w));
+  const records = fresh.length ? await r.mget<(EntrantRecord | null)[]>(...fresh.map((w) => COMP_KEYS.entrant(w))) : [];
+  const pending: LeaderboardRow[] = records.flatMap((rec) => (rec?.verifiedAt ? [{ rank: null, handle: rec.handle, wallet: rec.wallet, valueUsd: 0, pnlUsd: 0, returnPct: null, flagged: false, pending: true }] : []));
+  const rows = [...(board ?? []), ...pending];
   return { rows: rows.slice(offset, offset + limit), total: rows.length, offset, updatedAt: updatedAt ?? null };
 }
 

@@ -13,6 +13,8 @@ import { useWallet } from "@/hooks/use-wallet";
 import { track } from "@/lib/analytics";
 import { useAppHref } from "@/lib/app-base";
 import { FlowFrame, DEPOSIT_OPTIONS, type Method } from "./flow-frame";
+import { useCompetitionEntry } from "@/hooks/use-competition-entry";
+import { EntryWarning } from "@/components/compete/entry-warning";
 
 const AMOUNT = 100;
 
@@ -33,8 +35,12 @@ export function DepositTest({ method, onMethod }: { method: Method; onMethod: (m
   }, [runner]);
   const bankRunning = runner.transfer?.direction === "in" && runner.transfer.status === "running";
 
+  const entry = useCompetitionEntry();
+  const [armed, setArmed] = React.useState(false);
   const get = async () => {
     if (!w.address) return;
+    // Entered in the competition: the first tap only asks, the second adds the money.
+    if (entry && !armed) { setArmed(true); return; }
     setBusy(true); setError(null);
     try {
       const res = await fetch("/api/faucet/test-usdc", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: w.address }) });
@@ -57,7 +63,8 @@ export function DepositTest({ method, onMethod }: { method: Method; onMethod: (m
       method={method}
       onMethod={onMethod}
       options={DEPOSIT_OPTIONS}
-      action={<PillButton size="lg" full disabled={busy || !w.address} aria-busy={busy} onClick={() => void get()}>{busy ? "Adding test USDC" : `Get ${AMOUNT} test USDC`}</PillButton>}
+      notice={entry ? <EntryWarning handle={entry} what="Test USDC" /> : undefined}
+      action={<PillButton size="lg" full disabled={busy || !w.address} aria-busy={busy} onClick={() => void get()}>{busy ? "Adding test USDC" : armed ? "Add anyway: leave the board" : `Get ${AMOUNT} test USDC`}</PillButton>}
     >
       <Tile className="grid gap-5">
         <div className="divide-y divide-line">

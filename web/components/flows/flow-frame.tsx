@@ -16,7 +16,7 @@ export const METHOD_OPTIONS: { value: Method; label: string }[] = [{ value: "ban
 /** Deposit leads with test USDC; the labels are short so three fit on a phone. */
 export const DEPOSIT_OPTIONS: { value: Method; label: string }[] = [{ value: "test", label: "Testnet" }, { value: "bank", label: "Bank" }, { value: "crypto", label: "Crypto" }];
 
-export function FlowFrame({ title, back, method, onMethod, options = METHOD_OPTIONS, children, action }: { title: React.ReactNode; back?: string; method?: Method; onMethod?: (m: Method) => void; options?: { value: Method; label: string }[]; children: React.ReactNode; action?: React.ReactNode }) {
+export function FlowFrame({ title, back, method, onMethod, options = METHOD_OPTIONS, children, action, notice }: { title: React.ReactNode; back?: string; method?: Method; onMethod?: (m: Method) => void; options?: { value: Method; label: string }[]; children: React.ReactNode; action?: React.ReactNode; /** Above the tile: a warning that belongs to the whole screen. */ notice?: React.ReactNode }) {
   const appHref = useAppHref();
   return (
     <div className={cn("mx-auto w-full max-w-[600px]", action && "pb-24 md:pb-0")}>
@@ -27,7 +27,7 @@ export function FlowFrame({ title, back, method, onMethod, options = METHOD_OPTI
         <h1 className="t-title truncate">{title}</h1>
       </div>
       {method && onMethod && <Segmented label="Method" value={method} onChange={onMethod} options={options} className="mt-2 mb-4" />}
-      <div className="grid gap-4 [&>*]:min-w-0">{children}</div>
+      <div className="grid gap-4 [&>*]:min-w-0">{notice}{children}</div>
       {action && (
         <div className="fixed inset-x-4 bottom-0 z-30 mb-[max(16px,env(safe-area-inset-bottom))] md:static md:mt-4 md:mb-0">
           {action}
