@@ -64,7 +64,7 @@ async function readEvents(from: { cursor: string } | { startLedger: number }): P
   let pages = 1;
   for (;;) {
     for (const e of res.events) {
-      const ev = routerEvent(e.id, Date.parse(e.ledgerClosedAt), e.topic.map(native), native(e.value));
+      const ev = routerEvent(e.id, Date.parse(e.ledgerClosedAt), e.topic.map(native), native(e.value), e.txHash);
       if (ev) events.push(ev);
     }
     if (res.events.length === 0 && cursorLedger(res.cursor) >= res.latestLedger) break;

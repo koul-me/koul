@@ -163,3 +163,12 @@ describe("traction summary", () => {
     expect(sum.funnel.since).toBeNull();
   });
 });
+
+describe("traction last trade transaction", () => {
+  it("keeps the hash of the latest trade whatever order the events came in", () => {
+    const withTx = (n: number, when: string, tx: string): RouterEvent => ({ id: id(n), at: at(when), type: "fired", user: A, kind: "swap", amount: 1n, tx });
+    const s = applyEvents(emptyTraction("R"), [withTx(2, "2026-10-31T10:00:00Z", "bbb"), withTx(1, "2026-10-31T09:00:00Z", "aaa")], PRICES, NOW);
+    expect(s.wallets[0]!.lastTx).toBe("bbb");
+    expect(tractionSummary(s, [], new Set(), [], NOW).wallets[0]!.lastTx).toBe("bbb");
+  });
+});
