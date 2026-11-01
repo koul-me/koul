@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { KoulMark } from "@/components/brand/koul-mark";
-import { ThemeToggle } from "@/components/landing/top";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { WaitlistForm } from "@/components/landing/waitlist-form";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { Label } from "@/components/signal";

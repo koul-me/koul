@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAppHref, useAppPathname } from "@/lib/app-base";
 import { Label } from "@/components/signal";
 import { AccountChip } from "./account-chip";
+import { ThemeToggle } from "./theme-toggle";
 import { TABS } from "./nav";
 import { KoulMark } from "@/components/brand/koul-mark";
 
@@ -19,8 +20,8 @@ export function Wordmark({ className }: { className?: string }) {
 }
 
 /**
- * One row: the wordmark, a thin divider, the tabs in large type, the account chip on the right.
- * `connected=false` is the Welcome variant: wordmark and the network label, nothing else.
+ * One row: the wordmark, a thin divider, the tabs in large type, the account chip and the light switch on the right.
+ * `connected=false` is the Welcome variant: wordmark, the network label and the light switch.
  */
 export function TopBar({ connected, className }: { connected: boolean; className?: string }) {
   const pathname = useAppPathname();
@@ -50,7 +51,10 @@ export function TopBar({ connected, className }: { connected: boolean; className
           </>
         )}
       </div>
-      {connected ? <AccountChip /> : <Label>Stellar testnet</Label>}
+      <div className="flex shrink-0 items-center gap-2">
+        {connected ? <AccountChip /> : <Label className="mr-2">Stellar testnet</Label>}
+        <ThemeToggle />
+      </div>
     </header>
   );
 }

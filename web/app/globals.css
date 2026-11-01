@@ -82,6 +82,45 @@
   --animate-fade-in: fade-in 0.2s ease-out both;
   --animate-pulse-slow: pulse-slow 2.4s ease-in-out infinite;
   --animate-flash: flash 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-marquee: marquee var(--duration) infinite linear;
+  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+  --animate-shimmer-slide: shimmer-slide var(--speed) ease-in-out infinite alternate;
+  --animate-spin-around: spin-around calc(var(--speed) * 2) infinite linear;
+  @keyframes marquee {
+  from {
+    transform: translateX(0);
+    }
+  to {
+    transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+  @keyframes marquee-vertical {
+  from {
+    transform: translateY(0);
+    }
+  to {
+    transform: translateY(calc(-100% - var(--gap)));
+    }
+  }
+  @keyframes shimmer-slide {
+  to {
+    transform: translate(calc(100cqw - 100%), 0);
+    }
+  }
+  @keyframes spin-around {
+  0% {
+    transform: translateZ(0) rotate(0);
+    }
+  15%, 35% {
+    transform: translateZ(0) rotate(90deg);
+    }
+  65%, 85% {
+    transform: translateZ(0) rotate(270deg);
+    }
+  100% {
+    transform: translateZ(0) rotate(360deg);
+    }
+  }
 }
 
 :root,
@@ -215,4 +254,15 @@ html.theme-fade, html.theme-fade *, html.theme-fade *::before, html.theme-fade *
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* Research: the live pulse from Uiverse.io by Yaya12085 (giant-shrimp-51), MIT, recoloured to the accent. */
+.uiverse-pulse {
+  border-radius: 9999px;
+  background-color: var(--accent-text);
+  animation: uiverse-pulse 1.5s infinite ease-in-out;
+}
+@keyframes uiverse-pulse {
+  0% { box-shadow: 0 0 0 0 var(--accent-text); }
+  100% { box-shadow: 0 0 0 14px transparent; }
 }

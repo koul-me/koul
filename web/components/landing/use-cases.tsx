@@ -4,9 +4,11 @@
  * What a rule is for, in three cards: protect a loan, earn the better rate, exit on a price. Each is one sentence
  * and the rule it becomes, so a visitor sees the kinds of things Koul does before touching the playground.
  */
+import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowRightLeft, LogOut, ShieldCheck, type LucideIcon } from "lucide-react";
-import { Tile } from "@/components/signal";
+import { useTheme } from "next-themes";
+import SpotlightCard from "@/components/SpotlightCard";
 import { DUR, tween } from "@/lib/motion";
 import { Section } from "./shell";
 import { RuleChips, type Chip } from "./rule-row";
@@ -43,6 +45,10 @@ const CASES: { icon: LucideIcon; title: string; chips: Chip[] }[] = [
 
 export function UseCases() {
   const still = useReducedMotion() ?? false;
+  const { resolvedTheme } = useTheme();
+  // next-themes knows the stored theme only in the browser; until then render dark, as the server did.
+  const mounted = React.useSyncExternalStore(() => () => {}, () => true, () => false);
+  const light = mounted && resolvedTheme === "light";
   return (
     <Section title="What you can automate">
       <div className="mt-10 grid min-w-0 gap-4 md:grid-cols-3 md:gap-5">
@@ -55,7 +61,12 @@ export function UseCases() {
             viewport={{ once: true, amount: 0.3 }}
             transition={{ ...tween(DUR.slow), delay: i * 0.08 }}
           >
-            <Tile className="flex h-full min-w-0 flex-col gap-5 p-6 md:p-7">
+            {/* Research: React Bits Spotlight Card, a lime light that follows the pointer. */}
+            <SpotlightCard
+              theme={light ? "light" : "dark"}
+              spotlightColor="rgba(200, 242, 58, 0.22)"
+              className="flex h-full min-w-0 flex-col gap-5 rounded-[var(--radius-tile)] p-6 md:p-7"
+            >
               <div className="flex items-center gap-4 md:flex-col md:items-start">
                 <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-accent-text">
                   <c.icon className="size-5" aria-hidden />
@@ -63,7 +74,7 @@ export function UseCases() {
                 <h3 className="min-w-0 text-[22px] font-extrabold leading-tight tracking-tight md:mt-0">{c.title}</h3>
               </div>
               <RuleChips chips={c.chips} size="sm" className="mt-auto" />
-            </Tile>
+            </SpotlightCard>
           </motion.div>
         ))}
       </div>
