@@ -11,6 +11,7 @@ import { Countdown } from "@/components/compete/countdown";
 import { TELEGRAM_URL } from "@/lib/community";
 import { loadCompetition } from "@/lib/competition-load";
 import { agoOf, dayOf, entriesFull, lengthOf, phaseOf, previewOf, timeOf, windowOf } from "@/lib/competition-view";
+import { HANDLE_PATTERN } from "@koul/core";
 
 export const metadata: Metadata = {
   title: "Trading competition",
@@ -27,6 +28,7 @@ const STEPS = [
 const TELEGRAM_STEP = { title: "Join the Telegram group", line: "Winners are contacted there, so join before the end." };
 
 const RULES = [
+  "Invite friends with the link on your entry: every confirmed entry that comes through it shows as an invite next to your name on the board.",
   "Only trades your autopilot makes count. A swap you make yourself takes the entry off the board. Moving your USDC in or out of lending (Put to work, Withdraw) is fine.",
   "Everyone starts with the same basket: 100 test USDC plus the free test XLM a new wallet gets, about 10,000. Both count.",
   "Your score is the return on that basket: everything the wallet holds, at Reflector oracle prices.",
@@ -42,7 +44,10 @@ const RULES = [
 
 
 export default async function CompeteOverview({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const preview = previewOf((await searchParams).preview);
+  const sp = await searchParams;
+  const preview = previewOf(sp.preview);
+  // An invite link (koul.me/compete?ref=handle) carries the inviter into /join.
+  const refHandle = typeof sp.ref === "string" && HANDLE_PATTERN.test(sp.ref) ? sp.ref : null;
   const { info, board, now } = await loadCompetition(preview, 10);
   const c = info.config;
   const phase = phaseOf(c, now);
@@ -54,7 +59,7 @@ export default async function CompeteOverview({ searchParams }: { searchParams: 
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <CompetePage section="overview" joinable={joinable}>
+      <CompetePage section="overview" joinable={joinable} refHandle={refHandle}>
 
         <Tile tone="lime" className="grid gap-8 p-6 md:p-10">
           <div className="grid gap-4">
@@ -70,7 +75,7 @@ export default async function CompeteOverview({ searchParams }: { searchParams: 
                 <Fact label="Entered" value={String(info.entrants)} />
               </div>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                {joinable && <PillButton href="/app/join" variant="onLime" size="lg">Join the competition<ArrowRight className="size-5" aria-hidden /></PillButton>}
+                {joinable && <PillButton href={`/app/join${refHandle ? `?ref=${encodeURIComponent(refHandle)}` : ""}`} variant="onLime" size="lg">Join the competition<ArrowRight className="size-5" aria-hidden /></PillButton>}
                 {full && phase !== "ended" && <span className="text-[20px] font-extrabold tracking-tight">Entries are full</span>}
                 <span className="label">
                   {phase === "upcoming" && c.startsAt && <>Starts in <Countdown to={Date.parse(c.startsAt)} serverNow={now} /></>}

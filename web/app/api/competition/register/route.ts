@@ -8,7 +8,7 @@
  */
 import { after } from "next/server";
 import { z } from "zod";
-import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig } from "@koul/core";
+import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig, type EntrantRecord } from "@koul/core";
 import { confirmEntry, sendEntryNote } from "@/lib/competition-server";
 import { maxEntrantsOf } from "@/lib/competition-view";
 import { verifyAssertion, walletPasskeys } from "@/lib/passkey-proof";
@@ -22,6 +22,8 @@ const Body = z.object({
   handle: z.string().regex(HANDLE_PATTERN, "A handle is 3 to 20 letters, digits or underscores"),
   email: z.string().trim().toLowerCase().email().max(254),
   acceptedTerms: z.boolean({ message: TERMS_MESSAGE }).refine((v) => v, TERMS_MESSAGE),
+  /** The handle in the invite link this person came through (koul.me/compete?ref=handle); optional. */
+  ref: z.string().regex(HANDLE_PATTERN).optional(),
   assertion: z.object({ credentialId: z.string(), authenticatorData: z.string(), clientDataJSON: z.string(), signature: z.string() }),
 });
 
@@ -30,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
   if (limited) return limited;
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: parsed.error.issues[0]?.message ?? "Check the form" }, { status: 400 });
-  const { wallet, handle, email, assertion } = parsed.data;
+  const { wallet, handle, email, assertion, ref } = parsed.data;
   if (RESERVED_HANDLES.has(handle.toLowerCase())) return Response.json({ error: "That handle is taken" }, { status: 409 });
   const redis = store();
   if (!redis) return Response.json({ error: "Registration is not open" }, { status: 503 });
@@ -48,6 +50,14 @@ export async function POST(request: Request): Promise<Response> {
 
   const entered = await confirmEntry(redis, { wallet, handle, email, max, now: Date.now() });
   if (!entered.ok) return Response.json({ error: entered.error }, { status: 409 });
+  // An invite counts once, for a confirmed entrant other than yourself, and never twice for one wallet.
+  if (ref && ref.toLowerCase() !== handle.toLowerCase()) {
+    const inviter = await redis.get<string>(COMP_KEYS.handle(ref));
+    const inviterRecord = inviter && inviter !== wallet ? await redis.get<EntrantRecord>(COMP_KEYS.entrant(inviter)) : null;
+    if (inviterRecord?.verifiedAt && !entered.record.referredBy) {
+      await Promise.all([redis.set(COMP_KEYS.entrant(wallet), { ...entered.record, referredBy: inviterRecord.handle }), redis.incr(COMP_KEYS.referrals(inviterRecord.handle))]);
+    }
+  }
   after(() => sendEntryNote(email, handle, config.name));
   return Response.json({ ok: true, handle });
 }

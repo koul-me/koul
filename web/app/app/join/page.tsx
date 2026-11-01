@@ -11,7 +11,7 @@ import { SectionNav } from "@/components/compete/section-nav";
 import * as React from "react";
 import { ArrowRight, ArrowUpRight, CircleCheck } from "lucide-react";
 import { HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionInfo } from "@koul/core";
-import { Label, PillButton, Tile, TileLabel } from "@/components/signal";
+import { CopyRow, Label, PillButton, Tile, TileLabel } from "@/components/signal";
 import { useTokenPrices } from "@/hooks/use-market";
 import { usePortfolio, useTokenHoldings } from "@/hooks/use-portfolio";
 import { useWallet } from "@/hooks/use-wallet";
@@ -44,6 +44,16 @@ function JoinBody() {
   const [handle, setHandle] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
+  // The invite this person came through: ?ref= on the link, kept in this browser so creating a wallet first loses nothing.
+  const [ref] = React.useState<string | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    const fromUrl = new URLSearchParams(window.location.search).get("ref");
+    try {
+      if (fromUrl && HANDLE_PATTERN.test(fromUrl)) { localStorage.setItem("koul.compRef", fromUrl); return fromUrl; }
+      const kept = localStorage.getItem("koul.compRef");
+      return kept && HANDLE_PATTERN.test(kept) ? kept : undefined;
+    } catch { return fromUrl && HANDLE_PATTERN.test(fromUrl) ? fromUrl : undefined; }
+  });
   const [state, setState] = React.useState<State>({ kind: "idle" });
   // The handle this wallet is already entered as (undefined while asking), and whether the typed handle is taken.
   const [entry, setEntry] = React.useState<{ wallet: string; handle: string | null } | null>(null);
@@ -100,7 +110,7 @@ function JoinBody() {
     if (!ready || !w.address) return;
     setState({ kind: "signing" });
     try {
-      const r = await enterCompetition({ wallet: w.address, handle, email, acceptedTerms: true });
+      const r = await enterCompetition({ wallet: w.address, handle, email, acceptedTerms: true, ...(ref ? { ref } : {}) });
       setState({ kind: "entered", handle: r.handle });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong. Try again in a minute.";
@@ -145,6 +155,11 @@ function JoinBody() {
             <PillButton href={appHref("/autopilot")} variant="onLime" size="lg">Go to Autopilot<ArrowRight className="size-5" aria-hidden /></PillButton>
             <PillButton href={`/compete/${as}`} variant="onLimeOutline" size="lg">Your page<ArrowRight className="size-5" aria-hidden /></PillButton>
           </div>
+        </Tile>
+        <Tile className="grid gap-3">
+          <TileLabel>Invite friends</TileLabel>
+          <p className="text-[16px] text-muted">Everyone who enters through your link shows as your invite on the board.</p>
+          <CopyRow label="Your link" value={`https://koul.me/compete?ref=${as}`} />
         </Tile>
         {TELEGRAM_URL && (
           <Tile className="grid gap-3">

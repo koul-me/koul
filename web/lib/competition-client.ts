@@ -15,7 +15,7 @@ function rpId(): string | undefined {
 export interface EnterResult { handle: string }
 
 /** `acceptedTerms` is the "18 or older and accept the terms" box; the route refuses an entry without it. */
-export async function enterCompetition(input: { wallet: string; handle: string; email: string; acceptedTerms: true }): Promise<EnterResult> {
+export async function enterCompetition(input: { wallet: string; handle: string; email: string; acceptedTerms: true; /** The handle in the invite link, if any. */ ref?: string }): Promise<EnterResult> {
   const post = async (path: string, body: unknown) => {
     const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const json = (await r.json().catch(() => ({}))) as { error?: string };

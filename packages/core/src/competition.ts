@@ -258,11 +258,13 @@ export interface LeaderboardRow {
   rank: number | null; handle: string; wallet: string; valueUsd: number; pnlUsd: number; returnPct: number | null; flagged: boolean;
   /** Confirmed but not scored yet (the indexer runs every 15 minutes): listed so a new entrant sees themselves at once. */
   pending?: boolean;
+  /** Confirmed entries that came in through this entrant's link. */
+  referrals?: number;
 }
 export interface Leaderboard { rows: LeaderboardRow[]; total: number; offset: number; updatedAt: number | null }
 
 export interface HistoryPoint { at: number; valueUsd: number; returnPct: number | null }
-export interface EntrantView { score: EntrantScore | null; rank: number | null; history: HistoryPoint[]; registeredAt: number }
+export interface EntrantView { score: EntrantScore | null; rank: number | null; history: HistoryPoint[]; registeredAt: number; /** Confirmed entries that came in through this entrant's link. */ referrals?: number }
 
 /** Where everything lives in Redis; the indexer writes, the web routes read and register. */
 export const COMP_KEYS = {
@@ -281,10 +283,12 @@ export const COMP_KEYS = {
   updatedAt: "koul:comp:updated",
   challenge: (wallet: string) => `koul:comp:challenge:${wallet}`,
   pending: (token: string) => `koul:comp:pending:${token}`,
+  /** How many confirmed entries came in through this handle's link. */
+  referrals: (handle: string) => `koul:comp:referrals:${handle.toLowerCase()}`,
 } as const;
 
 /** What the registration stores per entrant. The email stays out of every public response. */
-export interface EntrantRecord { wallet: string; handle: string; email: string; registeredAt: number; verifiedAt: number | null; acceptedTermsAt?: number }
+export interface EntrantRecord { wallet: string; handle: string; email: string; registeredAt: number; verifiedAt: number | null; acceptedTermsAt?: number; /** The entrant whose link brought this one in (their handle as they registered it). */ referredBy?: string }
 
 /** The indexer's running totals per entry. `toLedger` is the last ledger its events were read through. */
 export interface EntryState extends EntryTotals {

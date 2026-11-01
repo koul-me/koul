@@ -29,8 +29,12 @@ export async function leaderboard(offset: number, limit: number): Promise<Leader
   const fresh = entrants.filter((w) => !scored.has(w));
   const records = fresh.length ? await r.mget<(EntrantRecord | null)[]>(...fresh.map((w) => COMP_KEYS.entrant(w))) : [];
   const pending: LeaderboardRow[] = records.flatMap((rec) => (rec?.verifiedAt ? [{ rank: null, handle: rec.handle, wallet: rec.wallet, valueUsd: 0, pnlUsd: 0, returnPct: null, flagged: false, pending: true }] : []));
-  const rows = [...(board ?? []), ...pending];
-  return { rows: rows.slice(offset, offset + limit), total: rows.length, offset, updatedAt: updatedAt ?? null };
+  const all = [...(board ?? []), ...pending];
+  // Invite counts for the rows on this page only: one MGET.
+  const page = all.slice(offset, offset + limit);
+  const counts = page.length ? await r.mget<(number | null)[]>(...page.map((row) => COMP_KEYS.referrals(row.handle))) : [];
+  page.forEach((row, i) => { const n = Number(counts[i] ?? 0); if (n > 0) row.referrals = n; });
+  return { rows: page, total: all.length, offset, updatedAt: updatedAt ?? null };
 }
 
 export async function entrantView(handle: string): Promise<EntrantView | null> {
@@ -44,7 +48,8 @@ export async function entrantView(handle: string): Promise<EntrantView | null> {
     r.get<LeaderboardRow[]>(COMP_KEYS.board),
   ]);
   if (!rec || !rec.verifiedAt) return null;
-  return { score: score ?? null, rank: board?.find((b) => b.wallet === wallet)?.rank ?? null, history, registeredAt: rec.registeredAt };
+  const referrals = Number((await r.get<number>(COMP_KEYS.referrals(rec.handle))) ?? 0);
+  return { score: score ?? null, rank: board?.find((b) => b.wallet === wallet)?.rank ?? null, history, registeredAt: rec.registeredAt, referrals };
 }
 
 /** Where links in the entrant's note point. */

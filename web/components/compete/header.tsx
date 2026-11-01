@@ -18,13 +18,14 @@ export async function onAppHost(): Promise<boolean> {
  * up when you move between them. On koul.me: a narrower page, the wordmark to the landing and Join while entries
  * are open. The section row (Overview, Leaderboard, My entry) is the same on both.
  */
-export async function CompetePage({ section, joinable, children }: { section: Section; joinable: boolean; children: React.ReactNode }) {
+export async function CompetePage({ section, joinable, children, refHandle }: { section: Section; joinable: boolean; children: React.ReactNode; /** An invite handle to carry into /join. */ refHandle?: string | null }) {
+  const q = refHandle ? `?ref=${encodeURIComponent(refHandle)}` : "";
   if (await onAppHost()) {
     return (
       <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
         <CompeteAppBar />
         <main className="grid gap-5">
-          <SectionNav active={section} entryHref="/join" />
+          <SectionNav active={section} entryHref={`/join${q}`} />
           {children}
         </main>
       </div>
@@ -34,9 +35,9 @@ export async function CompetePage({ section, joinable, children }: { section: Se
     <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-16 md:px-8 md:pb-10">
       <header className="flex items-center justify-between gap-3">
         <a href="https://koul.me" className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</a>
-        {joinable && <PillButton href="/app/join" size="md">Join</PillButton>}
+        {joinable && <PillButton href={`/app/join${q}`} size="md">Join</PillButton>}
       </header>
-      <SectionNav active={section} entryHref="/app/join" />
+      <SectionNav active={section} entryHref={`/app/join${q}`} />
       {children}
     </main>
   );

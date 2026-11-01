@@ -36,7 +36,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
       <CompetePage section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
         <div className="grid gap-2">
           <h1 className={`${PAGE_TITLE} break-all`}>{handle}</h1>
-          <Label>{s ? `Scored ${agoOf(s.updatedAt, now)}` : "Waiting for the first score"}</Label>
+          <Label>{s ? `Scored ${agoOf(s.updatedAt, now)}` : "Waiting for the first score"}{view.referrals ? ` · invited ${view.referrals}` : ""}</Label>
         </div>
         {s?.flagged && (
           <Tile tone="outlined" className="grid gap-2 border-danger">
