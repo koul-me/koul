@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { KoulMark } from "@/components/brand/koul-mark";
-import { PillButton } from "@/components/signal";
 import { TELEGRAM_URL } from "@/lib/community";
 import { isAppHost } from "@/lib/app-host";
 import { CompeteAppBar } from "./app-bar";
@@ -13,33 +11,23 @@ export async function onAppHost(): Promise<boolean> {
 }
 
 /**
- * The competition pages' frame. On the app host it is the app's own (components/shell/app-shell.tsx Frame): the same
- * width, side padding and bar, with the section row where /join shows it, so Overview, Leaderboard and My entry line
- * up when you move between them. On koul.me: a narrower page, the wordmark to the landing and Join while entries
- * are open. The section row (Overview, Leaderboard, My entry) is the same on both.
+ * The competition pages' frame: the app's own (components/shell/app-shell.tsx Frame) on every host, the same width,
+ * side padding and 88 px bar, with the section row where /join shows it, so Overview, Leaderboard and My entry line
+ * up when you move between them. Only the bar's contents differ: the app's tabs with a wallet, the wordmark and Join
+ * without one. The section row (Overview, Leaderboard, My entry) is the same everywhere.
  */
 export async function CompetePage({ section, joinable, children, refHandle }: { section: Section; joinable: boolean; children: React.ReactNode; /** An invite handle to carry into /join. */ refHandle?: string | null }) {
   const q = refHandle ? `?ref=${encodeURIComponent(refHandle)}` : "";
-  if (await onAppHost()) {
-    return (
-      <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
-        <CompeteAppBar />
-        <main className="grid gap-5">
-          <SectionNav active={section} entryHref={`/join${q}`} />
-          {children}
-        </main>
-      </div>
-    );
-  }
+  const base = (await onAppHost()) ? "" : "/app";
+  const entryHref = `${base}/join${q}`;
   return (
-    <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 pt-6 pb-16 md:px-8 md:pb-10">
-      <header className="flex items-center justify-between gap-3">
-        <a href="https://koul.me" className="inline-flex items-center gap-2 text-[22px] font-extrabold tracking-tight"><KoulMark className="size-6" />KOUL</a>
-        {joinable && <PillButton href={`/app/join${q}`} size="md">Join</PillButton>}
-      </header>
-      <SectionNav active={section} entryHref={`/app/join${q}`} />
-      {children}
-    </main>
+    <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
+      <CompeteAppBar base={base} joinHref={joinable ? entryHref : null} />
+      <main className="grid gap-5">
+        <SectionNav active={section} entryHref={entryHref} />
+        {children}
+      </main>
+    </div>
   );
 }
 

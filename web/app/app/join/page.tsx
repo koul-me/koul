@@ -24,6 +24,13 @@ import { cn } from "@/lib/utils";
 
 const field = "h-14 w-full rounded-full bg-surface-2 px-5 text-[17px] text-text placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-text";
 
+/**
+ * What the last visit learned, so coming back to My entry from the board shows the page at once instead of a
+ * placeholder; both are asked again in the background. Browser memory only, gone on reload.
+ */
+let lastInfo: { info: CompetitionInfo | null; at: number } | undefined;
+const lastEntry = new Map<string, string | null>();
+
 type State = { kind: "idle" } | { kind: "signing" } | { kind: "entered"; handle: string } | { kind: "error"; message: string };
 
 export default function JoinPage() {
@@ -39,8 +46,8 @@ export default function JoinPage() {
 function JoinBody() {
   const w = useWallet();
   const appHref = useAppHref();
-  const [info, setInfo] = React.useState<CompetitionInfo | null | undefined>(undefined);
-  const [now, setNow] = React.useState<number | null>(null);
+  const [info, setInfo] = React.useState<CompetitionInfo | null | undefined>(() => lastInfo?.info);
+  const [now, setNow] = React.useState<number | null>(() => lastInfo?.at ?? null);
   const [handle, setHandle] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
@@ -56,7 +63,7 @@ function JoinBody() {
   });
   const [state, setState] = React.useState<State>({ kind: "idle" });
   // The handle this wallet is already entered as (undefined while asking), and whether the typed handle is taken.
-  const [entry, setEntry] = React.useState<{ wallet: string; handle: string | null } | null>(null);
+  const [entry, setEntry] = React.useState<{ wallet: string; handle: string | null } | null>(() => (w.address && lastEntry.has(w.address) ? { wallet: w.address, handle: lastEntry.get(w.address)! } : null));
   const entered = entry && entry.wallet === w.address ? entry.handle : undefined;
   const [taken, setTaken] = React.useState<boolean | null>(null);
   const pf = usePortfolio();
@@ -73,8 +80,8 @@ function JoinBody() {
     }
     fetch("/api/competition")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: CompetitionInfo | null) => { if (live) { setInfo(j); setNow(Date.now()); } })
-      .catch(() => { if (live) setInfo(null); });
+      .then((j: CompetitionInfo | null) => { const at = Date.now(); lastInfo = { info: j, at }; if (live) { setInfo(j); setNow(at); } })
+      .catch(() => { if (live && lastInfo === undefined) setInfo(null); });
     return () => { live = false; };
   }, []);
 
@@ -84,8 +91,8 @@ function JoinBody() {
     let live = true;
     fetch(`/api/competition/status?wallet=${wallet}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { entered: string | null } | null) => { if (live) setEntry({ wallet, handle: j?.entered ?? null }); })
-      .catch(() => { if (live) setEntry({ wallet, handle: null }); });
+      .then((j: { entered: string | null } | null) => { if (j) lastEntry.set(wallet, j.entered ?? null); if (live) setEntry({ wallet, handle: j?.entered ?? lastEntry.get(wallet) ?? null }); })
+      .catch(() => { if (live) setEntry({ wallet, handle: lastEntry.get(wallet) ?? null }); });
     return () => { live = false; };
   }, [w.address]);
 
@@ -111,6 +118,7 @@ function JoinBody() {
     setState({ kind: "signing" });
     try {
       const r = await enterCompetition({ wallet: w.address, handle, email, acceptedTerms: true, ...(ref ? { ref } : {}) });
+      lastEntry.set(w.address, r.handle);
       setState({ kind: "entered", handle: r.handle });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong. Try again in a minute.";
@@ -118,7 +126,15 @@ function JoinBody() {
     }
   };
 
-  if (info === undefined || now === null || (w.address && entered === undefined)) return <Tile className="h-[420px] animate-pulse" aria-busy />;
+  // The placeholder has the entry form's shape, so the page does not jump when it lands.
+  if (info === undefined || now === null || (w.address && entered === undefined)) {
+    return (
+      <div className="grid gap-4 md:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] md:gap-5" aria-busy>
+        <Tile className="h-[506px] animate-pulse" />
+        <Tile className="hidden h-[506px] animate-pulse md:block" />
+      </div>
+    );
+  }
 
   const c = info?.config ?? null;
   const phase = phaseOf(c, now);

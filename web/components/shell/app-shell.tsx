@@ -24,6 +24,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useAppPathname();
   const w = useWallet();
   const flow = isFlowRoute(pathname);
+  // My entry shares the competition's section row with Overview and Leaderboard, which do not rise in: it stays put.
+  const still = pathname.startsWith("/join");
 
   if (w.initializing) {
     return (
@@ -53,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <Frame className={cn(!flow && "pb-28 md:pb-12")}>
       <TopBar connected className={cn(flow && "hidden md:flex")} />
-      <motion.main key={pathname} {...rise(8)} className={cn(flow && "pt-2 md:pt-0")}>{children}</motion.main>
+      <motion.main key={pathname} {...(still ? {} : rise(8))} className={cn(flow && "pt-2 md:pt-0")}>{children}</motion.main>
       {!flow && <BottomTabs />}
       {!flow && <TransferWatcher />}
     </Frame>
