@@ -2,13 +2,14 @@
 
 /** What Koul is built on, the last call to action, and the footer. Plain names, no logos, nothing claimed. */
 import Link from "next/link";
-import { motion } from "motion/react";
 import { ArrowUpRight } from "lucide-react";
 import { Label } from "@/components/signal";
 import { TELEGRAM_URL } from "@/lib/community";
-import { staggerChild, staggerParent } from "@/lib/motion";
 import { StartButtons, Section } from "./shell";
 import { KoulMark } from "@/components/brand/koul-mark";
+import { Marquee } from "@/components/ui/marquee";
+import { DotPattern } from "@/components/ui/dot-pattern";
+import ShinyText from "@/components/ShinyText";
 
 /** What Koul stands on. Names, set large; no logos until the marks are ours to use. */
 const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin"];
@@ -16,27 +17,28 @@ const BUILT_ON = ["Stellar", "Soroban", "XOXNO", "Passkeys", "OpenZeppelin"];
 export function BuiltOn() {
   return (
     <Section title="Built on Stellar">
-      <motion.div
-        className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-4 md:gap-x-9"
-        variants={staggerParent}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.4 }}
-      >
-        {BUILT_ON.map((name) => (
-          <motion.span key={name} variants={staggerChild} className="text-[26px] font-extrabold leading-none tracking-tight md:text-[38px]">
-            {name}
-          </motion.span>
-        ))}
-      </motion.div>
+      {/* Research: Magic UI Marquee, the names on a slow loop with faded edges. */}
+      <div className="relative mt-10 [mask-image:linear-gradient(to_right,transparent,#000_10%,#000_90%,transparent)]">
+        <Marquee pauseOnHover className="p-0 [--duration:28s] [--gap:3rem]">
+          {BUILT_ON.map((name) => (
+            <span key={name} className="text-[26px] font-extrabold leading-none tracking-tight md:text-[38px]">
+              {name}
+            </span>
+          ))}
+        </Marquee>
+      </div>
     </Section>
   );
 }
 
 export function FinalCta() {
   return (
-    <Section inner="rounded-[var(--radius-tile)] bg-lime px-6 py-14 text-on-lime md:px-12 md:py-20">
-      <h2 className="t-headline max-w-[14ch]">Start with one rule.</h2>
+    <Section inner="relative isolate overflow-hidden rounded-[var(--radius-tile)] bg-lime px-6 py-14 text-on-lime md:px-12 md:py-20">
+      {/* Research: Magic UI Dot Pattern behind, React Bits Shiny Text on the line. */}
+      <DotPattern className="-z-10 text-on-lime/15 [mask-image:radial-gradient(ellipse_at_top_right,#000,transparent_70%)]" />
+      <h2 className="t-headline max-w-[14ch]">
+        <ShinyText text="Start with one rule." color="#0a0f00" shineColor="#6b8a12" speed={3} />
+      </h2>
       <StartButtons tone="onLime" from="close" className="mt-8" />
     </Section>
   );
