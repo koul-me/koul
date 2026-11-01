@@ -32,7 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Frame>
         <div className="flex h-[88px] items-center justify-between">
           <Sk className="h-6 w-16" />
-          <Sk className="h-11 w-28 rounded-full" />
+          <div className="flex items-center gap-2"><Sk className="h-11 w-28 rounded-full" /><Sk className="size-11 rounded-full" /></div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <Sk className="h-[380px] rounded-[var(--radius-tile)]" />

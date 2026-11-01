@@ -13,16 +13,20 @@ import { Label, PillButton, Sk } from "@/components/signal";
 import { KoulMark } from "@/components/brand/koul-mark";
 import { TopBar } from "@/components/shell/top-bar";
 import { BottomTabs } from "@/components/shell/bottom-tabs";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 
-/** `base` is the app's base on this host ("" on app.koul.me, "/app" elsewhere); `joinHref` is null once entries close. */
-export function CompeteAppBar({ base, joinHref }: { base: string; joinHref: string | null }) {
+/**
+ * `base` is the app's base on this host ("" on app.koul.me, "/app" elsewhere). `joinHref` is null once entries close,
+ * undefined while a page is still loading (its place is kept, so Join does not push the switch over when it lands).
+ */
+export function CompeteAppBar({ base, joinHref }: { base: string; joinHref: string | null | undefined }) {
   const w = useWallet();
   return (
     <AppBaseProvider base={base}>
       {w.initializing ? (
         <div className="flex h-[88px] items-center justify-between">
           <Sk className="h-6 w-16" />
-          <Sk className="h-11 w-28 rounded-full" />
+          <div className="flex items-center gap-2"><Sk className="h-11 w-28 rounded-full" /><Sk className="size-11 rounded-full" /></div>
         </div>
       ) : w.isConnected ? (
         <>
@@ -36,7 +40,10 @@ export function CompeteAppBar({ base, joinHref }: { base: string; joinHref: stri
             <KoulMark className="mr-2 size-6" />
             KOUL
           </Link>
-          {joinHref ? <PillButton href={joinHref} size="md">Join</PillButton> : <Label>Stellar testnet</Label>}
+          <div className="flex shrink-0 items-center gap-2">
+            {joinHref ? <PillButton href={joinHref} size="md">Join</PillButton> : joinHref === null ? <Label className="mr-2">Stellar testnet</Label> : <span aria-hidden className="h-11 w-[84px]" />}
+            <ThemeToggle />
+          </div>
         </header>
       )}
     </AppBaseProvider>

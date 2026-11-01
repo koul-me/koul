@@ -4,6 +4,7 @@ import { TELEGRAM_URL } from "@/lib/community";
 import { isAppHost } from "@/lib/app-host";
 import { CompeteAppBar } from "./app-bar";
 import { SectionNav, type Section } from "./section-nav";
+import { Sk } from "@/components/signal";
 
 /** This request's host is the app's (app.koul.me, app.localhost): the competition pages then use the app's frame. */
 export async function onAppHost(): Promise<boolean> {
@@ -26,6 +27,28 @@ export async function CompetePage({ section, joinable, children, refHandle }: { 
       <main className="grid gap-5">
         <SectionNav active={section} entryHref={entryHref} />
         {children}
+      </main>
+    </div>
+  );
+}
+
+/**
+ * What a competition page shows while the server renders it (each route's loading.tsx): the same frame, bar and
+ * section row, with the new section already lit, and placeholders for the content. A click answers at once instead of
+ * waiting for the board to load.
+ */
+export async function CompeteLoading({ section }: { section: Section }) {
+  const base = (await onAppHost()) ? "" : "/app";
+  return (
+    <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
+      <CompeteAppBar base={base} joinHref={undefined} />
+      <main className="grid gap-5" aria-busy>
+        <SectionNav active={section} entryHref={`${base}/join`} />
+        <div className="grid gap-2">
+          <Sk className="h-[34px] w-56 md:h-[40px]" />
+          <Sk className="h-4 w-72 max-w-full" />
+        </div>
+        <Sk className="h-[520px] rounded-[var(--radius-tile)]" />
       </main>
     </div>
   );
