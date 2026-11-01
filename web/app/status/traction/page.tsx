@@ -44,8 +44,6 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
   const live = s.live.map((p) => ({ at: Date.parse(`${new Date(p.at).toISOString().slice(0, 10)}T00:00:00Z`), value: p.organic.autopilots + p.team.autopilots }));
   const rows = s.wallets.slice(0, TOP_WALLETS);
   const kinds = (c: TractionCounts) => Object.entries(c.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${k}`).join(", ") || "none";
-  const f = s.funnel;
-  const pct = (n: number) => (f.created ? ` (${Math.round((n / f.created) * 100)}%)` : "");
   return (
     <>
       <ThemeColor />
@@ -76,20 +74,7 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           <Stat label="Swap volume" value={usd(a.volumeUsd)} note={`${a.swaps} swaps · what went in, at oracle prices`} />
           <Stat label="Paid out by pools" value={usd(a.volumeOutUsd)} note={a.volumeUsd > 0 ? `${(a.volumeOutUsd / a.volumeUsd).toFixed(1)}x the input · testnet pools overpay` : "testnet pools overpay"} />
           <Stat label="Trades per autopilot" value={a.tradesPerAutopilot === null ? "-" : a.tradesPerAutopilot.toFixed(1)} />
-          <Stat label="Wallets created" value={String(a.created)} note={f.since === null ? "counting from the next new wallet" : `since ${day(f.since)}`} />
         </section>
-        <Tile className="grid gap-3 p-5">
-          <TileLabel>Funnel</TileLabel>
-          <div className="mono flex flex-wrap items-baseline gap-x-6 gap-y-1 text-[16px]">
-            <span>{f.created} created</span><span aria-hidden>→</span>
-            <span>{f.withAutopilot} saved an autopilot{pct(f.withAutopilot)}</span><span aria-hidden>→</span>
-            <span>{f.traded} traded{pct(f.traded)}</span>
-          </div>
-          <Label>
-            Created counts wallets from the deploy that added it on{f.since === null ? " (none yet)" : `, ${day(f.since)}`}: a wallet is counted when its welcome test USDC arrives. Wallets made before then
-            are only in the history once they save an autopilot ({a.usersEver} so far).
-          </Label>
-        </Tile>
         {days.length === 0 ? (
           <Tile tone="dashed" className="p-5"><span className="text-[16px]">No router events in the history yet.</span></Tile>
         ) : (
