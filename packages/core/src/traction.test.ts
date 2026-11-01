@@ -106,6 +106,9 @@ describe("traction groups", () => {
     const s = applyEvents(emptyTraction("R"), [...loop(A, 1), set(10, B, "2026-10-31T01:00:00Z"), set(11, TEAM_WALLETS[0], "2026-10-31T02:00:00Z")], PRICES, NOW);
     expect(s.wallets.map((w) => groupOf(w, new Set()))).toEqual(["loadtest", "organic", "team"]);
     expect(groupOf(s.wallets[1]!, new Set([B]))).toBe("team");
+    const sum = tractionSummary(s, [], new Set(), [], NOW);
+    expect(sum.days.noLoadTest.find((d) => d.day === "2026-10-28")).toMatchObject({ newUsers: 0, trades: 0 });
+    expect(sum.days.all.find((d) => d.day === "2026-10-28")).toMatchObject({ newUsers: 1, trades: 2 });
   });
 });
 
@@ -133,6 +136,7 @@ describe("traction summary", () => {
     expect(sum.organic.trades).toBe(2);
     expect(sum.days.organic.find((d) => d.day === "2026-10-29")).toMatchObject({ newUsers: 0, trades: 0 });
     expect(sum.days.all.find((d) => d.day === "2026-10-29")).toMatchObject({ newUsers: 1, trades: 1, active: 1, volumeUsd: 40 });
+    expect(sum.days.noLoadTest).toEqual(sum.days.all);
   });
 
   it("has a row for every UTC day from the first event, with cumulative users", () => {

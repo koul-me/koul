@@ -18,7 +18,6 @@ export const dynamic = "force-dynamic";
 
 /** What happened when, numbered on every chart in this order, so a spike can be read against its cause. */
 const EVENTS = [
-  { at: Date.parse("2026-10-28T14:00:00Z"), label: "Team load test: 57 wallets made by script between 14:00 and 16:00 UTC, each trading USDC and ETH for under an hour. It is the Oct 28 spike." },
   { at: Date.parse("2026-10-30T18:00:00Z"), label: "Trading competition week 1 opens at 18:00 UTC; it ends Nov 6, 18:00 UTC." },
 ];
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: n >= 1000 ? 0 : 2 })}`;
@@ -45,8 +44,9 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
   if (!data) return <main className="mx-auto max-w-[1100px] px-4 py-10"><h1 className="t-title">Traction is unavailable right now.</h1></main>;
   const { summary: s, collected, readAt: now } = data;
   const a = s.all;
-  const days = s.days.all;
-  const live = s.live.map((p) => ({ at: Date.parse(`${new Date(p.at).toISOString().slice(0, 10)}T00:00:00Z`), value: p.organic.autopilots + p.team.autopilots }));
+  // The charts leave out the 2026-10-28 load test; the headlines and the table count it.
+  const days = s.days.noLoadTest;
+  const live = s.live.map((p) => ({ at: Date.parse(`${new Date(p.at).toISOString().slice(0, 10)}T00:00:00Z`), value: p.organic.autopilots + p.team.autopilots - s.loadTestLive }));
   const rows = s.wallets;
   const kinds = (c: TractionCounts) => Object.entries(c.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${k}`).join(", ") || "none";
   return (

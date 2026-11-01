@@ -283,14 +283,16 @@ export interface TractionSummary {
   all: TractionCounts;
   organic: TractionCounts;
   team: TractionCounts;
-  /** Every UTC day from the first event to `now`: organic only, and every wallet. */
-  days: { organic: TractionDay[]; all: TractionDay[] };
+  /** Every UTC day from the first event to `now`: organic only, every wallet, and every wallet but the load test. */
+  days: { organic: TractionDay[]; all: TractionDay[]; noLoadTest: TractionDay[] };
   /** The last snapshot of each UTC day, oldest first. */
   live: TractionSnapshot[];
   /** Created, then saved an autopilot, then traded: every wallet created since `since`. */
   funnel: { since: number | null; created: number; withAutopilot: number; traded: number };
   wallets: TractionRow[];
   loadTest: number;
+  /** Live autopilots the load test wallets hold now; nobody touches them, so it is also what each snapshot held. */
+  loadTestLive: number;
 }
 
 const zeroCounts = (): TractionCounts => ({ users: 0, autopilots: 0, rules: 0, usersEver: 0, trades24h: 0, trades7d: 0, trades: 0, swaps: 0, volumeUsd: 0, volumeOutUsd: 0, tradesPerAutopilot: null, created: 0, kinds: {} });
@@ -379,8 +381,9 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
   return {
     updatedAt: s.updatedAt, toLedger: s.toLedger, historyFrom: s.historyFrom, gaps: s.gaps, unpriced: s.unpriced,
     all: counts.all, organic: counts.organic, team: counts.team,
-    days: { organic: series((g) => g === "organic"), all: series(() => true) },
+    days: { organic: series((g) => g === "organic"), all: series(() => true), noLoadTest: series((g) => g !== "loadtest") },
     live: [...lastOfDay.values()],
     funnel, wallets, loadTest: groups.filter((g) => g === "loadtest").length,
+    loadTestLive: s.wallets.reduce((n, w, i) => n + (groups[i] === "loadtest" ? w.live.autopilots : 0), 0),
   };
 }
