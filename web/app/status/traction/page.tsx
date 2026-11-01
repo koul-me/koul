@@ -20,7 +20,6 @@ export const dynamic = "force-dynamic";
 const EVENTS = [
   { at: Date.parse("2026-10-28T14:00:00Z"), label: "Team load test: 57 wallets made by script between 14:00 and 16:00 UTC, each trading USDC and ETH for under an hour. It is the Oct 28 spike." },
   { at: Date.parse("2026-10-30T18:00:00Z"), label: "Trading competition week 1 opens at 18:00 UTC; it ends Nov 6, 18:00 UTC." },
-  { at: Date.parse("2026-10-31T12:00:00Z"), label: "Three team bot wallets join the competition and trade every few hours; they are excluded from prizes." },
 ];
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: n >= 1000 ? 0 : 2 })}`;
 const when = (t: number | null) => (t === null ? "-" : `${new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })} UTC`);
