@@ -125,6 +125,7 @@ describe("traction summary", () => {
     const sum = tractionSummary(state(), [], new Set(), [], NOW);
     expect(sum.organic).toMatchObject({ users: 1, autopilots: 1, rules: 2, usersEver: 2, trades: 3, trades24h: 2, trades7d: 3, swaps: 2, volumeUsd: 80, tradesPerAutopilot: 1.5, kinds: { swap: 3 } });
     expect(sum.team).toMatchObject({ users: 1, rules: 5, trades: 1, volumeUsd: 1000 });
+    expect(sum.all).toMatchObject({ users: 2, rules: 7, trades: 4, volumeUsd: 1080 });
   });
 
   it("moves a wallet tagged later out of organic in every past day", () => {
@@ -139,11 +140,11 @@ describe("traction summary", () => {
     expect(sum.days.organic.map((d) => [d.day, d.newUsers, d.cumulativeUsers, d.trades])).toEqual([["2026-10-29", 1, 1, 1], ["2026-10-30", 0, 1, 0], ["2026-10-31", 1, 2, 2]]);
   });
 
-  it("follows created wallets to an autopilot and a trade, team apart", () => {
+  it("follows every created wallet to an autopilot and a trade", () => {
     const C = `CC${"C".repeat(54)}`;
     const sum = tractionSummary(state(), [], new Set(), [[A, at("2026-10-29T09:00:00Z")], [C, at("2026-10-30T09:00:00Z")], [TEAM_WALLETS[0], at("2026-10-31T08:00:00Z")]], NOW);
-    expect(sum.funnel).toEqual({ since: at("2026-10-29T09:00:00Z"), created: 2, withAutopilot: 1, traded: 1 });
-    expect([sum.organic.created, sum.team.created]).toEqual([2, 1]);
+    expect(sum.funnel).toEqual({ since: at("2026-10-29T09:00:00Z"), created: 3, withAutopilot: 2, traded: 2 });
+    expect([sum.all.created, sum.organic.created, sum.team.created]).toEqual([3, 2, 1]);
   });
 
   it("keeps the last snapshot of each day and ranks wallets by trades", () => {
