@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { KoulMark } from "@/components/brand/koul-mark";
 import { Label, Tile, TileLabel } from "@/components/signal";
-import { BarChart } from "@/components/status/bar-chart";
+import { BarChart, type BarMark } from "@/components/status/bar-chart";
 import type { PublicStatus } from "@/lib/status-server";
 import { cn } from "@/lib/utils";
 
@@ -21,12 +21,12 @@ export function Stat({ label, value, note }: { label: string; value: string; not
   );
 }
 
-export function ChartTile({ title, unit, units, decimals, points, slot = "quarter" }: { title: string; unit: string; units?: string; decimals?: number; points: { at: number; value: number | null }[]; slot?: "quarter" | "day" }) {
+export function ChartTile({ title, unit, units, decimals, points, slot = "quarter", marks }: { title: string; unit: string; units?: string; decimals?: number; points: { at: number; value: number | null }[]; slot?: "quarter" | "day"; marks?: BarMark[] }) {
   const rows = points.filter((p) => p.value !== null);
   return (
     <Tile className="grid gap-4 p-5">
       <TileLabel>{title}</TileLabel>
-      <BarChart points={points} unit={unit} units={units} decimals={decimals} label={title} slot={slot} />
+      <BarChart points={points} unit={unit} units={units} decimals={decimals} label={title} slot={slot} marks={marks} />
       <details>
         <summary className="label cursor-pointer text-muted">Show as table</summary>
         <div className="mt-3 max-h-64 overflow-y-auto">

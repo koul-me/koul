@@ -16,6 +16,12 @@ import { readTraction } from "@/lib/traction-server";
 export const metadata: Metadata = { title: "Traction", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
+/** What happened when, numbered on every chart in this order, so a spike can be read against its cause. */
+const EVENTS = [
+  { at: Date.parse("2026-10-28T14:00:00Z"), label: "Team load test: 57 wallets made by script between 14:00 and 16:00 UTC, each trading USDC and ETH for under an hour. It is the Oct 28 spike." },
+  { at: Date.parse("2026-10-30T18:00:00Z"), label: "Trading competition week 1 opens at 18:00 UTC; it ends Nov 6, 18:00 UTC." },
+  { at: Date.parse("2026-10-31T12:00:00Z"), label: "Three team bot wallets join the competition and trade every few hours; they are excluded from prizes." },
+];
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: n >= 1000 ? 0 : 2 })}`;
 const when = (t: number | null) => (t === null ? "-" : `${new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })} UTC`);
 const day = (t: number | null) => (t === null ? "-" : new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }));
@@ -80,18 +86,27 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           <Stat label="Paid out by pools" value={usd(a.volumeOutUsd)} note={a.volumeUsd > 0 ? `${(a.volumeOutUsd / a.volumeUsd).toFixed(1)}x the input · testnet pools overpay` : "testnet pools overpay"} />
           <Stat label="Trades per autopilot" value={a.tradesPerAutopilot === null ? "-" : a.tradesPerAutopilot.toFixed(1)} />
         </section>
+        <Tile className="grid gap-3 p-5">
+          <TileLabel>Events</TileLabel>
+          <ol className="grid gap-2">
+            {EVENTS.map((e, i) => (
+              <li key={e.at} className="flex gap-3 text-[16px]"><span className="mono shrink-0 text-muted">{i + 1}. {day(e.at)}</span><span>{e.label}</span></li>
+            ))}
+          </ol>
+          <Label>The numbers mark the same days on the charts below.</Label>
+        </Tile>
         {days.length === 0 ? (
           <Tile tone="dashed" className="p-5"><span className="text-[16px]">No router events in the history yet.</span></Tile>
         ) : (
           <section className="grid items-start gap-4 md:grid-cols-2" aria-label="Over time">
-            <ChartTile slot="day" title="New users" unit="user" units="users" points={days.map((d) => ({ at: d.at, value: d.newUsers }))} />
-            <ChartTile slot="day" title="Users, cumulative" unit="user" units="users" points={days.map((d) => ({ at: d.at, value: d.cumulativeUsers }))} />
-            <ChartTile slot="day" title="Trades" unit="trade" units="trades" points={days.map((d) => ({ at: d.at, value: d.trades }))} />
-            <ChartTile slot="day" title="Swap volume" unit="USD" decimals={2} points={days.map((d) => ({ at: d.at, value: d.volumeUsd }))} />
-            <ChartTile slot="day" title="Paid out by pools" unit="USD" decimals={2} points={days.map((d) => ({ at: d.at, value: d.volumeOutUsd }))} />
-            <ChartTile slot="day" title="Active wallets" unit="wallet" units="wallets" points={days.map((d) => ({ at: d.at, value: d.active }))} />
+            <ChartTile slot="day" marks={EVENTS} title="New users" unit="user" units="users" points={days.map((d) => ({ at: d.at, value: d.newUsers }))} />
+            <ChartTile slot="day" marks={EVENTS} title="Users, cumulative" unit="user" units="users" points={days.map((d) => ({ at: d.at, value: d.cumulativeUsers }))} />
+            <ChartTile slot="day" marks={EVENTS} title="Trades" unit="trade" units="trades" points={days.map((d) => ({ at: d.at, value: d.trades }))} />
+            <ChartTile slot="day" marks={EVENTS} title="Swap volume" unit="USD" decimals={2} points={days.map((d) => ({ at: d.at, value: d.volumeUsd }))} />
+            <ChartTile slot="day" marks={EVENTS} title="Paid out by pools" unit="USD" decimals={2} points={days.map((d) => ({ at: d.at, value: d.volumeOutUsd }))} />
+            <ChartTile slot="day" marks={EVENTS} title="Active wallets" unit="wallet" units="wallets" points={days.map((d) => ({ at: d.at, value: d.active }))} />
             {live.length > 0
-              ? <ChartTile slot="day" title="Live autopilots" unit="autopilot" units="autopilots" points={live} />
+              ? <ChartTile slot="day" marks={EVENTS} title="Live autopilots" unit="autopilot" units="autopilots" points={live} />
               : <Tile className="grid gap-3 p-5"><TileLabel>Live autopilots</TileLabel><span className="text-[16px]">The first snapshot comes with the first run.</span></Tile>}
           </section>
         )}
