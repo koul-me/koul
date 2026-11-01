@@ -213,6 +213,15 @@ export function statusCookieValue(): string | null {
   const secret = process.env.STATUS_SECRET;
   return secret ? createHmac("sha256", secret).update("koul-status-private").digest("base64url") : null;
 }
+/**
+ * The traction page's share key: `/status/traction?k=<key>` opens that page alone, without the cookie, for anyone given
+ * the link. Derived from TRACTION_SHARE_SECRET when set, else STATUS_SECRET; changing TRACTION_SHARE_SECRET retires
+ * every link already shared without locking the team out of /status/private.
+ */
+export function tractionShareKey(): string | null {
+  const secret = process.env.TRACTION_SHARE_SECRET || process.env.STATUS_SECRET;
+  return secret ? createHmac("sha256", secret).update("koul-traction-share").digest("base64url").slice(0, 24) : null;
+}
 export function sameSecret(a: string, b: string): boolean {
   const x = Buffer.from(a), y = Buffer.from(b);
   return x.length === y.length && timingSafeEqual(x, y);

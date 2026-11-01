@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { TractionCounts } from "@koul/core";
 import { KoulMark } from "@/components/brand/koul-mark";
@@ -8,10 +8,11 @@ import { Label, Tile, TileLabel } from "@/components/signal";
 import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ChartTile, Stat } from "@/components/status/status-view";
 import { ThemeColor } from "@/components/shell/theme-color";
-import { sameSecret, STATUS_COOKIE, statusCookieValue } from "@/lib/status-server";
+import { sameSecret, STATUS_COOKIE, statusCookieValue, tractionShareKey } from "@/lib/status-server";
 import { readTraction } from "@/lib/traction-server";
 
-export const metadata: Metadata = { title: "Traction (private)", robots: { index: false, follow: false } };
+// No referrer: the share key is in the URL, and a click out must not carry it.
+export const metadata: Metadata = { title: "Traction", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
 const TOP_WALLETS = 25;
@@ -22,11 +23,19 @@ const ago = (t: number, now: number) => {
   const m = Math.max(0, Math.round((now - t) / 60_000));
   return m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
 };
-/** Users, autopilots, trades and volume over time, every wallet counted. For the team only, like /status/private. */
-export default async function TractionPage() {
+/**
+ * Users, autopilots, trades and volume over time, every wallet counted. Open to the team's status cookie, and to anyone
+ * holding the share link (`?k=`, see tractionShareKey); everyone else gets a 404.
+ */
+export default async function TractionPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const expected = statusCookieValue();
   const got = (await cookies()).get(STATUS_COOKIE)?.value;
-  if (!expected || !got || !sameSecret(got, expected)) notFound();
+  const team = !!expected && !!got && sameSecret(got, expected);
+  const share = tractionShareKey();
+  const k = (await searchParams).k;
+  if (!team && !(share && typeof k === "string" && sameSecret(k, share))) notFound();
+  const host = (await headers()).get("host");
+  const shareUrl = team && share && host ? `https://${host}/status/traction?k=${share}` : null;
   const data = await readTraction();
   if (!data) return <main className="mx-auto max-w-[1100px] px-4 py-10"><h1 className="t-title">Traction is unavailable right now.</h1></main>;
   const { summary: s, collected, readAt: now } = data;
@@ -44,13 +53,18 @@ export default async function TractionPage() {
       <main className="mx-auto grid w-full max-w-[1100px] gap-5 px-4 py-6 md:px-8 md:py-10">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <a href="https://koul.me" className="inline-flex items-center gap-2 text-[24px] font-extrabold tracking-tight"><KoulMark className="size-7" />KOUL</a>
-          <Label><Link href="/status/private" className="underline">Status</Link> · Traction</Label>
+          {team ? <Label><Link href="/status/private" className="underline">Status</Link> · Traction</Label> : <Label>Traction</Label>}
         </header>
         <Tile className="grid gap-3 p-6 md:p-8">
           <h1 className="t-title">Traction</h1>
           <p className="text-[16px] text-muted">
             {collected ? `Collected ${ago(s.updatedAt, now)} (${when(s.updatedAt)}) at ledger ${s.toLedger}, hourly.` : "Nothing collected yet: the traction workflow writes the first numbers on its first run."}
           </p>
+          {shareUrl && (
+            <Label>
+              Share link, for anyone you give it to (no sign in): <code className="break-all select-all">{shareUrl}</code>. Only you see this line.
+            </Label>
+          )}
         </Tile>
         <section className="grid grid-cols-2 gap-4 md:grid-cols-3" aria-label="Headlines">
           <Stat label="Users with an autopilot" value={String(a.users)} note={`${a.usersEver} ever saved one`} />
