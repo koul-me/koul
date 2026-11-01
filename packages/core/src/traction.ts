@@ -276,13 +276,15 @@ export interface TractionSummary {
   historyFrom: number | null;
   gaps: TractionState["gaps"];
   unpriced: number;
+  /** Every wallet; the page shows only this. organic and team stay for asking how much of it is the team's. */
+  all: TractionCounts;
   organic: TractionCounts;
   team: TractionCounts;
   /** Every UTC day from the first event to `now`: organic only, and every wallet. */
   days: { organic: TractionDay[]; all: TractionDay[] };
   /** The last snapshot of each UTC day, oldest first. */
   live: TractionSnapshot[];
-  /** Created, then saved an autopilot, then traded: organic wallets created since `since`. */
+  /** Created, then saved an autopilot, then traded: every wallet created since `since`. */
   funnel: { since: number | null; created: number; withAutopilot: number; traded: number };
   wallets: TractionRow[];
   loadTest: number;
@@ -297,27 +299,30 @@ const zeroCounts = (): TractionCounts => ({ users: 0, autopilots: 0, rules: 0, u
  */
 export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[], team: ReadonlySet<string>, created: [string, number][], now: number): TractionSummary {
   const groups = s.wallets.map((w) => groupOf(w, team));
-  const counts = { organic: zeroCounts(), team: zeroCounts() };
-  const autopilotsEver = { organic: 0, team: 0 };
+  const counts = { all: zeroCounts(), organic: zeroCounts(), team: zeroCounts() };
+  const autopilotsEver = { all: 0, organic: 0, team: 0 };
   s.wallets.forEach((w, i) => {
-    const k = side(groups[i]!), c = counts[k];
-    if (w.live.autopilots > 0) c.users++;
-    c.autopilots += w.live.autopilots; c.rules += w.live.rules;
-    if (w.firstSeen !== null || w.sets > 0) c.usersEver++;
-    c.trades += w.trades; c.swaps += w.swaps; c.volumeUsd += w.volumeUsd; c.volumeOutUsd += w.volumeOutUsd ?? 0;
-    autopilotsEver[k] += w.ids.length;
-    for (const [kind, n] of Object.entries(w.kinds)) c.kinds[kind] = (c.kinds[kind] ?? 0) + n;
+    for (const k of [side(groups[i]!), "all"] as const) {
+      const c = counts[k];
+      if (w.live.autopilots > 0) c.users++;
+      c.autopilots += w.live.autopilots; c.rules += w.live.rules;
+      if (w.firstSeen !== null || w.sets > 0) c.usersEver++;
+      c.trades += w.trades; c.swaps += w.swaps; c.volumeUsd += w.volumeUsd; c.volumeOutUsd += w.volumeOutUsd ?? 0;
+      autopilotsEver[k] += w.ids.length;
+      for (const [kind, n] of Object.entries(w.kinds)) c.kinds[kind] = (c.kinds[kind] ?? 0) + n;
+    }
   });
   for (const [hour, cells] of Object.entries(s.hours)) {
     const age = now - Number(hour);
     for (const [i, n] of Object.entries(cells)) {
-      const c = counts[side(groups[Number(i)] ?? "organic")];
-      // An hour counts when it ends inside the window: within one hour of exact.
-      if (age < DAY_MS) c.trades24h += n;
-      if (age < 7 * DAY_MS) c.trades7d += n;
+      for (const c of [counts[side(groups[Number(i)] ?? "organic")], counts.all]) {
+        // An hour counts when it ends inside the window: within one hour of exact.
+        if (age < DAY_MS) c.trades24h += n;
+        if (age < 7 * DAY_MS) c.trades7d += n;
+      }
     }
   }
-  for (const k of ["organic", "team"] as const) {
+  for (const k of ["all", "organic", "team"] as const) {
     counts[k].volumeUsd = cents(counts[k].volumeUsd);
     counts[k].volumeOutUsd = cents(counts[k].volumeOutUsd);
     counts[k].tradesPerAutopilot = autopilotsEver[k] ? counts[k].trades / autopilotsEver[k] : null;
@@ -326,8 +331,8 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
   const createdTeam = (w: string) => { const i = index.get(w); return i !== undefined ? side(groups[i]!) === "team" : team.has(w) || (TEAM_WALLETS as readonly string[]).includes(w); };
   const funnel = { since: created.length ? Math.min(...created.map(([, t]) => t)) : null, created: 0, withAutopilot: 0, traded: 0 };
   for (const [w] of created) {
-    if (createdTeam(w)) { counts.team.created++; continue; }
-    counts.organic.created++;
+    counts[createdTeam(w) ? "team" : "organic"].created++;
+    counts.all.created++;
     funnel.created++;
     const i = index.get(w);
     const ww = i !== undefined ? s.wallets[i]! : null;
@@ -370,7 +375,7 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
     .sort((a, b) => b.trades - a.trades || b.volumeUsd - a.volumeUsd || (a.firstSeen ?? 0) - (b.firstSeen ?? 0));
   return {
     updatedAt: s.updatedAt, toLedger: s.toLedger, historyFrom: s.historyFrom, gaps: s.gaps, unpriced: s.unpriced,
-    organic: counts.organic, team: counts.team,
+    all: counts.all, organic: counts.organic, team: counts.team,
     days: { organic: series((g) => g === "organic"), all: series(() => true) },
     live: [...lastOfDay.values()],
     funnel, wallets, loadTest: groups.filter((g) => g === "loadtest").length,
