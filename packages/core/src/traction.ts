@@ -51,6 +51,8 @@ export interface TractionWallet {
   /** First AutopilotSet seen, ms; null for a wallet only the views know (its first save is older than the history). */
   firstSeen: number | null;
   lastTrade: number | null;
+  /** Hash of the transaction of the last trade, for checking it on an explorer. Absent in state written before it existed. */
+  lastTx?: string;
   /** Fired events: every rule the router ran, a swap or a lending move. */
   trades: number;
   swaps: number;
@@ -105,7 +107,7 @@ export interface LiveCounts { users: number; autopilots: number; rules: number }
 export type RouterEvent =
   | { id: string; at: number; type: "autopilot_set"; user: string; autopilotId: number; rules: number }
   | { id: string; at: number; type: "autopilot_cleared"; user: string; autopilotId: number }
-  | { id: string; at: number; type: "fired"; user: string; kind: string; amount: bigint }
+  | { id: string; at: number; type: "fired"; user: string; kind: string; amount: bigint; tx?: string }
   | { id: string; at: number; type: "swapped"; user: string; tokenIn: string; tokenOut: string; amountIn: bigint; amountOut: bigint };
 
 export function emptyTraction(router: string): TractionState {
@@ -123,14 +125,14 @@ export const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
  * A router event from its decoded topics and body (`scValToNative`), or null for anything else. The router names its
  * events after the structs (`fired`, `swapped`, `autopilot_set`, `autopilot_cleared`) with the user as the second topic.
  */
-export function routerEvent(id: string, at: number, topics: unknown[], value: unknown): RouterEvent | null {
+export function routerEvent(id: string, at: number, topics: unknown[], value: unknown, tx?: string): RouterEvent | null {
   const [name, user] = topics;
   if (typeof user !== "string" || !value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   if (name === "autopilot_set") return { id, at, type: name, user, autopilotId: Number(v.autopilot_id), rules: Number(v.rules) };
   if (name === "autopilot_cleared") return { id, at, type: name, user, autopilotId: Number(v.autopilot_id) };
   // Router v1 (before 2026-09-20) emitted `Fired { branch, ... }`, not an autopilot run.
-  if (name === "fired" && typeof v.kind === "string") return { id, at, type: name, user, kind: v.kind, amount: BigInt(v.amount as bigint) };
+  if (name === "fired" && typeof v.kind === "string") return { id, at, type: name, user, kind: v.kind, amount: BigInt(v.amount as bigint), ...(tx ? { tx } : {}) };
   if (name === "swapped") return { id, at, type: name, user, tokenIn: String(v.token_in), tokenOut: String(v.token_out), amountIn: BigInt(v.amount_in as bigint), amountOut: BigInt(v.amount_out as bigint) };
   return null;
 }
@@ -187,6 +189,7 @@ export function applyEvents(prev: TractionState, events: RouterEvent[], prices: 
     } else if (e.type === "fired") {
       w.trades++; cell[0]++;
       w.kinds[e.kind] = (w.kinds[e.kind] ?? 0) + 1;
+      if (e.tx && e.at >= (w.lastTrade ?? 0)) w.lastTx = e.tx;
       w.lastTrade = Math.max(w.lastTrade ?? 0, e.at);
       const hour = String(Math.floor(e.at / HOUR_MS) * HOUR_MS);
       const h = (s.hours[hour] ??= {});
@@ -269,7 +272,7 @@ export interface TractionCounts {
   kinds: Record<string, number>;
 }
 export interface TractionDay { day: string; at: number; newUsers: number; cumulativeUsers: number; trades: number; swaps: number; volumeUsd: number; volumeOutUsd: number; active: number; sets: number; clears: number }
-export interface TractionRow { address: string; group: TractionGroup; firstSeen: number | null; lastTrade: number | null; trades: number; swaps: number; volumeUsd: number; volumeOutUsd: number; autopilots: number; rules: number; tokens: string[] }
+export interface TractionRow { address: string; group: TractionGroup; firstSeen: number | null; lastTrade: number | null; lastTx: string | null; trades: number; swaps: number; volumeUsd: number; volumeOutUsd: number; autopilots: number; rules: number; tokens: string[] }
 export interface TractionSummary {
   updatedAt: number;
   toLedger: number;
@@ -371,7 +374,7 @@ export function tractionSummary(s: TractionState, snapshots: TractionSnapshot[],
   };
   const lastOfDay = new Map<string, TractionSnapshot>();
   for (const p of [...snapshots].sort((a, b) => a.at - b.at)) lastOfDay.set(utcDay(p.at), p);
-  const wallets: TractionRow[] = s.wallets.map((w, i) => ({ address: w.address, group: groups[i]!, firstSeen: w.firstSeen, lastTrade: w.lastTrade, trades: w.trades, swaps: w.swaps, volumeUsd: w.volumeUsd, volumeOutUsd: w.volumeOutUsd ?? 0, autopilots: w.live.autopilots, rules: w.live.rules, tokens: w.tokens }))
+  const wallets: TractionRow[] = s.wallets.map((w, i) => ({ address: w.address, group: groups[i]!, firstSeen: w.firstSeen, lastTrade: w.lastTrade, lastTx: w.lastTx ?? null, trades: w.trades, swaps: w.swaps, volumeUsd: w.volumeUsd, volumeOutUsd: w.volumeOutUsd ?? 0, autopilots: w.live.autopilots, rules: w.live.rules, tokens: w.tokens }))
     .sort((a, b) => b.trades - a.trades || b.volumeUsd - a.volumeUsd || (a.firstSeen ?? 0) - (b.firstSeen ?? 0));
   return {
     updatedAt: s.updatedAt, toLedger: s.toLedger, historyFrom: s.historyFrom, gaps: s.gaps, unpriced: s.unpriced,

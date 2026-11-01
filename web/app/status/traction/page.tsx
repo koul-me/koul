@@ -9,13 +9,13 @@ import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ChartTile, Stat } from "@/components/status/status-view";
 import { ThemeColor } from "@/components/shell/theme-color";
 import { sameSecret, STATUS_COOKIE, statusCookieValue, tractionShareKey } from "@/lib/status-server";
+import { explorerContract, explorerTx, KOUL } from "@/lib/koul";
 import { readTraction } from "@/lib/traction-server";
 
 // No referrer: the share key is in the URL, and a click out must not carry it.
 export const metadata: Metadata = { title: "Traction", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
-const TOP_WALLETS = 25;
 const usd = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: n >= 1000 ? 0 : 2 })}`;
 const when = (t: number | null) => (t === null ? "-" : `${new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })} UTC`);
 const day = (t: number | null) => (t === null ? "-" : new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }));
@@ -42,7 +42,7 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
   const a = s.all;
   const days = s.days.all;
   const live = s.live.map((p) => ({ at: Date.parse(`${new Date(p.at).toISOString().slice(0, 10)}T00:00:00Z`), value: p.organic.autopilots + p.team.autopilots }));
-  const rows = s.wallets.slice(0, TOP_WALLETS);
+  const rows = s.wallets;
   const kinds = (c: TractionCounts) => Object.entries(c.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${k}`).join(", ") || "none";
   return (
     <>
@@ -57,6 +57,11 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           <h1 className="t-title">Traction</h1>
           <p className="text-[16px] text-muted">
             {collected ? `Collected ${ago(s.updatedAt, now)} (${when(s.updatedAt)}) at ledger ${s.toLedger}, hourly.` : "Nothing collected yet: the traction workflow writes the first numbers on its first run."}
+          </p>
+          <p className="text-[16px] text-muted">
+            Every number is counted from the public events of the Koul router contract on Stellar testnet,{" "}
+            <a href={explorerContract(KOUL.router)} target="_blank" rel="noreferrer" className="underline">{KOUL.router.slice(0, 4)}…{KOUL.router.slice(-4)} on stellar.expert</a>.
+            To check one, open a wallet or its last trade in the table below.
           </p>
           {shareUrl && (
             <Label>
@@ -95,9 +100,9 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
           <span className="mono">{kinds(a)}</span>
         </Tile>
         <Tile className="grid gap-3 p-5">
-          <TileLabel>Top wallets by trades</TileLabel>
+          <TileLabel>Wallets by trades ({rows.length})</TileLabel>
           {rows.length === 0 ? <span className="text-[16px]">No wallets yet.</span> : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[640px] overflow-auto">
               <table className="mono w-full min-w-[800px] text-left">
                 <thead>
                   <tr className="text-muted">
@@ -108,9 +113,9 @@ export default async function TractionPage({ searchParams }: { searchParams: Pro
                 <tbody>
                   {rows.map((w) => (
                     <tr key={w.address} className="border-t border-line">
-                      <td className="py-1" title={w.address}>{w.address.slice(0, 4)}…{w.address.slice(-4)}</td>
+                      <td className="py-1" title={w.address}><a href={explorerContract(w.address)} target="_blank" rel="noreferrer" className="underline">{w.address.slice(0, 4)}…{w.address.slice(-4)}</a></td>
                       <td className="py-1">{w.firstSeen === null ? "before history" : when(w.firstSeen)}</td>
-                      <td className="py-1">{when(w.lastTrade)}</td>
+                      <td className="py-1">{w.lastTx ? <a href={explorerTx(w.lastTx)} target="_blank" rel="noreferrer" className="underline">{when(w.lastTrade)}</a> : when(w.lastTrade)}</td>
                       <td className="py-1 text-right">{w.trades}</td>
                       <td className="py-1 text-right">{usd(w.volumeUsd)}</td>
                       <td className="py-1 text-right text-muted">{usd(w.volumeOutUsd)}</td>
