@@ -379,8 +379,8 @@ cd web && npx tsc --noEmit && npx next build
 **Keeper health.** After every pass the keeper writes a heartbeat to Redis (`koul:keeper:heartbeat`: when, wallets,
 autopilots, submitted, failed). `GET /api/keeper/status` returns it with `healthy` and plain `problems`; the running
 autopilot tile shows "Last check 12S ago". When the heartbeat is older than five minutes (or four intervals plus a
-pass), or the lease guard reports a lease that needs a person, the route emails `KEEPER_ALERT_TO` (default
-`WAITLIST_NOTIFY_TO`), at most once an hour. `.github/workflows/keeper-watch.yml` calls it every 10 minutes so the
+pass), or the lease guard reports a lease that needs a person, the route emails `WAITLIST_NOTIFY_TO` and
+every address in `KEEPER_ALERT_TO` (comma separated), at most once an hour. `.github/workflows/keeper-watch.yml` calls it every 10 minutes so the
 alarm works with nobody on the site.
 
 **Status page.** `koul.me/status` is public: one headline, the keeper's last check, pass time, autopilots watched,
