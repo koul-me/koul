@@ -2,6 +2,7 @@ import type { LeaderboardRow } from "@koul/core";
 import { Label } from "@/components/signal";
 import { fmtPct, fmtSignedUsd, fmtUsd } from "@/lib/competition-view";
 import { cn } from "@/lib/utils";
+import { TraderHandle } from "./trader-handle";
 
 /**
  * The ranked board. Rank, handle and return always show; value and P&L join from tablet width. An entry the indexer
@@ -26,7 +27,7 @@ export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?
           <tr key={r.wallet} className={cn("border-t border-line", r.flagged && "text-muted")}>
             <td className="mono py-3 text-[14px] text-muted">{r.rank ?? "–"}</td>
             <td className="py-3">
-              <a href={href(r.handle)} className="text-[15px] font-semibold text-accent-text underline-offset-4 hover:underline">{r.handle}</a>
+              <TraderHandle href={href(r.handle)} handle={r.handle} wallet={r.wallet} />
               {r.flagged && <Label tone="dim" className="ml-3">Not ranked</Label>}
               {r.pending && <Label tone="dim" className="ml-3">Scoring soon</Label>}
             </td>
