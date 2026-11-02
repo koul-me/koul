@@ -5,10 +5,11 @@ name: keeper
 
 on:
   schedule:
-    # Hourly. A run ticks every 15 seconds for 5h40m, so a scheduled run that fires meanwhile waits in the concurrency
-    # queue and takes over as the current one ends. GitHub starts schedules late and drops some (five-minute runs came
-    # hours apart on 2026-10-25); the long run absorbs that. A keeper code change applies from the next run: cancel
-    # the current one and dispatch to pick it up at once.
+    # Hourly, as a fallback. A run ticks every 15 seconds for 5h40m and queues its own successor when it starts, which
+    # waits in the concurrency queue and takes over as the current one ends. GitHub starts schedules late and drops most
+    # (three of 24 hourly runs on 2026-11-02, and the keeper stopped at 21:31 UTC with none queued), so the chain does
+    # not rely on them. A keeper code change applies from the next run: cancel the current one and the queued one
+    # starts at once on the tip of master.
     - cron: "17 * * * *"
   workflow_dispatch:
 
@@ -20,8 +21,20 @@ jobs:
   tick:
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    permissions:
+      contents: read
+      # To dispatch the next run (a workflow_dispatch from GITHUB_TOKEN is the one event that does start a run).
+      actions: write
     steps:
+      # Only one run waits in the concurrency queue: a newer one replaces it, so there is always exactly one successor.
+      - name: Queue the next run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run keeper.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+      # The branch tip when this run starts, not when it was queued 5h40m earlier.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
       - uses: pnpm/action-setup@v4
         with:
           version: 8

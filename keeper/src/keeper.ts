@@ -69,6 +69,16 @@ type RouterClient = {
 const QUOTE_SLIPPAGE = 0.01;
 let swapDeploymentChecked = false;
 const router = (await contract.Client.from({ contractId: ROUTER, networkPassphrase: TESTNET.networkPassphrase, rpcUrl: TESTNET.rpcUrl, publicKey: keeper.publicKey() })) as unknown as RouterClient;
+/**
+ * Reads go through a client with no source account: the SDK then simulates against a null account instead of loading
+ * the keeper's first, one RPC call a read instead of two. Only `tick`, which is submitted, needs the real source.
+ */
+const reader = new contract.Client((router as unknown as contract.Client).spec, { contractId: ROUTER, networkPassphrase: TESTNET.networkPassphrase, rpcUrl: TESTNET.rpcUrl }) as unknown as RouterClient;
+/**
+ * Wallets read at once. Reads need no channel account, so they are not held to one worker per channel: on 2026-11-02
+ * the testnet RPC slowed to seconds a call and a pass over 97 wallets, read in channel order, took 20 to 67 s.
+ */
+const READS = Math.max(1, Number(env.KEEPER_READS ?? 48));
 
 const stamp = () => new Date().toISOString();
 const tag = (user: string, id: number) => `${user.slice(0, 8)}#${id}`;
@@ -89,21 +99,25 @@ const describeState = (st: RuleState[]) => st.map((r, i) => `r${i}${r.ready ? ""
 const RATE_LIMIT_BACKOFF_MS = 15 * 60_000;
 const backoffUntil = new Map<string, number>();
 
-async function tickOne(user: string, id: number, agentRuleId: number, kit: ReturnType<typeof makeKit>, selected: Awaited<ReturnType<typeof kit.multiSigners.buildSelectedSigners>>): Promise<void> {
+/** An autopilot `next_action` says has a rule due, with the route when that rule is a swap. */
+interface Due { user: string; id: number; route?: Buffer }
+
+/** The read half of a tick: is anything due, and for a swap, which route. Null when there is nothing to submit. */
+async function planOne(user: string, id: number): Promise<Due | null> {
   const log = (m: string) => console.log(`${stamp()} ${tag(user, id)} ${m}`);
-  if ((backoffUntil.get(tag(user, id)) ?? 0) > Date.now()) { pass.backedOff++; return; }
+  if ((backoffUntil.get(tag(user, id)) ?? 0) > Date.now()) { pass.backedOff++; return null; }
   let route: Buffer | undefined;
   try {
-    const planned = (await router.next_action({ user, id })).result;
+    const planned = (await reader.next_action({ user, id })).result;
     // next_action walks the rules exactly as tick does, so None means tick would return None: skip its simulation,
     // which halves the reads for a wallet with nothing due (most wallets, most passes).
     if (!planned) {
       if (!quiet) {
-        try { log(`tick -> None; ${describeState((await router.check({ user, id })).result)}`); } catch { log("tick -> None"); }
+        try { log(`tick -> None; ${describeState((await reader.check({ user, id })).result)}`); } catch { log("tick -> None"); }
       } else {
         log("tick -> None");
       }
-      return;
+      return null;
     }
     if (planned.needs_route) {
       if (!swapDeploymentChecked) { await checkSwapDeployment(); swapDeploymentChecked = true; }
@@ -111,15 +125,21 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
       const floor = BigInt(planned.min_out);
       if (q.amountOut < floor) {
         log(`swap rule ${planned.rule_index}: best route pays ${q.amountOut}, under the router's floor ${floor}; skipping`);
-        return;
+        return null;
       }
       route = xdr.ScVal.fromXDR(q.routeXdr, "base64").toXDR();
       log(`swap rule ${planned.rule_index}: ${planned.amount} of ${planned.token_in.slice(0, 6)} -> ${planned.token_out.slice(0, 6)}, route ${q.hops.map((h) => `${h.dex}:${h.pool.slice(0, 6)}`).join(">")} expects ${q.amountOut}, floor ${floor}`);
     }
   } catch (err) {
     log(`no swap route, skipping: ${(err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").slice(0, 300)}`);
-    return;
+    return null;
   }
+  return { user, id, route };
+}
+
+/** The write half: simulate `tick` with the planned route and, when the router returns an action, sign and submit. */
+async function submitOne({ user, id, route }: Due, agentRuleId: number, kit: ReturnType<typeof makeKit>, selected: Awaited<ReturnType<typeof kit.multiSigners.buildSelectedSigners>>): Promise<void> {
+  const log = (m: string) => console.log(`${stamp()} ${tag(user, id)} ${m}`);
   let tx: contract.AssembledTransaction<Executed | undefined>;
   try {
     tx = await router.tick({ user, id, route });
@@ -140,7 +160,7 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
   const result = tx.result;
   if (!result) {
     if (!quiet) {
-      try { log(`tick -> None; ${describeState((await router.check({ user, id })).result)}`); } catch { log("tick -> None"); }
+      try { log(`tick -> None; ${describeState((await reader.check({ user, id })).result)}`); } catch { log("tick -> None"); }
     } else {
       log("tick -> None");
     }
@@ -184,7 +204,7 @@ async function tickOne(user: string, id: number, agentRuleId: number, kit: Retur
  * rarely changes. The wallet's rule counter (one read) moves whenever a rule is added, so an unchanged counter reuses
  * the last answer, including "no live grant" for wallets that stopped. Any failed tick drops the entry.
  */
-interface Grant { count: number; checkedAt: number; agentRuleId: number | null; validUntil: number | null; kit: ReturnType<typeof makeKit> | null; selected: Awaited<ReturnType<ReturnType<typeof makeKit>["multiSigners"]["buildSelectedSigners"]>> }
+interface Grant { count: number; checkedAt: number; agentRuleId: number | null; validUntil: number | null; kit: ReturnType<typeof makeKit>; signs: boolean; selected: Awaited<ReturnType<ReturnType<typeof makeKit>["multiSigners"]["buildSelectedSigners"]>> }
 const grants = new Map<string, Grant>();
 /**
  * How long a wallet's grant and autopilot ids are trusted without a read. A revoked grant shows as a failed tick, which
@@ -202,10 +222,11 @@ async function grantFor(user: string, payer: string, latest: number): Promise<Gr
     await k.connectWallet({ credentialId: "koul-keeper", contractId: user });
     return k;
   };
+  // The kit is kept even for a wallet with no live grant, so its next recheck is one counter read, not a fresh connect.
   let kit = known?.kit ?? (await fresh());
   const count = Number(await kit.rules.count());
   if (known && known.count === count && (known.validUntil === null || known.validUntil > latest)) { known.checkedAt = Date.now(); return known; }
-  if (known?.kit) kit = await fresh();
+  if (known) kit = await fresh();
   kit.externalSigners.addEd25519FromSecret(env.AGENT_SECRET!);
   const rules = await kit.rules.list();
   // The newest live grant under the current policy: a wallet can still carry an older, narrower or expired one, and
@@ -217,26 +238,42 @@ async function grantFor(user: string, payer: string, latest: number): Promise<Gr
     .sort((x, y) => Number(x.id) - Number(y.id));
   const rule = agentRules[agentRules.length - 1];
   const selected = rule ? kit.multiSigners.buildSelectedSigners(await kit.multiSigners.getAvailableSigners(), null).filter((x) => x.type === "ed25519") : [];
-  const grant: Grant = { count, checkedAt: Date.now(), agentRuleId: rule ? Number(rule.id) : null, validUntil: rule?.valid_until ? Number(rule.valid_until) : null, kit: rule && selected.length === 1 ? kit : null, selected };
+  const grant: Grant = { count, checkedAt: Date.now(), agentRuleId: rule ? Number(rule.id) : null, validUntil: rule?.valid_until ? Number(rule.valid_until) : null, kit, signs: !!rule && selected.length === 1, selected };
   grants.set(user, grant);
   return grant;
 }
 
-async function tickUser(user: string, payer: string, latest: number): Promise<void> {
+/** A wallet's reads for one pass: its autopilots, its grant, and what each autopilot has due. */
+async function planUser(user: string, payer: string, latest: number): Promise<{ grant: Grant; due: Due[] } | null> {
   const log = (m: string) => console.log(`${stamp()} ${user.slice(0, 8)}   ${m}`);
   const cached = autopilotIds.get(user);
-  const ids = cached && Date.now() - cached.at < RECHECK_MS ? cached.ids : (await router.list_ids({ user })).result;
+  const ids = cached && Date.now() - cached.at < RECHECK_MS ? cached.ids : (await reader.list_ids({ user })).result;
   if (ids !== cached?.ids) autopilotIds.set(user, { ids, at: Date.now() });
-  if (ids.length === 0) { log("no autopilots"); return; }
+  if (ids.length === 0) { log("no autopilots"); return null; }
   pass.autopilots += ids.length;
   const grant = await grantFor(user, payer, latest);
-  if (grant.agentRuleId === null) { log("no live agent grant under the current policy, skipping"); return; }
-  if (!grant.kit) { log("agent key is not a signer on this wallet, skipping"); return; }
+  if (grant.agentRuleId === null) { log("no live agent grant under the current policy, skipping"); return null; }
+  if (!grant.signs) { log("agent key is not a signer on this wallet, skipping"); return null; }
+  const due: Due[] = [];
   for (const id of ids) {
+    const d = await planOne(user, id);
+    if (d) due.push(d);
+  }
+  return due.length > 0 ? { grant, due } : null;
+}
+
+async function submitUser(user: string, { grant, due }: { grant: Grant; due: Due[] }): Promise<void> {
+  for (const d of due) {
     const before = pass.failed + pass.skipped;
-    try { await tickOne(user, id, grant.agentRuleId, grant.kit, grant.selected); } catch (err) { pass.failed++; console.log(`${stamp()} ${tag(user, id)} error: ${err instanceof Error ? err.message : String(err)}`); }
+    try { await submitOne(d, grant.agentRuleId!, grant.kit, grant.selected); } catch (err) { pass.failed++; console.log(`${stamp()} ${tag(user, d.id)} error: ${err instanceof Error ? err.message : String(err)}`); }
     if (pass.failed + pass.skipped > before) forgetGrant(user);
   }
+}
+
+/** Runs `f` over `xs`, at most `limit` at a time. */
+async function pool<T>(xs: T[], limit: number, f: (x: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, xs.length) }, async () => { while (next < xs.length) await f(xs[next++]!); }));
 }
 
 /** Counts since the last heartbeat (autopilots: this pass only). */
@@ -254,22 +291,26 @@ do {
   pass.autopilots = 0;
   try { await refreshMockOracle(); } catch (err) { console.log(`${stamp()} oracle refresh failed: ${err instanceof Error ? err.message : String(err)}`); }
   let users: string[] = [];
-  try { users = (await router.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
+  try { users = (await reader.list_users()).result; } catch (err) { console.log(`${stamp()} list_users failed: ${err instanceof Error ? err.message : String(err)}`); }
   if (users.length === 0) console.log(`${stamp()} no users registered on the router`);
-  // A few wallets at a time keeps a pass short as users grow. Most ticks only simulate; when two submissions race on
-  // the keeper's sequence, the loser fails and the next pass tries again.
-  // One worker per channel account, each taking the next wallet off the list: a worker's submissions are paid by its
-  // own account, one at a time, so two never race on a sequence number.
-  // A wallet always goes to the same worker, so the kit kept for it (paid by that worker's channel) stays valid.
-  // Each worker takes its wallets in a fresh random order every pass: when one price move makes many rules due at
-  // once, the same wallets must not always trade first on thin pools.
+  // Two phases. Reads first, READS wallets at a time: most wallets have nothing due, and a read needs no channel.
+  // Then submissions, one worker per channel account: a worker's submissions are paid by its own account, one at a
+  // time, so two never race on a sequence number. A wallet always goes to the same worker, so the kit kept for it
+  // (paid by that worker's channel) stays valid.
+  // Wallets go in a fresh random order every pass: when one price move makes many rules due at once, the same wallets
+  // must not always trade first on thin pools.
   let latestLedger = 0;
   try { latestLedger = (await new rpc.Server(TESTNET.rpcUrl).getLatestLedger()).sequence; } catch { /* grants are then re-read */ }
   const shard = (u: string) => [...u].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % PARALLEL;
+  const payer = (u: string) => (CHANNELS > 0 ? keeperChannel(env, shard(u)).secret() : env.KEEPER_SECRET!);
+  const failed = (user: string, err: unknown) => { pass.failed++; forgetGrant(user); note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${user.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); };
+  const planned = new Map<string, { grant: Grant; due: Due[] }>();
+  await pool(shuffle([...users]), READS, async (user) => {
+    try { const p = await planUser(user, payer(user), latestLedger); if (p) planned.set(user, p); } catch (err) { failed(user, err); }
+  });
   await Promise.all(Array.from({ length: PARALLEL }, async (_, w) => {
-    const payer = CHANNELS > 0 ? keeperChannel(env, w).secret() : env.KEEPER_SECRET!;
-    for (const user of shuffle(users.filter((u) => shard(u) === w))) {
-      await tickUser(user, payer, latestLedger).catch((err) => { pass.failed++; forgetGrant(user); note(`wallet ${err instanceof Error ? err.message : String(err)}`); console.log(`${stamp()} ${user.slice(0, 8)}   error: ${err instanceof Error ? err.message : String(err)}`); });
+    for (const [user, p] of planned) {
+      if (shard(user) === w) await submitUser(user, p).catch((err) => failed(user, err));
     }
   }));
   if (!quiet || process.env.KEEPER_TIMING) console.log(`${stamp()} pass     ${users.length} wallets in ${((Date.now() - started) / 1000).toFixed(1)}s, ${pass.submitted} sent, ${pass.failed} failed`);
