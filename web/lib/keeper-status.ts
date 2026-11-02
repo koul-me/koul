@@ -53,11 +53,17 @@ export async function readKeeperStatus(now = Date.now()): Promise<KeeperStatus |
   return judge(beat, leases, now);
 }
 
+/** Who the alerts go to: the owner (WAITLIST_NOTIFY_TO) and anyone listed, comma separated, in KEEPER_ALERT_TO. */
+export function alertRecipients(): string[] {
+  const all = [process.env.WAITLIST_NOTIFY_TO, ...(process.env.KEEPER_ALERT_TO ?? "").split(",")].map((a) => a?.trim()).filter((a): a is string => !!a);
+  return [...new Set(all)];
+}
+
 /** Emails the owner about the problems, once an hour at most. */
 export async function alertOwner(status: KeeperStatus): Promise<void> {
-  const to = process.env.KEEPER_ALERT_TO ?? process.env.WAITLIST_NOTIFY_TO;
+  const to = alertRecipients();
   const redis = store();
-  if (status.healthy || !to || !redis) return;
+  if (status.healthy || !to.length || !redis) return;
   if ((await redis.set(ALERTED, Date.now(), { nx: true, ex: 3600 })) !== "OK") return;
   const text = `${status.problems.join("\n")}\n\nKeeper runs: https://github.com/koul-me/koul/actions/workflows/keeper.yml\nLease guard: https://github.com/koul-me/koul/actions/workflows/leases.yml`;
   await sendMail(to, "Koul keeper needs a look", text, text.split("\n").map((l) => (l ? `<p>${l.replace(/(https:\/\/\S+)/g, '<a href="$1">$1</a>')}</p>` : "")).join(""));

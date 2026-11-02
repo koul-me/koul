@@ -3,8 +3,8 @@ import "server-only";
 /** Mail through Resend's REST API, from hello@koul.me. Without RESEND_API_KEY nothing is sent. */
 const FROM = process.env.WAITLIST_FROM ?? "Koul <hello@koul.me>";
 
-/** True when Resend took the email. */
-export async function sendMail(to: string, subject: string, text: string, html: string): Promise<boolean> {
+/** True when Resend took the email. Several recipients get one email, each seeing the others. */
+export async function sendMail(to: string | string[], subject: string, text: string, html: string): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
   try {
