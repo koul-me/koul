@@ -15,6 +15,12 @@ Deployed, all from this repo on `master`, every push redeploys:
 - Keeper: `.github/workflows/keeper.yml`, every five minutes and on demand, with `KEEPER_SECRET` and `AGENT_SECRET`
   as GitHub repository secrets. `loadEnv` falls back to the process environment, so no `.env` file is needed there.
 
+2026-11-02 (keeper outage): the keeper stopped at 21:31 UTC with no run queued (GitHub created 3 of 24 hourly runs);
+each keeper run now dispatches its successor when it starts, the cron is a fallback. The testnet RPC degraded from
+16:55 UTC (502s, wrong "Account not found"), passes over 97 wallets went from 1-2.5 s to 20-67 s; reads now use a
+client with no source account (one RPC call a read) and run 48 wallets at a time apart from the channel workers, which
+only submit: 3-10 s on the same degraded RPC. Open: every component uses the public SDF RPC with no fallback.
+
 2026-10-25 (swaps, live): swap rules through the XOXNO aggregator. Router `CD5VSBUX...AO2D` (wasm `54d4f5b4...`, fresh
 deploy, admin `GCCIYVPB...` with its secret in keeper/.env as ROUTER_ADMIN_SECRET) with SwapFromWallet, WithdrawAndSwap,
 TokenPrice, TokenBalance, Reflector feeds for XLM and USDC, `next_action`, `tick(user, id, route)`. Policy `CAKEUMCI...`

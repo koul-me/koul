@@ -40,6 +40,8 @@ jobs:
       - name: Collect
         working-directory: keeper
         env:
+          # Another RPC provider when set (its key is in the URL); SDF's public RPC when empty.
+          STELLAR_RPC_URL: ${{ secrets.STELLAR_RPC_URL }}
           KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
           KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
           ROUTER_V1: ${{ vars.ROUTER_V1 || 'CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D' }}

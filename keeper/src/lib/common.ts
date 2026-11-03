@@ -7,7 +7,8 @@ import { MemoryStorage, SmartAccountKit } from "smart-account-kit";
 import { SoftwareAuthenticator, type AuthenticatorState } from "../phase0/passkey";
 
 export const TESTNET = {
-  rpcUrl: "https://soroban-testnet.stellar.org",
+  /** STELLAR_RPC_URL picks another provider (its key is in the URL, so it is a secret); SDF's public RPC otherwise. */
+  rpcUrl: process.env.STELLAR_RPC_URL || "https://soroban-testnet.stellar.org",
   networkPassphrase: "Test SDF Network ; September 2015",
   accountWasmHash: "1b5f4534a76322da2ad7c745f6900857a6802b0ca79850c35a03561df997785a",
   webauthnVerifierAddress: "CC7EKIHQP3TN4CARQDND6CEOY2UXLWWC2X5GHTD5NLAT7BG5GPZIOM3F",
