@@ -36,6 +36,8 @@ jobs:
       - name: Index every 15 minutes for 5h40m
         working-directory: keeper
         env:
+          # Another RPC provider when set (its key is in the URL); SDF's public RPC when empty.
+          STELLAR_RPC_URL: ${{ secrets.STELLAR_RPC_URL }}
           KEEPER_SECRET: ${{ secrets.KEEPER_SECRET }}
           KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
           KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
