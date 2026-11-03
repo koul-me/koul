@@ -21,7 +21,7 @@
     "parse-test": "tsx scripts/parse-test.ts"
   },
   "dependencies": {
-    "@stellar/stellar-sdk": "16.0.1",
+    "@stellar/stellar-sdk": "16.4.1",
     "@xoxno/sdk-js": "1.0.233",
     "smart-account-kit": "0.6.2",
     "zod": "^3.25.76",

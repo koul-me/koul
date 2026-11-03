@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@koul/core": "workspace:*",
-    "@stellar/stellar-sdk": "16.0.1",
+    "@stellar/stellar-sdk": "16.4.1",
     "smart-account-kit": "0.6.2"
   },
   "devDependencies": {
