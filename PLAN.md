@@ -15,6 +15,11 @@ Deployed, all from this repo on `master`, every push redeploys:
 - Keeper: `.github/workflows/keeper.yml`, every five minutes and on demand, with `KEEPER_SECRET` and `AGENT_SECRET`
   as GitHub repository secrets. `loadEnv` falls back to the process environment, so no `.env` file is needed there.
 
+2026-11-03 (protocol 30): testnet upgraded to protocol 30 at 17:00:05 UTC (ledger 5540313). `@stellar/stellar-sdk`
+16.0.1 could not decode the new ledger header ("unknown StellarValueType member for value 3"), so `getLatestLedger`
+and every transaction built through it failed: Give access, Start autopilot and the keeper's ticks. All four packages
+are on 16.4.1 (protocol 30 XDR, same major). After the next protocol upgrade, bump the SDK before the network votes.
+
 2026-11-02 (keeper outage): the keeper stopped at 21:31 UTC with no run queued (GitHub created 3 of 24 hourly runs);
 each keeper run now dispatches its successor when it starts, the cron is a fallback. The testnet RPC degraded from
 16:55 UTC (502s, wrong "Account not found"), passes over 97 wallets went from 1-2.5 s to 20-67 s; reads now use a
