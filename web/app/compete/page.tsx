@@ -16,6 +16,8 @@ import { HANDLE_PATTERN } from "@koul/core";
 export const metadata: Metadata = {
   title: "Trading competition",
   description: "Write the rules, start your autopilot, and see whose trades best. Free, on Stellar testnet.",
+  openGraph: { title: "Koul trading competition", description: "Write the rules, start your autopilot, and see whose trades best. Free, on Stellar testnet.", url: "/compete" },
+  twitter: { card: "summary_large_image", title: "Koul trading competition", description: "Write the rules, start your autopilot, and see whose trades best. Free, on Stellar testnet." },
 };
 export const dynamic = "force-dynamic";
 
