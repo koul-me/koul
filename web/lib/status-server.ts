@@ -73,9 +73,9 @@ export async function publicStatus(now = Date.now()): Promise<PublicStatus | nul
     redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<LeaseReport>(LEASES_KEY), redis.lrange<HistoryPoint>(HISTORY_KEY, 0, -1),
     redis.get(COMP_KEYS.config), redis.scard(COMP_KEYS.entrants), redis.get<number>(COMP_KEYS.updatedAt), tradesLastHour(redis),
   ]);
-  const keeperVerdict = judge(beat, leases, now);
-  const extra = await opsProblems(now).catch(() => []);
-  const verdict = { ...keeperVerdict, healthy: keeperVerdict.healthy && extra.length === 0, problems: [...keeperVerdict.problems, ...extra] };
+  // Only the keeper and the leases set the public headline, as in /api/keeper/status. Balances, relay failures, slow
+  // passes and the competition board stay on the private page and in the owner alert.
+  const verdict = judge(beat, leases, now);
   const keeperLate = verdict.problems.some((p) => p.startsWith("The keeper"));
   // 96 quarter hours, oldest first: the average pass length and the trades sent in each.
   const start = Math.floor((now - DAY_MS) / BUCKET_MS) * BUCKET_MS + BUCKET_MS;
