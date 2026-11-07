@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { MotionConfig } from "motion/react";
 import { tween } from "@/lib/motion";
 import { PasskeyWalletProvider, SEMBOL_TESTNET_ARTIFACTS, type SembolConfig } from "@sembol/passkey-react";
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { loadHubNames } from "@/lib/model/hubs";
@@ -22,11 +23,23 @@ const rpId = host === "koul.me" || host.endsWith(".koul.me") ? "koul.me" : undef
  */
 const relayerUrl = typeof window === "undefined" ? SEMBOL_TESTNET_ARTIFACTS.relayerUrl : `${window.location.origin}/api/relay`;
 
+/**
+ * The wallet's WebAuthn verifier rejects a signature without the User Verified flag (contract error 3117,
+ * VerifiedBitNotSet). The kit asks for verification as "preferred", which some password-manager extensions and
+ * security keys skip, so every signature from them failed; asking for "required" makes them prompt for a PIN or
+ * biometric instead.
+ */
+const webAuthn: SembolConfig["webAuthn"] = {
+  startRegistration,
+  startAuthentication: (options) => startAuthentication({ ...options, optionsJSON: { ...options.optionsJSON, userVerification: "required" } }),
+};
+
 const config: SembolConfig = {
   ...SEMBOL_TESTNET_ARTIFACTS,
   relayerUrl,
   appName: "Koul",
   webAuthnHints: ["client-device", "hybrid"],
+  webAuthn,
   ...(rpId ? { rpId } : {}),
 };
 
