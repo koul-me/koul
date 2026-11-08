@@ -8,7 +8,7 @@ import { BoardTable } from "@/components/compete/board-table";
 import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { loadBoard } from "@/lib/competition-load";
 import { TELEGRAM_URL } from "@/lib/community";
-import { agoOf, entriesFull, phaseOf, previewOf } from "@/lib/competition-view";
+import { entriesFull, phaseOf, previewOf, scoredOf } from "@/lib/competition-view";
 
 export const metadata: Metadata = { title: "Leaderboard", description: "The Koul trading competition, ranked by return." };
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
         <div className="grid gap-2">
           <h1 className={PAGE_TITLE}>Leaderboard</h1>
           <Label>
-            Return on the starting basket · {board.total} {board.total === 1 ? "trader" : "traders"} · scored {agoOf(board.updatedAt, now)}
+            Return on the starting basket · {board.total} {board.total === 1 ? "trader" : "traders"} · {scoredOf(info.config, board.updatedAt, now)}
           </Label>
         </div>
         <Tile>

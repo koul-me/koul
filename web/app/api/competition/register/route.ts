@@ -10,7 +10,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { COMP_KEYS, HANDLE_PATTERN, RESERVED_HANDLES, type CompetitionConfig, type EntrantRecord } from "@koul/core";
 import { confirmEntry, sendEntryNote } from "@/lib/competition-server";
-import { maxEntrantsOf } from "@/lib/competition-view";
+import { maxEntrantsOf, phaseOf } from "@/lib/competition-view";
 import { verifyAssertion, walletPasskeys } from "@/lib/passkey-proof";
 import { rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/redis";
@@ -39,6 +39,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const config = await redis.get<CompetitionConfig>(COMP_KEYS.config);
   if (!config) return Response.json({ error: "There is no competition open right now" }, { status: 409 });
+  if (phaseOf(config, Date.now()) === "ended") return Response.json({ error: "This competition has finished" }, { status: 409 });
   const max = maxEntrantsOf(config);
   if (max !== null && (await redis.scard(COMP_KEYS.entrants)) >= max) return Response.json({ error: `Entries are full: all ${max} places are taken.` }, { status: 409 });
 
