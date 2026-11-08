@@ -73,6 +73,15 @@ export function agoOf(t: number | null, now: number): string {
   return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86_400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86_400)} d ago`;
 }
 
+/**
+ * "scored 2 min ago" while the board moves; "final at 21:00 GMT+3, Fri 6 Nov" once the competition has ended, when the
+ * board is frozen as it stood at the end. `upper` starts it with a capital, for a label on its own.
+ */
+export function scoredOf(config: CompetitionConfig | null, t: number | null, now: number, upper = false): string {
+  const s = phaseOf(config, now) === "ended" && config?.endsAt ? `final at ${hourOf(config.endsAt)}, ${dayOf(config.endsAt)}` : `scored ${agoOf(t, now)}`;
+  return upper ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
 // ------------------------------------------------------------------ preview data, development only
 
 const HANDLES = ["ninebps", "lumen", "mira", "quietbull", "kadikoy", "sato", "orbitfi", "deltaflat", "ankara_algo", "slowmoney", "tidal", "bosphorus"];

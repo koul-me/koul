@@ -10,7 +10,7 @@ import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { Countdown } from "@/components/compete/countdown";
 import { TELEGRAM_URL } from "@/lib/community";
 import { loadCompetition } from "@/lib/competition-load";
-import { agoOf, dayOf, entriesFull, lengthOf, phaseOf, previewOf, timeOf, windowOf } from "@/lib/competition-view";
+import { dayOf, entriesFull, lengthOf, phaseOf, previewOf, scoredOf, timeOf, windowOf } from "@/lib/competition-view";
 import { HANDLE_PATTERN } from "@koul/core";
 
 export const metadata: Metadata = {
@@ -130,7 +130,7 @@ export default async function CompeteOverview({ searchParams }: { searchParams: 
           <Tile className="grid gap-2">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className={SECTION_TITLE}>Leaderboard</h2>
-              {board.total > 0 && <Label>Scored {agoOf(board.updatedAt, now)}</Label>}
+              {board.total > 0 && <Label>{scoredOf(c, board.updatedAt, now, true)}</Label>}
             </div>
             {board.rows.length > 0 ? (
               <>

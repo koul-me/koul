@@ -15,7 +15,6 @@ import { KoulMark } from "@/components/brand/koul-mark";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 
 const NAV = [
-  { href: "/compete", label: "Competition" },
   { href: "#how", label: "How it works" },
   { href: "#build", label: "Try it" },
   { href: "#safety", label: "Safety" },

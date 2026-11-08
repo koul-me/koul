@@ -41,15 +41,18 @@ export async function entrantView(handle: string): Promise<EntrantView | null> {
   const r = redis();
   const wallet = await r.get<string>(COMP_KEYS.handle(handle));
   if (!wallet) return null;
-  const [rec, score, history, board] = await Promise.all([
+  const [rec, score, history, board, config] = await Promise.all([
     r.get<EntrantRecord>(COMP_KEYS.entrant(wallet)),
     r.get<EntrantScore>(COMP_KEYS.score(wallet)),
     r.lrange<HistoryPoint>(COMP_KEYS.history(wallet), 0, -1),
     r.get<LeaderboardRow[]>(COMP_KEYS.board),
+    r.get<CompetitionConfig>(COMP_KEYS.config),
   ]);
   if (!rec || !rec.verifiedAt) return null;
+  // The chart ends with the competition; points written after it would not match the final score.
+  const end = config?.endsAt ? Date.parse(config.endsAt) : null;
   const referrals = Number((await r.get<number>(COMP_KEYS.referrals(rec.handle))) ?? 0);
-  return { score: score ?? null, rank: board?.find((b) => b.wallet === wallet)?.rank ?? null, history, registeredAt: rec.registeredAt, referrals };
+  return { score: score ?? null, rank: board?.find((b) => b.wallet === wallet)?.rank ?? null, history: end === null ? history : history.filter((p) => p.at <= end), registeredAt: rec.registeredAt, referrals };
 }
 
 /** Where links in the entrant's note point. */

@@ -280,6 +280,11 @@ export const COMP_KEYS = {
   history: (wallet: string) => `koul:comp:history:${wallet}`,
   /** The whole ranked board as one JSON array of LeaderboardRow, rewritten each run. */
   board: "koul:comp:board",
+  /**
+   * Set once the competition is over and its board is final ({ at, source }): the indexer stops writing, so the board,
+   * the scores and the pages stay as they stood at the end. Storing new settings clears it.
+   */
+  final: "koul:comp:final",
   updatedAt: "koul:comp:updated",
   challenge: (wallet: string) => `koul:comp:challenge:${wallet}`,
   pending: (token: string) => `koul:comp:pending:${token}`,

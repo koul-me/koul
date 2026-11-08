@@ -13,17 +13,13 @@ import { Playground } from "./playground";
 import { UseCases } from "./use-cases";
 import { Safety } from "./safety";
 import { BuiltOn, FinalCta, Footer } from "./close";
-import { CompetitionBanner } from "@/components/compete/banner";
-import { CompetitionSection } from "./competition";
 
 export function Landing() {
   return (
     <div className="min-w-0">
-      <CompetitionBanner variant="strip" />
       <TopBar />
       <main>
         <Hero />
-        <CompetitionSection />
         <Problem />
         <UseCases />
         <How />

@@ -3,7 +3,8 @@
  * wallet holds so the browser offers the right passkey. The signature goes to /api/competition/register.
  */
 import { randomBytes } from "node:crypto";
-import { COMP_KEYS } from "@koul/core";
+import { COMP_KEYS, type CompetitionConfig } from "@koul/core";
+import { phaseOf } from "@/lib/competition-view";
 import { walletPasskeys } from "@/lib/passkey-proof";
 import { rateLimit } from "@/lib/rate-limit";
 import { store } from "@/lib/redis";
@@ -16,6 +17,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!/^C[A-Z2-7]{55}$/.test(wallet)) return Response.json({ error: "A smart wallet address is required" }, { status: 400 });
   const redis = store();
   if (!redis) return Response.json({ error: "Registration is not open" }, { status: 503 });
+  if (phaseOf(await redis.get<CompetitionConfig>(COMP_KEYS.config), Date.now()) === "ended") return Response.json({ error: "This competition has finished" }, { status: 409 });
   const passkeys = await walletPasskeys(wallet).catch(() => []);
   if (passkeys.length === 0) return Response.json({ error: "No passkey found on that wallet" }, { status: 400 });
   const challenge = randomBytes(32).toString("base64url");

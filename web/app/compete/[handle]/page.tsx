@@ -10,7 +10,7 @@ import { FitValue, Label, Tile, TileLabel } from "@/components/signal";
 import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { HistoryChart } from "@/components/compete/history-chart";
 import { loadEntrant } from "@/lib/competition-load";
-import { agoOf, entriesFull, fmtPct, fmtSignedUsd, fmtUsd, phaseOf, previewOf } from "@/lib/competition-view";
+import { entriesFull, fmtPct, fmtSignedUsd, fmtUsd, phaseOf, previewOf, scoredOf } from "@/lib/competition-view";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +36,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
       <CompetePage section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
         <div className="grid gap-2">
           <h1 className={`${PAGE_TITLE} break-all`}>{handle}</h1>
-          <Label>{s ? `Scored ${agoOf(s.updatedAt, now)}` : "Waiting for the first score"}{view.referrals ? ` · invited ${view.referrals}` : ""}</Label>
+          <Label>{s ? scoredOf(info.config, s.updatedAt, now, true) : "Waiting for the first score"}{view.referrals ? ` · invited ${view.referrals}` : ""}</Label>
         </div>
         {s?.flagged && (
           <Tile tone="outlined" className="grid gap-2 border-danger">

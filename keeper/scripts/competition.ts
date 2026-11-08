@@ -7,7 +7,7 @@
  *   pnpm competition config <file.json> [--dry]  store the competition settings (CompetitionConfig); a missing
  *                                                startLedger/endLedger is worked out from startsAt/endsAt
  *   pnpm competition add <wallet> <handle>       add an entrant by hand (testing, or a support case)
- * Without settings stored, it does nothing.
+ * Without settings stored, or once the board is final (the first run after the end closes it), it does nothing.
  *
  * Redis budget (Upstash free plan, 500,000 commands a month; see "The indexer's Redis budget" in core). A looping
  * process keeps every entry's record and totals in memory: it reads them in a few MGETs when it first sees a wallet,
@@ -273,12 +273,15 @@ async function loadEntries(wallets: string[]): Promise<void> {
   });
 }
 
-/** False when no competition is configured, so a looping run can stop instead of idling for hours. */
+/** False when no competition is configured or its board is final, so a looping run can stop instead of idling for hours. */
 async function run(): Promise<boolean> {
   // exec, not redis(): a failed read must fail the run, not look like "no settings" (which ends the loop) or a new entry.
   const rawConfig = (await exec(env, ["GET", COMP_KEYS.config])) as string | null;
   const config = parse<CompetitionConfig>(rawConfig);
   if (!config) { console.log(`${stamp()} competition: no settings stored, nothing to do`); return false; }
+  // After the end the board must stay as it stood: flows stop at endLedger, but balances are read at the latest ledger,
+  // so money that arrived later would count as return (on 2026-11-07 one entry went from -6% to +282% that way).
+  if (await exec(env, ["GET", COMP_KEYS.final])) { console.log(`${stamp()} competition: the board is final, nothing to do`); return false; }
   // New settings: read every record and totals again, so a reset made with them is picked up.
   if (rawConfig !== lastConfig) { records.clear(); states.clear(); lastScores.clear(); lastConfig = rawConfig; }
   const excluded = new Set(config.excludeTokens ?? []);
@@ -324,8 +327,10 @@ async function run(): Promise<boolean> {
   pairs.push([COMP_KEYS.board, JSON.stringify(board)], [COMP_KEYS.updatedAt, String(Date.now())]);
   for (const g of chunkPairs(pairs)) await exec(env, ["MSET", ...g.flat()]);
   const final = config.endLedger !== null && latest > config.endLedger;
+  // The first run past the end is the last: it closes the board, and every later run stops at the check above.
+  if (final) await exec(env, ["SET", COMP_KEYS.final, JSON.stringify({ at: Date.now(), source: "the first indexer run after the end" })]);
   console.log(`${stamp()} competition: ${final ? "FINAL " : ""}${done.length}/${entries.length} entries scored in ${((Date.now() - started) / 1000).toFixed(1)}s at ledger ${latest}, ${takeCommandCount()} redis commands; top: ${board.slice(0, 3).map((b) => `${b.handle} ${b.returnPct?.toFixed(2) ?? "-"}%`).join(", ") || "none"}`);
-  return true;
+  return !final;
 }
 
 // ---- Commands ----
@@ -347,6 +352,7 @@ if (cmd === "config") {
   const dry = process.argv.includes("--dry");
   if (!dry) {
     await redis(env, "SET", COMP_KEYS.config, JSON.stringify(config));
+    await redis(env, "DEL", COMP_KEYS.final);
     // redis() only warns without credentials, so read the settings back before saying they are stored.
     if (await redis(env, "GET", COMP_KEYS.config) !== JSON.stringify(config)) throw new Error("the settings did not reach Redis (KV_REST_API_URL / KV_REST_API_TOKEN?)");
   }
