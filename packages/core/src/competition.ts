@@ -44,6 +44,11 @@ export interface CompetitionConfig {
    */
   liveBoard?: boolean;
   /**
+   * On a live board, the ledger a wallet that never registered is scored from (it has no starting basket, so what it
+   * holds there is its opening capital). Absent: the ledger the indexer first sees it at.
+   */
+  liveFromLedger?: number;
+  /**
    * Tokens left out of value and flows. Default none. Leaving XLM out opens a hole: a rule sells XLM for USDC, the XLM
    * leg is not seen, and the USDC that comes back counts as a move inside the wallet, so value jumps with no flag.
    */

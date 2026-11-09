@@ -41,6 +41,8 @@ const PARALLEL = 8;
 /** Keys per MGET: about 100 KB of records and totals back, far under Upstash's 1 MB. */
 const MGET_KEYS = 100;
 const PAGE = 200;
+/** Ledgers kept clear of the RPC's oldest one: about an hour. */
+const RPC_MARGIN = 720;
 
 const reader = new KoulReader({
   rpcUrl: TESTNET.rpcUrl, networkPassphrase: TESTNET.networkPassphrase, publicKey: keeperKeypair(env).publicKey(),
@@ -162,10 +164,14 @@ interface EntryRun { score: EntrantScore; state: EntryState; lists: Command[] }
  * fails halfway leaves the kept state as it was; the caller keeps the new one once its list pushes are written.
  */
 async function indexEntry(rec: EntrantRecord, prev: EntryState | undefined, config: CompetitionConfig, latest: number, oldest: number, prices: Prices, walletWasm: Set<string>, sac: SacBalances, sacTokens: Set<string>, runAt: number, historyEvery: number): Promise<EntryRun> {
-  const state: EntryState = prev ? structuredClone(prev) : { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: config.startLedger - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
+  // An entrant is scored from the start; a live board's unregistered wallet from liveFromLedger (or from now).
+  const startAt = rec.verifiedAt ? config.startLedger : config.liveFromLedger ?? latest;
+  const state: EntryState = prev ? structuredClone(prev) : { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: startAt - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
   state.swapEdgeUsd ??= 0;
   const end = Math.min(latest, config.endLedger ?? latest);
-  const from = Math.max(state.toLedger + 1, oldest);
+  // A margin above the oldest ledger the RPC keeps: that window moves on while a long run reads, and a request that
+  // starts below it fails ("startLedger must be within the ledger range").
+  const from = Math.max(state.toLedger + 1, oldest + RPC_MARGIN);
   const newFlows: Flow[] = [];
   if (from <= end) {
     const { transfers, fired } = await walletActivity(rec.wallet, from, end);
@@ -265,16 +271,19 @@ const shortAddress = (w: string) => `${w.slice(0, 4)}…${w.slice(-4)}`;
  * A wallet in `unregistered` (a live board's router wallet with no entry) gets a record made here, by its address.
  */
 async function loadEntries(wallets: string[], unregistered = new Set<string>()): Promise<void> {
-  const keys = wallets.flatMap((w) => [COMP_KEYS.entrant(w), COMP_KEYS.totals(w)]);
+  const keys = wallets.flatMap((w) => [COMP_KEYS.entrant(w), COMP_KEYS.totals(w), COMP_KEYS.score(w)]);
   const values: unknown[] = [];
   for (const g of groups(keys, MGET_KEYS)) values.push(...(((await exec(env, ["MGET", ...g])) as unknown[] | null) ?? g.map(() => null)));
   wallets.forEach((w, i) => {
-    const stored = parse<EntrantRecord>(values[2 * i]);
+    const stored = parse<EntrantRecord>(values[3 * i]);
     const rec = stored?.verifiedAt ? stored : unregistered.has(w) ? { wallet: w, handle: shortAddress(w), email: "", registeredAt: 0, verifiedAt: null } : null;
     if (!rec) return;
     records.set(w, rec);
-    const state = parse<EntryState>(values[2 * i + 1]);
+    const state = parse<EntryState>(values[3 * i + 1]);
     if (state) states.set(w, state);
+    // The stored score keeps an entry on the board when its first run in this process fails.
+    const score = parse<EntrantScore>(values[3 * i + 2]);
+    if (score) lastScores.set(w, score);
   });
 }
 
