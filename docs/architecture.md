@@ -7,6 +7,9 @@ component, and what the SCF #46 Build Award would fund: taking the Koul autopilo
 Everything described as live runs on Stellar **testnet**. Code: https://github.com/koul-me/koul (MIT). Every on-chain
 change is logged with its transaction hash in [`docs/build-log.md`](build-log.md).
 
+How this document was written: drafted with AI assistance (Claude Code) from the code, the build log and the chain,
+then reviewed and edited by the team. Every number in it was checked against the code or a testnet transaction.
+
 ---
 
 ## 1. The design in one line
@@ -15,6 +18,23 @@ change is logged with its transaction hash in [`docs/build-log.md`](build-log.md
 
 Safety is enforced on-chain, and liveness comes from off-chain. A keeper can stop rules from firing. It cannot invent
 an action, move funds anywhere except the user's own position, or touch another account.
+
+### Why this is built on Stellar
+
+Koul uses four things together, in one transaction, that Stellar provides natively:
+
+- **Custom account authorisation.** The user's wallet is a contract whose `__check_auth` runs a policy on every call
+  a key signs, including sub-calls. Koul's whole safety model is a policy on a context rule of that account.
+- **Passkeys verified on-chain.** secp256r1 signatures are checked by the network, so a phone's passkey is the wallet's
+  owner with no seed phrase and no server holding a key.
+- **Read, decide and act in one invocation.** A Soroban call can read XOXNO positions and Reflector prices, evaluate
+  the rules and execute the action atomically, under one authorisation tree. If the world changed since the keeper
+  looked, the transaction does nothing.
+- **Fees low enough to check often.** The keeper simulates every autopilot every 15 seconds for free and pays a fee
+  only when an action runs.
+
+The venues are Stellar-native too: XOXNO lending and its swap aggregator, Reflector price feeds, Stellar Asset
+Contract tokens, and Soroswap in this award.
 
 ---
 
@@ -72,6 +92,58 @@ graph TD
 
 Anyone can read an autopilot with `get_autopilot(user, id)`, and the live truth of each condition, with the value it
 was compared against, with `check(user, id)`.
+
+### Contract interfaces
+
+`koul_router` (`contracts/koul_router/src/lib.rs`):
+
+| Function | Who must authorise | Storage it touches |
+|---|---|---|
+| `__constructor(admin, controller, pool, usdc, oracle, spoke_id)` | Deployer, once | Instance: admin, config |
+| `upgrade(new_wasm_hash)` | Admin | Contract wasm (address and storage unchanged) |
+| `set_oracle(oracle)` | Admin | Instance: config |
+| `set_feed(token, feed)` | Admin | Persistent: `Feed(token)` |
+| `set_aggregator(aggregator)`, `set_policy(policy)` | Admin | Instance |
+| `set_autopilot(user, id, autopilot)` | `user` (the passkey) | Persistent: `Autopilot(user, id)`, `Ids(user)`, `Users`; clears `LastFired` |
+| `clear_autopilot(user, id)` | `user` | Removes the same entries |
+| `tick(user, id, route)` | `user`: the passkey, or the session key through `koul_agent_policy` | Persistent: `Autopilot` (TTL extended), `LastFired(user, id, i)`; calls XOXNO, the aggregator and `end_session` |
+| `check(user, id)`, `next_action(user, id)` | None (read-only, simulated) | Reads XOXNO, Reflector and balances |
+| `get_autopilot`, `list_ids`, `list_users`, `get_config`, `get_feed`, `get_aggregator`, `get_policy` | None | Reads |
+
+`koul_agent_policy` (`contracts/koul_agent_policy/src/lib.rs`):
+
+| Function | Who must authorise | Storage it touches |
+|---|---|---|
+| `install(params, context_rule, smart_account)` | The smart account (the passkey, when the key is granted) | Persistent: `Params(smart_account, rule_id)` |
+| `uninstall(context_rule, smart_account)` | The smart account | Removes `Params` and `Window` |
+| `enforce(context, signers, context_rule, smart_account)` | The smart account, from its `__check_auth` | Temporary: `Session(smart_account)`; persistent: `Window(smart_account, rule_id)` |
+| `end_session(smart_account)` | The router that opened the session | Removes `Session` |
+| `get_session`, `get_params`, `get_window` | None | Reads |
+
+### Invariants
+
+These are the rules the design is meant to keep. Two of them hold only while the router is honest; those gaps are
+stated with their fixes.
+
+1. **Funds stay in the user's account.** A session-key call can move funds only to the XOXNO pool or the aggregator
+   (`transfer`), back to the smart account (`withdraw`), or through a swap whose sender is the smart account. Enforced
+   by the policy on every call.
+2. **Only the user's own position.** Every XOXNO call the session key signs names the account id pinned at grant time.
+3. **A rule acts only when it is true.** Conditions and cooldowns are evaluated by the router at execution, in the same
+   transaction, not by the keeper.
+4. **The session key acts only inside a tick.** Any call other than `tick` needs a session that `tick` opened in the
+   same ledger, and the router closes it before `tick` returns.
+   *Gap A:* the policy relies on the router to close the session. A router that skipped `end_session` would leave it
+   open for the rest of that ledger, and the session key could then call an allowlisted function directly. *Fix:* the
+   router's upgrades move behind a multisig with a published delay, so users can revoke before new code takes effect
+   (D7); D2 covers this case in the property tests and looks at binding the session to the tick's own invocation.
+5. **A swap never returns less than the floor.** The router computes `min_out` from Reflector prices and reverts below
+   it. *Gap B:* this holds while the router code and its price feeds are honest. A malicious upgrade could call the
+   allowlisted aggregator with a bad route, and a wrong feed set with `set_oracle` or `set_feed` would move the floor.
+   *Fix:* the same multisig and delay (D7), and per-venue scopes (D2) so a user can grant a key that cannot swap at
+   all.
+6. **Only the user, or the policy-bound key, can authorise a move.** The keeper, the app, the chat and the relay
+   prepare, submit, display and monitor. The user can remove the key at any time with the passkey.
 
 ---
 
@@ -134,9 +206,11 @@ sub-call. A call goes through only if all of these hold:
 | A swap names the smart account as sender, so the output comes back to the wallet | `7111 SenderNotAllowed` |
 | Rate limit: 40 calls per 2,000 ledgers by default | `7106 RateLimited` |
 
-The router closes the session (`end_session`) before `tick` returns. So the session key cannot call XOXNO, a token or
-the aggregator directly, only through a router tick. This can be reproduced live: `cd keeper && pnpm session-deny`
-sends three session-key-signed calls straight at the contracts, and the chain rejects each with `7110 NoSession`.
+The router closes the session (`end_session`, which only the router that opened it can call) before `tick` returns. So
+with the router as deployed, the session key cannot call XOXNO, a token or the aggregator directly, only through a
+router tick. The policy does not check this by itself: it relies on the router to close the session (invariant 4,
+gap A). This can be reproduced live: `cd keeper && pnpm session-deny` sends three session-key-signed calls straight at
+the contracts, and the chain rejects each with `7110 NoSession`.
 
 **Why not a vault.** If funds sit in our contract we are a custodian, and one bug is every user's loss. The user keeps
 custody instead and grants a key that is scoped, rate-limited and expiring.
@@ -157,8 +231,10 @@ The router has one admin account (`GCCIYVPB…LBYG4`) with five functions: `upgr
 address and every user's allowlist stay the same), `set_oracle`, `set_feed`, `set_aggregator` and `set_policy`. This
 is the main trust point today.
 
-- A malicious upgrade is still held by the policy: withdrawals only to the wallet, transfers only to allowlisted
-  recipients, the pinned account, swaps only with the wallet as sender.
+- A malicious upgrade is held by the policy only in part. It still cannot withdraw anywhere but the wallet, transfer
+  to anyone but the allowlisted recipients, touch another XOXNO account, or borrow. It could, however, swap through
+  the allowlisted aggregator with a bad route, and it could skip closing the session (invariants 4 and 5). Users'
+  value is therefore exposed to a malicious router, though their funds cannot be sent elsewhere.
 - `set_aggregator` cannot redirect swaps to a new contract. The aggregator call is authorised by the session key, and
   the policy allowlists the aggregator by address, so a new address fails with `7103`.
 - `set_oracle` and `set_feed` can change the prices the router trusts, and with them conditions and swap floors.
@@ -189,6 +265,31 @@ is an option we will decide on with the auditor.
 | Keeper and channel accounts (`GAFHZTSL…GXP6U`) | Testnet XLM for fees | CI secret |
 | Router admin (`GCCIYVPB…LBYG4`) | Admin functions in the section above | One key on one team machine, not in CI; multisig in D7 |
 
+### What we host and what we depend on
+
+| | Component | If it fails |
+|---|---|---|
+| We host | Keeper (GitHub Actions) | Rules stop firing; funds are untouched |
+| We host | Web app and wallet relay (Vercel) | No new wallets or edits through the app; existing autopilots keep running |
+| We host | Status and alert data (Upstash Redis) | Monitoring goes blind; nothing on-chain changes |
+| We host | `koul_router`, `koul_agent_policy`, the router admin key | See invariants and gaps above |
+| External | XOXNO controller, pool and swap aggregator, and its quote server | Lending or swap rules cannot run; a bad quote is refused by the router |
+| External | Reflector feeds | Price conditions never match and swaps are refused while a price is stale |
+| External | OpenZeppelin smart account wasm, WebAuthn and Ed25519 verifiers | Signing fails; nothing moves |
+| External | Stellar RPC (SDF public endpoint) and SDF's relayer | Ticks slow down or stop; failover in D5 |
+
+### Threats, summarised
+
+A short STRIDE summary. The full model is deliverable D4.
+
+| Threat | Example | Answer today |
+|---|---|---|
+| Spoofing | Someone obtains the session key | Bounded by the policy; the user removes the key with the passkey; rotation in D2 |
+| Tampering | The keeper sends a bad swap route | The router fixes the pair and the amount and reverts below the floor |
+| Repudiation | A user disputes an action | Every action emits `Fired` (and `Swapped`) with the values it observed; the policy emits `KoulEnforced` per call |
+| Denial of service | The keeper or the RPC stops; a stolen key burns the rate limit (40 calls) | Rules pause, funds stay put; the window resets after 2,000 ledgers (about 2.8 hours); redundancy in D5 |
+| Elevation of privilege | The router admin upgrades to malicious code | Gaps A and B; multisig and upgrade delay in D7 |
+
 ---
 
 ## 6. The keeper today
@@ -212,7 +313,7 @@ Nectar, because it only submits what the router authorises.
 
 | Contract | Address | Wasm hash |
 |---|---|---|
-| `koul_router` | [`CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D`](https://stellar.expert/explorer/testnet/contract/CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D) | `54d4f5b4…16dc01` |
+| `koul_router` | [`CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D`](https://stellar.expert/explorer/testnet/contract/CD5VSBUXQ4OQIVYI55CFF4C4YKSFQUY4OTFIOFJRNC6TUILMNN7MAO2D) | `263641f1…d103f296` (upgraded in place; history in the build log) |
 | `koul_agent_policy` | [`CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ`](https://stellar.expert/explorer/testnet/contract/CAKEUMCIW4KBQZI5OJMFHFGM5VHDZHWIXAO7JOKTBRPR63IHIEP7KKNZ) | `136b671b…ee4e89` |
 | `koul_mock_fx` (testnet only) | [`CB6VNXADXR3XHCS4EKV5ZR5UJUZYQ5BZTPRHCNQE3XMKQMB4LJG6MKW2`](https://stellar.expert/explorer/testnet/contract/CB6VNXADXR3XHCS4EKV5ZR5UJUZYQ5BZTPRHCNQE3XMKQMB4LJG6MKW2) | `68d24e07…8532f0` |
 
@@ -233,8 +334,19 @@ Transactions:
   [`29a8aa97…da064e`](https://stellar.expert/explorer/testnet/tx/29a8aa974fa1ca3df2b24458c9e79854a6c5c4cd102e62bfc5ca08db37da064e)
 - The session key rejected outside a tick: `cd keeper && pnpm session-deny` (`7110 NoSession`, three times).
 
-Tests: `koul_router` 14 (rule evaluation, ordering, cooldowns, amounts, swap floor, session close), `koul_agent_policy`
-3, plus the SDK and web app suites.
+### How to verify
+
+| Check | Command | Pass condition | Blocks mainnet |
+|---|---|---|---|
+| Router tests | `cd contracts/koul_router && cargo test` | 14 passed (evaluation, ordering, cooldowns, amounts, liquidity caps, swap floor, route check, session close) | Yes |
+| Policy tests | `cd contracts/koul_agent_policy && cargo test` | 3 passed | Yes |
+| SDK tests | `cd packages/core && pnpm test` | 63 passed | Yes |
+| Session key outside a tick | `cd keeper && pnpm session-deny` | Three direct calls, each rejected with `7110 NoSession` | Yes |
+| Contract leases | `cd keeper && pnpm leases --dry` | No entry reported as failed, missing or too expensive | Yes |
+| Keeper liveness | https://koul.me/status | Headline "All systems running" | No |
+| Load, 28 October 2026 | The router's events for that day | 57 wallets created on app.koul.me, each trading USDC and ETH through the keeper for under an hour; 740 trades executed | No |
+
+Contract tests need Rust 1.91.1 and the stellar CLI 27 (`source scripts/env.sh`).
 
 ---
 
@@ -267,8 +379,29 @@ chain. 130 dev-days at $600 ($75 an hour), two engineers.
 | D8 | Mainnet keeper and relay, passkey wallet creation on mainnet, and XOXNO lending, XOXNO aggregator and Soroswap flows live with the protocol fee | XOXNO, Soroswap, mainnet | One mainnet tx per flow (supply, move between pools, repay, withdraw, swap through each venue); a rule firing on its own on mainnet; the fee received at the fee address | 18 | Ahmed |
 | D9 | Public usage dashboard (external and team accounts shown apart: value moved by rules, executed actions, autopilots still armed after 30 days) and open-source release of both contracts and the keeper | Router events | Dashboard URL live with the split; licence and tagged release in the repository | 14 | Ahmed |
 
-Not in this award: the lira on and off ramp, cross-chain funding through Niet, DeFindex and a public SDK. Audit costs
-go through the Audit Bank, and nothing is billed for work already done.
+Not in this award: cross-chain funding through Niet, DeFindex and a public SDK. Audit costs go through the Audit
+Bank, and nothing is billed for work already done.
+
+### Design sketches for Tranche 1
+
+**D1, portfolio cap and fee.** The router today values one action at a time (`usd_value` for the swap minimum). D1 adds
+a valuation of everything the autopilot can see: idle USDC, XOXNO collateral less debt, and every registered token at
+its Reflector price. `plan` then compares each action's USD value with a cap in basis points of that total and returns
+no plan above it, so the rule is skipped as if it had nothing to do. The fee
+is a basis-point share of the moved value, capped per action, paid in the same tick from the wallet to a fee address
+the policy allowlists as a transfer recipient. `Fired` gains the fee and the amounts in and out.
+
+**D2, per-venue scopes and rotation.** `KoulAgentParams` today holds one allowlist for everything. D2 splits it per
+venue (lending, each swap venue), each with its own calls, recipients and rate limit, so a user can grant lending only.
+For rotation, the context rule's signer becomes an external verifier that Koul controls and that maps a fixed key id
+to the current Ed25519 key, so replacing the key needs one transaction from Koul rather than one from every user. The
+verifier change and its trust trade-off go into the D4 threat model.
+
+**D3, Soroswap.** Swap actions gain a venue. For Soroswap the router builds the call itself (the path, `amount_in`,
+its own `min_out` and the wallet as recipient), so the keeper supplies only which venue to use. The router keeps the
+balance-difference floor check. The policy allowlists the Soroswap router's swap function and the pairs as transfer
+recipients. The keeper quotes both venues, submits the better one, and falls back to Soroswap when the XOXNO quote
+server does not answer.
 
 ---
 
