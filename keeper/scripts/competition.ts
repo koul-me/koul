@@ -343,7 +343,7 @@ async function run(): Promise<boolean> {
   for (const d of done) { states.set(d.score.wallet, d.state); lastScores.set(d.score.wallet, d.score); }
   // An entry whose run failed stays on the board with its last score rather than dropping off it for a run.
   const scores = entries.map((r) => lastScores.get(r.wallet)).filter((s): s is EntrantScore => s !== undefined).map((s) => (config.liveBoard ? { ...s, flagged: false, flagReasons: [] } : s));
-  const board: LeaderboardRow[] = rank(scores).map((s) => ({ rank: s.rank, handle: s.handle, wallet: s.wallet, valueUsd: s.valueUsd, pnlUsd: s.pnlUsd, returnPct: s.returnPct, flagged: s.flagged, ...(unregistered.has(s.wallet) ? { anonymous: true } : {}) }));
+  const board: LeaderboardRow[] = rank(scores, !!config.liveBoard).map((s) => ({ rank: s.rank, handle: s.handle, wallet: s.wallet, valueUsd: s.valueUsd, pnlUsd: s.pnlUsd, returnPct: s.returnPct, flagged: s.flagged, ...(unregistered.has(s.wallet) ? { anonymous: true } : {}) }));
   // Scores, every totals and the board, the board last; one MSET a group, each one command however many keys.
   const pairs: [string, string][] = done.map((d) => [COMP_KEYS.score(d.score.wallet), JSON.stringify(d.score)]);
   for (const r of entries) { const st = states.get(r.wallet); if (st) pairs.push([COMP_KEYS.totals(r.wallet), JSON.stringify(st)]); }

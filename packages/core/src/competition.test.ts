@@ -53,6 +53,11 @@ describe("competition scoring", () => {
     ]);
     expect(r.map((x) => [x.id, x.rank])).toEqual([["d", null], ["b", 1], ["a", 2], ["c", 2], ["f", 4], ["e", null]]);
   });
+
+  it("numbers equal returns in order when sequential", () => {
+    const rows = [{ id: "a", returnPct: 5, flagged: false }, { id: "b", returnPct: 5, flagged: false }, { id: "c", returnPct: 1, flagged: false }, { id: "e", returnPct: null, flagged: false }];
+    expect(rank(rows, true).map((x) => [x.id, x.rank])).toEqual([["a", 1], ["b", 2], ["c", 3], ["e", null]]);
+  });
 });
 
 describe("swap edge", () => {
