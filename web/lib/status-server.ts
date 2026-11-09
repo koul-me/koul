@@ -176,13 +176,13 @@ async function loadProblems(now: number): Promise<string[]> {
   const redis = store();
   if (!redis) return [];
   const [beat, config, boardAt] = await Promise.all([
-    redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<{ startsAt: string | null; endsAt: string | null }>(COMP_KEYS.config), redis.get<number>(COMP_KEYS.updatedAt),
+    redis.get<Heartbeat>(HEARTBEAT_KEY), redis.get<{ startsAt: string | null; endsAt: string | null; liveBoard?: boolean }>(COMP_KEYS.config), redis.get<number>(COMP_KEYS.updatedAt),
   ]);
   const out: string[] = [];
   if (beat && beat.failed >= 5 && beat.failed > beat.submitted) out.push(`The keeper's last pass failed ${beat.failed} ticks and sent ${beat.submitted}; first reasons: ${(beat.errors ?? []).slice(0, 2).join("; ") || "none recorded"}.`);
   if (beat && beat.passMs > SLOW_PASS_MS) out.push(`A keeper pass takes ${Math.round(beat.passMs / 1000)} s for ${beat.wallets} wallets: rules react late.`);
   const starts = config?.startsAt ? Date.parse(config.startsAt) : null, ends = config?.endsAt ? Date.parse(config.endsAt) : null;
-  const running = starts !== null && now > starts + STALE_BOARD_MS && (ends === null || now < ends + 3600_000);
+  const running = starts !== null && now > starts + STALE_BOARD_MS && (ends === null || now < ends + 3600_000 || !!config?.liveBoard);
   if (running && (!boardAt || now - Number(boardAt) > STALE_BOARD_MS)) out.push(`The competition board was last written ${boardAt ? `${Math.round((now - Number(boardAt)) / 60_000)} min ago` : "never"}: the indexer is not running.`);
   return out;
 }

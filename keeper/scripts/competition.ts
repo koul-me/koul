@@ -41,6 +41,8 @@ const PARALLEL = 8;
 /** Keys per MGET: about 100 KB of records and totals back, far under Upstash's 1 MB. */
 const MGET_KEYS = 100;
 const PAGE = 200;
+/** Ledgers kept clear of the RPC's oldest one: about an hour. */
+const RPC_MARGIN = 720;
 
 const reader = new KoulReader({
   rpcUrl: TESTNET.rpcUrl, networkPassphrase: TESTNET.networkPassphrase, publicKey: keeperKeypair(env).publicKey(),
@@ -162,10 +164,14 @@ interface EntryRun { score: EntrantScore; state: EntryState; lists: Command[] }
  * fails halfway leaves the kept state as it was; the caller keeps the new one once its list pushes are written.
  */
 async function indexEntry(rec: EntrantRecord, prev: EntryState | undefined, config: CompetitionConfig, latest: number, oldest: number, prices: Prices, walletWasm: Set<string>, sac: SacBalances, sacTokens: Set<string>, runAt: number, historyEvery: number): Promise<EntryRun> {
-  const state: EntryState = prev ? structuredClone(prev) : { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: config.startLedger - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
+  // An entrant is scored from the start; a live board's unregistered wallet from liveFromLedger (or from now).
+  const startAt = rec.verifiedAt ? config.startLedger : config.liveFromLedger ?? latest;
+  const state: EntryState = prev ? structuredClone(prev) : { netInUsd: 0, inUsd: 0, outUsd: 0, manualTxs: 0, toLedger: startAt - 1, lastHistoryAt: 0, flows: 0, openingUsd: Number.NaN, swapEdgeUsd: 0 };
   state.swapEdgeUsd ??= 0;
   const end = Math.min(latest, config.endLedger ?? latest);
-  const from = Math.max(state.toLedger + 1, oldest);
+  // A margin above the oldest ledger the RPC keeps: that window moves on while a long run reads, and a request that
+  // starts below it fails ("startLedger must be within the ledger range").
+  const from = Math.max(state.toLedger + 1, oldest + RPC_MARGIN);
   const newFlows: Flow[] = [];
   if (from <= end) {
     const { transfers, fired } = await walletActivity(rec.wallet, from, end);
@@ -256,20 +262,28 @@ const states = new Map<string, EntryState>();
 const lastScores = new Map<string, EntrantScore>();
 let lastConfig: string | null = null;
 
+/** "CCAQ…INMV": how a wallet that never registered shows on a live board. */
+const shortAddress = (w: string) => `${w.slice(0, 4)}…${w.slice(-4)}`;
+
 /**
  * Records and stored totals of wallets this process has not seen yet, in MGETs. A record that is not there or not
  * verified yet (registration adds the wallet to the set before it writes the record) is asked for again next run.
+ * A wallet in `unregistered` (a live board's router wallet with no entry) gets a record made here, by its address.
  */
-async function loadEntries(wallets: string[]): Promise<void> {
-  const keys = wallets.flatMap((w) => [COMP_KEYS.entrant(w), COMP_KEYS.totals(w)]);
+async function loadEntries(wallets: string[], unregistered = new Set<string>()): Promise<void> {
+  const keys = wallets.flatMap((w) => [COMP_KEYS.entrant(w), COMP_KEYS.totals(w), COMP_KEYS.score(w)]);
   const values: unknown[] = [];
   for (const g of groups(keys, MGET_KEYS)) values.push(...(((await exec(env, ["MGET", ...g])) as unknown[] | null) ?? g.map(() => null)));
   wallets.forEach((w, i) => {
-    const rec = parse<EntrantRecord>(values[2 * i]);
-    if (!rec?.verifiedAt) return;
+    const stored = parse<EntrantRecord>(values[3 * i]);
+    const rec = stored?.verifiedAt ? stored : unregistered.has(w) ? { wallet: w, handle: shortAddress(w), email: "", registeredAt: 0, verifiedAt: null } : null;
+    if (!rec) return;
     records.set(w, rec);
-    const state = parse<EntryState>(values[2 * i + 1]);
+    const state = parse<EntryState>(values[3 * i + 1]);
     if (state) states.set(w, state);
+    // The stored score keeps an entry on the board when its first run in this process fails.
+    const score = parse<EntrantScore>(values[3 * i + 2]);
+    if (score) lastScores.set(w, score);
   });
 }
 
@@ -277,24 +291,30 @@ async function loadEntries(wallets: string[]): Promise<void> {
 async function run(): Promise<boolean> {
   // exec, not redis(): a failed read must fail the run, not look like "no settings" (which ends the loop) or a new entry.
   const rawConfig = (await exec(env, ["GET", COMP_KEYS.config])) as string | null;
-  const config = parse<CompetitionConfig>(rawConfig);
-  if (!config) { console.log(`${stamp()} competition: no settings stored, nothing to do`); return false; }
+  const stored = parse<CompetitionConfig>(rawConfig);
+  if (!stored) { console.log(`${stamp()} competition: no settings stored, nothing to do`); return false; }
+  // A live board scores to the latest ledger: flows and balances are read to the same point, so it has no end.
+  const config: CompetitionConfig = stored.liveBoard ? { ...stored, endLedger: null } : stored;
   // After the end the board must stay as it stood: flows stop at endLedger, but balances are read at the latest ledger,
   // so money that arrived later would count as return (on 2026-11-07 one entry went from -6% to +282% that way).
-  if (await exec(env, ["GET", COMP_KEYS.final])) { console.log(`${stamp()} competition: the board is final, nothing to do`); return false; }
+  if (!config.liveBoard && await exec(env, ["GET", COMP_KEYS.final])) { console.log(`${stamp()} competition: the board is final, nothing to do`); return false; }
   // New settings: read every record and totals again, so a reset made with them is picked up.
   if (rawConfig !== lastConfig) { records.clear(); states.clear(); lastScores.clear(); lastConfig = rawConfig; }
   const excluded = new Set(config.excludeTokens ?? []);
   TOKENS = ALL_TOKENS.filter((t) => !excluded.has(t.symbol));
   BY_ID = new Map(TOKENS.map((t) => [t.id, t]));
-  const wallets = ((await exec(env, ["SMEMBERS", COMP_KEYS.entrants])) as string[] | null) ?? [];
+  const entrants = ((await exec(env, ["SMEMBERS", COMP_KEYS.entrants])) as string[] | null) ?? [];
+  // A live board also scores every wallet the router lists that never registered.
+  const listed = config.liveBoard ? await reader.listUsers() : [];
+  const unregistered = new Set(listed.filter((w) => !entrants.includes(w)));
+  const wallets = [...entrants, ...unregistered];
   const inSet = new Set(wallets);
   for (const w of [...records.keys()]) if (!inSet.has(w)) { records.delete(w); states.delete(w); lastScores.delete(w); }
   if (wallets.length === 0) { console.log(`${stamp()} competition: no verified entrants yet`); return true; }
   const health = await server.getHealth();
   const latest = health.latestLedger!, oldest = (health.oldestLedger ?? 1) + 1;
   if (latest < config.startLedger) { console.log(`${stamp()} competition: starts at ledger ${config.startLedger}, now ${latest}`); return true; }
-  await loadEntries(wallets.filter((w) => !records.has(w)));
+  await loadEntries(wallets.filter((w) => !records.has(w)), unregistered);
   const entries = wallets.map((w) => records.get(w)).filter((r): r is EntrantRecord => r !== undefined);
   const p = await prices();
   // A basket token without a price would value most of every wallet at 0 (XLM) or fix a wrong opening: skip the run.
@@ -320,7 +340,7 @@ async function run(): Promise<boolean> {
   for (const d of done) { states.set(d.score.wallet, d.state); lastScores.set(d.score.wallet, d.score); }
   // An entry whose run failed stays on the board with its last score rather than dropping off it for a run.
   const scores = entries.map((r) => lastScores.get(r.wallet)).filter((s): s is EntrantScore => s !== undefined);
-  const board: LeaderboardRow[] = rank(scores).map((s) => ({ rank: s.rank, handle: s.handle, wallet: s.wallet, valueUsd: s.valueUsd, pnlUsd: s.pnlUsd, returnPct: s.returnPct, flagged: s.flagged }));
+  const board: LeaderboardRow[] = rank(scores).map((s) => ({ rank: s.rank, handle: s.handle, wallet: s.wallet, valueUsd: s.valueUsd, pnlUsd: s.pnlUsd, returnPct: s.returnPct, flagged: s.flagged, ...(unregistered.has(s.wallet) ? { anonymous: true } : {}) }));
   // Scores, every totals and the board, the board last; one MSET a group, each one command however many keys.
   const pairs: [string, string][] = done.map((d) => [COMP_KEYS.score(d.score.wallet), JSON.stringify(d.score)]);
   for (const r of entries) { const st = states.get(r.wallet); if (st) pairs.push([COMP_KEYS.totals(r.wallet), JSON.stringify(st)]); }
