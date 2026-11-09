@@ -9,7 +9,7 @@ import { TraderHandle } from "./trader-handle";
  * flagged (a manual move, added money) stays visible with "Not ranked" instead of a rank. A live board's wallets that
  * never registered show by short address, without a link: they have no page.
  */
-export function BoardTable({ rows, preview, invites = true }: { rows: LeaderboardRow[]; preview?: string | null; invites?: boolean }) {
+export function BoardTable({ rows, preview, invites = true, hideNames = false }: { rows: LeaderboardRow[]; preview?: string | null; invites?: boolean; hideNames?: boolean }) {
   const href = (h: string) => `/compete/${encodeURIComponent(h)}${preview ? `?preview=${preview}` : ""}`;
   return (
     <table className="w-full border-collapse text-left">
@@ -28,7 +28,7 @@ export function BoardTable({ rows, preview, invites = true }: { rows: Leaderboar
           <tr key={r.wallet} className={cn("border-t border-line", r.flagged && "text-muted")}>
             <td className="mono py-3 text-[14px] text-muted">{r.rank ?? "–"}</td>
             <td className="py-3">
-              <TraderHandle href={r.anonymous ? null : href(r.handle)} handle={r.handle} wallet={r.wallet} />
+              <TraderHandle href={r.anonymous || hideNames ? null : href(r.handle)} handle={r.handle} wallet={r.wallet} hidden={hideNames} />
               {r.flagged && <Label tone="dim" className="ml-3">Not ranked</Label>}
               {r.pending && <Label tone="dim" className="ml-3">Scoring soon</Label>}
             </td>

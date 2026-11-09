@@ -244,14 +244,15 @@ export function flagsFor(totals: EntryTotals & { swapEdgeUsd?: number }, config:
 }
 
 /** Best return first; entries without a return (nothing in yet) last; ties share a rank. */
-export function rank<T extends Pick<EntrantScore, "returnPct" | "flagged">>(rows: T[]): (T & { rank: number | null })[] {
+/** Ranks by return. Equal returns share a rank (1, 1, 3) unless `sequential`, which numbers them in order (1, 2, 3). */
+export function rank<T extends Pick<EntrantScore, "returnPct" | "flagged">>(rows: T[], sequential = false): (T & { rank: number | null })[] {
   const sorted = [...rows].sort((a, b) => (b.returnPct ?? -Infinity) - (a.returnPct ?? -Infinity));
   let last: number | null = null, lastRank = 0, counted = 0;
   return sorted.map((r) => {
     if (r.flagged || r.returnPct === null) return { ...r, rank: null };
     counted++;
     const rounded = Math.round(r.returnPct * 10_000) / 10_000;
-    if (rounded !== last) { lastRank = counted; last = rounded; }
+    if (sequential || rounded !== last) { lastRank = counted; last = rounded; }
     return { ...r, rank: lastRank };
   });
 }
