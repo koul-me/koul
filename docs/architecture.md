@@ -373,7 +373,7 @@ chain. 130 dev-days at $600 ($75 an hour), $78,000 in total, two engineers. Work
 | D2 | On-chain SMA, EMA, RSI and crossover conditions from Reflector price history; a price recorder contract that anyone can trigger to copy Reflector's latest price (it accepts no price input); indicator conditions per tick capped to stay within Soroban resource limits | `koul_router`, Reflector `prices`, new price recorder contract | A fixed price-series test where the contract's SMA, EMA and RSI match a reference implementation within 0.01%; a testnet tx of an EMA crossover rule firing with both EMA values in its event; the recorder's stored series readable on-chain | 15 | Atahan |
 | D3 | Trailing stops and brackets (a take-profit and a stop-loss in one group, one cancels the other in the same transaction), with editor support in the app | `koul_router`, Reflector | Testnet txs of a trailing stop firing after a rise and a fall, with the stored peak readable through `check`; a bracket where the take-profit fires and the stop-loss is disarmed in the same tx | 13 | Ahmed |
 
-### Tranche 2 (Testnet), completion 05/03/2027
+### Tranche 2 (Testnet), completion 19/03/2027
 
 | | Deliverable | Stellar integration | Completion | Days | Owner |
 |---|---|---|---|---|---|
@@ -381,7 +381,7 @@ chain. 130 dev-days at $600 ($75 an hour), $78,000 in total, two engineers. Work
 | D5 | Zenex perpetuals as a venue, with per-venue scopes in the policy. Actions: open, increase, reduce and close a position, add margin. Conditions: funding rate, liquidation distance, position PnL. Cross-venue rules, such as topping up Zenex margin from XOXNO | Zenex market router and markets, `koul_agent_policy` | Txs of a Koul rule opening and closing a Zenex position, a liquidation-distance rule adding margin from an XOXNO position, and the agent key rejected when it calls Zenex outside a tick; on Zenex's testnet deployment, or with capped small positions on Zenex mainnet if none is available | 17 | Ahmed |
 | D6 | STRIDE threat model of the router, the policy, the keeper, the relay and the oracle path; an on-chain monitoring plan with live alerting; a key-management document for the agent and admin keys; agent-key rotation in `koul_agent_policy` without users re-granting | All contracts, OpenZeppelin `stellar-accounts` | The three documents in the repo; alerting live on testnet (failing ticks, policy rejections, stale or disagreeing oracles, keeper and relay balances); an alert drill with its log; a testnet tx rotating the agent key, with existing autopilots still firing after it | 10 | Atahan |
 
-### Tranche 3 (Mainnet), completion 11/06/2027
+### Tranche 3 (Mainnet), completion 21/05/2027
 
 | | Deliverable | Stellar integration | Completion | Days | Owner |
 |---|---|---|---|---|---|
