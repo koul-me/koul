@@ -334,12 +334,15 @@ async function run(): Promise<boolean> {
       return null;
     })))).filter((x): x is EntryRun => x !== null));
   }
+  // A live board ranks everyone: the competition's flags (added money, a manual move) do not apply to it. Return still
+  // nets out outside money, so a deposit is never profit.
+  if (config.liveBoard) for (const d of done) { d.score.flagged = false; d.score.flagReasons = []; }
   // List pushes first. Once they are in, the new states are what this process goes on from, whether or not the MSET
   // below lands: the next run writes every entry's totals again.
   for (const batch of chunkBySize(done.flatMap((d) => d.lists), commandBytes)) await pipeline(env, batch);
   for (const d of done) { states.set(d.score.wallet, d.state); lastScores.set(d.score.wallet, d.score); }
   // An entry whose run failed stays on the board with its last score rather than dropping off it for a run.
-  const scores = entries.map((r) => lastScores.get(r.wallet)).filter((s): s is EntrantScore => s !== undefined);
+  const scores = entries.map((r) => lastScores.get(r.wallet)).filter((s): s is EntrantScore => s !== undefined).map((s) => (config.liveBoard ? { ...s, flagged: false, flagReasons: [] } : s));
   const board: LeaderboardRow[] = rank(scores).map((s) => ({ rank: s.rank, handle: s.handle, wallet: s.wallet, valueUsd: s.valueUsd, pnlUsd: s.pnlUsd, returnPct: s.returnPct, flagged: s.flagged, ...(unregistered.has(s.wallet) ? { anonymous: true } : {}) }));
   // Scores, every totals and the board, the board last; one MSET a group, each one command however many keys.
   const pairs: [string, string][] = done.map((d) => [COMP_KEYS.score(d.score.wallet), JSON.stringify(d.score)]);

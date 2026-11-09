@@ -39,8 +39,8 @@ export interface CompetitionConfig {
   autopilotOnly: boolean;
   /**
    * When true, the board stays live after the end: the indexer scores every wallet the router lists (entrants under
-   * their handle, the rest by address) up to the latest ledger, outside money included, and the pages say when it was
-   * scored rather than that it is final. Registration still follows the dates.
+   * their handle, the rest by address) up to the latest ledger, outside money included, ranks everyone (no flags), and
+   * the pages say when it was scored rather than that it is final. Registration still follows the dates.
    */
   liveBoard?: boolean;
   /**
