@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { COMP_KEYS, type CompetitionConfig, type CompetitionInfo, type EntrantRecord, type EntrantScore, type EntrantView, type HistoryPoint, type Leaderboard, type LeaderboardRow } from "@koul/core";
+import { COMP_KEYS, TRACTION_KEYS, type CompetitionConfig, type CompetitionInfo, type EntrantRecord, type EntrantScore, type EntrantView, type HistoryPoint, type Leaderboard, type LeaderboardRow } from "@koul/core";
 import { TELEGRAM_URL } from "@/lib/community";
 import { sendMail } from "@/lib/mail";
 import { store } from "@/lib/redis";
@@ -23,9 +23,10 @@ export async function competitionInfo(): Promise<CompetitionInfo> {
 
 export async function leaderboard(offset: number, limit: number): Promise<Leaderboard> {
   const r = redis();
-  const [board, updatedAt, entrants] = await Promise.all([r.get<LeaderboardRow[]>(COMP_KEYS.board), r.get<number>(COMP_KEYS.updatedAt), r.smembers(COMP_KEYS.entrants)]);
-  // Entrants confirmed since the last scoring run go at the end, marked pending, until the indexer scores them.
-  const scored = new Set((board ?? []).map((b) => b.wallet));
+  const [board, updatedAt, entrants, team] = await Promise.all([r.get<LeaderboardRow[]>(COMP_KEYS.board), r.get<number>(COMP_KEYS.updatedAt), r.smembers(COMP_KEYS.entrants), r.smembers(TRACTION_KEYS.team)]);
+  // Entrants confirmed since the last scoring run go at the end, marked pending, until the indexer scores them. Koul's
+  // own wallets (the traction team set) never show: the indexer leaves them off a live board.
+  const scored = new Set([...(board ?? []).map((b) => b.wallet), ...team]);
   const fresh = entrants.filter((w) => !scored.has(w));
   const records = fresh.length ? await r.mget<(EntrantRecord | null)[]>(...fresh.map((w) => COMP_KEYS.entrant(w))) : [];
   const pending: LeaderboardRow[] = records.flatMap((rec) => (rec?.verifiedAt ? [{ rank: null, handle: rec.handle, wallet: rec.wallet, valueUsd: 0, pnlUsd: 0, returnPct: null, flagged: false, pending: true }] : []));
