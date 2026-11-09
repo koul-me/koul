@@ -6,7 +6,8 @@ import { TraderHandle } from "./trader-handle";
 
 /**
  * The ranked board. Rank, handle and return always show; value and P&L join from tablet width. An entry the indexer
- * flagged (a manual move, added money) stays visible with "Not ranked" instead of a rank.
+ * flagged (a manual move, added money) stays visible with "Not ranked" instead of a rank. A live board's wallets that
+ * never registered show by short address, without a link: they have no page.
  */
 export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?: string | null }) {
   const href = (h: string) => `/compete/${encodeURIComponent(h)}${preview ? `?preview=${preview}` : ""}`;
@@ -27,7 +28,7 @@ export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?
           <tr key={r.wallet} className={cn("border-t border-line", r.flagged && "text-muted")}>
             <td className="mono py-3 text-[14px] text-muted">{r.rank ?? "–"}</td>
             <td className="py-3">
-              <TraderHandle href={href(r.handle)} handle={r.handle} wallet={r.wallet} />
+              <TraderHandle href={r.anonymous ? null : href(r.handle)} handle={r.handle} wallet={r.wallet} />
               {r.flagged && <Label tone="dim" className="ml-3">Not ranked</Label>}
               {r.pending && <Label tone="dim" className="ml-3">Scoring soon</Label>}
             </td>

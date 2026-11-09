@@ -38,6 +38,12 @@ export interface CompetitionConfig {
   /** When true, a swap the autopilot did not make flags the entry; moving USDC in or out of lending does not. */
   autopilotOnly: boolean;
   /**
+   * When true, the board stays live after the end: the indexer scores every wallet the router lists (entrants under
+   * their handle, the rest by address) up to the latest ledger, outside money included, and the pages say when it was
+   * scored rather than that it is final. Registration still follows the dates.
+   */
+  liveBoard?: boolean;
+  /**
    * Tokens left out of value and flows. Default none. Leaving XLM out opens a hole: a rule sells XLM for USDC, the XLM
    * leg is not seen, and the USDC that comes back counts as a move inside the wallet, so value jumps with no flag.
    */
@@ -260,6 +266,8 @@ export interface LeaderboardRow {
   pending?: boolean;
   /** Confirmed entries that came in through this entrant's link. */
   referrals?: number;
+  /** A wallet on a live board that never registered: shown by its short address, with no page of its own. */
+  anonymous?: boolean;
 }
 export interface Leaderboard { rows: LeaderboardRow[]; total: number; offset: number; updatedAt: number | null }
 

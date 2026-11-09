@@ -50,7 +50,7 @@ export async function entrantView(handle: string): Promise<EntrantView | null> {
   ]);
   if (!rec || !rec.verifiedAt) return null;
   // The chart ends with the competition; points written after it would not match the final score.
-  const end = config?.endsAt ? Date.parse(config.endsAt) : null;
+  const end = config?.endsAt && !config.liveBoard ? Date.parse(config.endsAt) : null;
   const referrals = Number((await r.get<number>(COMP_KEYS.referrals(rec.handle))) ?? 0);
   return { score: score ?? null, rank: board?.find((b) => b.wallet === wallet)?.rank ?? null, history: end === null ? history : history.filter((p) => p.at <= end), registeredAt: rec.registeredAt, referrals };
 }
