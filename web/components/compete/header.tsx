@@ -25,7 +25,7 @@ export async function CompetePage({ section, joinable, children, refHandle }: { 
     <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
       <CompeteAppBar base={base} joinHref={joinable ? entryHref : null} />
       <main className="grid gap-5">
-        <SectionNav active={section} entryHref={entryHref} />
+        {section !== null && <SectionNav active={section} entryHref={entryHref} />}
         {children}
       </main>
     </div>
@@ -43,7 +43,7 @@ export async function CompeteLoading({ section }: { section: Section }) {
     <div className="mx-auto w-full max-w-[1280px] px-4 pb-28 md:px-8 md:pb-12">
       <CompeteAppBar base={base} joinHref={undefined} />
       <main className="grid gap-5" aria-busy>
-        <SectionNav active={section} entryHref={`${base}/join`} />
+        {section !== null && <SectionNav active={section} entryHref={`${base}/join`} />}
         <div className="grid gap-2">
           <Sk className="h-[34px] w-56 md:h-[40px]" />
           <Sk className="h-4 w-72 max-w-full" />
@@ -57,12 +57,12 @@ export async function CompeteLoading({ section }: { section: Section }) {
 const footLink = "label inline-flex min-h-11 items-center text-muted transition-colors hover:text-text";
 
 /** The competition pages' footer: the full terms, the Telegram group when one is set, status and the landing. */
-export function CompeteFooter() {
+export function CompeteFooter({ terms = true }: { terms?: boolean }) {
   return (
     <footer className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-8">
       <span className="label text-muted">Koul · Stellar testnet</span>
       <div className="flex flex-wrap gap-x-5 gap-y-2">
-        <Link href="/compete/terms" className={footLink}>Terms</Link>
+        {terms && <Link href="/compete/terms" className={footLink}>Terms</Link>}
         {TELEGRAM_URL && <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className={footLink}>Telegram</a>}
         <Link href="/status" className={footLink}>Status</Link>
         <a href="https://koul.me" className={footLink}>koul.me</a>

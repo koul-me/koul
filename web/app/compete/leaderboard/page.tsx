@@ -1,46 +1,58 @@
 import type { Metadata } from "next";
-import { PAGE_TITLE } from "@/components/compete/type";
-import Link from "next/link";
+import { PAGE_TITLE, STAT_VALUE } from "@/components/compete/type";
 import { AutoRefresh } from "@/components/status/auto-refresh";
 import { ThemeColor } from "@/components/shell/theme-color";
-import { Label, PillButton, Tile } from "@/components/signal";
+import { FitValue, Label, PillButton, Tile, TileLabel } from "@/components/signal";
 import { BoardTable } from "@/components/compete/board-table";
 import { CompeteFooter, CompetePage } from "@/components/compete/header";
 import { loadBoard } from "@/lib/competition-load";
-import { TELEGRAM_URL } from "@/lib/community";
-import { entriesFull, phaseOf, previewOf, scoredOf } from "@/lib/competition-view";
+import { previewOf, scoredOf } from "@/lib/competition-view";
+import { readTraction } from "@/lib/traction-server";
 
-export const metadata: Metadata = { title: "Leaderboard", description: "The Koul trading competition, ranked by return." };
+export const metadata: Metadata = { title: "Leaderboard", description: "Every Koul wallet on Stellar testnet, ranked by return, with live autopilot stats." };
 export const dynamic = "force-dynamic";
 
 const PER_PAGE = 50;
+const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const usdWhole = (v: number) => `$${whole.format(v)}`;
 
+/**
+ * Every wallet the router lists, ranked by return (the indexer's live board), under four numbers from the traction
+ * collector: live autopilots, trades executed, trades in the last 24 hours and swap volume. Both count every wallet,
+ * Koul's own included, and the footnote says so.
+ */
 export default async function LeaderboardPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const preview = previewOf(sp.preview);
   const page = Math.max(1, Number(sp.page ?? 1) | 0);
-  const { info, board, now } = await loadBoard(preview, (page - 1) * PER_PAGE, PER_PAGE);
-  const phase = phaseOf(info.config, now);
+  const [{ info, board, now }, traction] = await Promise.all([loadBoard(preview, (page - 1) * PER_PAGE, PER_PAGE), readTraction().catch(() => null)]);
   const pages = Math.max(1, Math.ceil(board.total / PER_PAGE));
   const at = (p: number) => `/compete/leaderboard?page=${p}${preview ? `&preview=${preview}` : ""}`;
+  const t = traction?.collected ? traction.summary.all : null;
   return (
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <CompetePage section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
+      <CompetePage section={null} joinable={false}>
         <div className="grid gap-2">
           <h1 className={PAGE_TITLE}>Leaderboard</h1>
           <Label>
-            Return on the starting basket · {board.total} {board.total === 1 ? "trader" : "traders"} · {scoredOf(info.config, board.updatedAt, now)}
+            Every Koul wallet, ranked by return · {board.total} {board.total === 1 ? "wallet" : "wallets"} · {scoredOf(info.config, board.updatedAt, now)}
           </Label>
         </div>
+        {t && (
+          <section className="grid grid-cols-2 gap-4 md:grid-cols-4" aria-label="Koul in numbers">
+            <Stat label="Live autopilots" value={whole.format(t.autopilots)} />
+            <Stat label="Trades executed" value={whole.format(t.trades)} />
+            <Stat label="Trades, last 24 h" value={whole.format(t.trades24h)} />
+            <Stat label="Swap volume" value={usdWhole(t.volumeUsd)} />
+          </section>
+        )}
         <Tile>
           {board.rows.length > 0 ? (
-            <BoardTable rows={board.rows} preview={preview} />
+            <BoardTable rows={board.rows} preview={preview} invites={false} />
           ) : (
-            <p className="py-6 text-[16px] text-muted">
-              {phase === "none" ? "There is no competition running right now." : phase === "upcoming" ? "The board fills when the competition starts." : "Scores show here a few minutes after the first entries are confirmed."}
-            </p>
+            <p className="py-6 text-[16px] text-muted">The board fills in a few minutes after the next scoring run.</p>
           )}
         </Tile>
         {pages > 1 && (
@@ -51,11 +63,20 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           </nav>
         )}
         <div className="grid gap-2 text-[15px] text-muted">
-          <p>Not ranked: the entry made a move its autopilot did not, added money or XLM, or has a rule on USD/TRY. See the <Link href="/compete#rules" className="text-accent-text">rules</Link> and the <Link href="/compete/terms" className="text-accent-text">full terms</Link>.</p>
-          {TELEGRAM_URL && <p>Winners are contacted in the <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" className="text-accent-text">Koul Telegram group</a>. Join it if you entered.</p>}
+          <p>Return is value against the money that came into the wallet, so a deposit never counts as profit. Wallets without a handle show by address.</p>
+          <p>All numbers are Stellar testnet and count every wallet, Koul&apos;s own test wallets included. Swap volume is each swap&apos;s input at the Reflector price.</p>
         </div>
-        <CompeteFooter />
+        <CompeteFooter terms={false} />
       </CompetePage>
     </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <Tile className="grid gap-2 p-5">
+      <TileLabel>{label}</TileLabel>
+      <FitValue text={value} base={STAT_VALUE} />
+    </Tile>
   );
 }

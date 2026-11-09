@@ -9,7 +9,7 @@ import { TraderHandle } from "./trader-handle";
  * flagged (a manual move, added money) stays visible with "Not ranked" instead of a rank. A live board's wallets that
  * never registered show by short address, without a link: they have no page.
  */
-export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?: string | null }) {
+export function BoardTable({ rows, preview, invites = true }: { rows: LeaderboardRow[]; preview?: string | null; invites?: boolean }) {
   const href = (h: string) => `/compete/${encodeURIComponent(h)}${preview ? `?preview=${preview}` : ""}`;
   return (
     <table className="w-full border-collapse text-left">
@@ -19,7 +19,7 @@ export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?
           <th scope="col" className="py-3 font-normal">Trader</th>
           <th scope="col" className="hidden py-3 text-right font-normal md:table-cell">Value</th>
           <th scope="col" className="hidden py-3 text-right font-normal md:table-cell">P&amp;L</th>
-          <th scope="col" className="hidden py-3 text-right font-normal lg:table-cell">Invited</th>
+          {invites && <th scope="col" className="hidden py-3 text-right font-normal lg:table-cell">Invited</th>}
           <th scope="col" className="py-3 text-right font-normal">Return</th>
         </tr>
       </thead>
@@ -34,7 +34,7 @@ export function BoardTable({ rows, preview }: { rows: LeaderboardRow[]; preview?
             </td>
             <td className="mono hidden py-3 text-right text-[14px] md:table-cell">{r.pending ? "–" : fmtUsd(r.valueUsd)}</td>
             <td className="mono hidden py-3 text-right text-[14px] md:table-cell">{r.pending ? "–" : fmtSignedUsd(r.pnlUsd)}</td>
-            <td className="mono hidden py-3 text-right text-[14px] text-muted lg:table-cell">{r.referrals ?? "–"}</td>
+            {invites && <td className="mono hidden py-3 text-right text-[14px] text-muted lg:table-cell">{r.referrals ?? "–"}</td>}
             <td className={cn("mono py-3 text-right text-[14px]", !r.flagged && r.rank === 1 && "text-accent-text")}>{fmtPct(r.returnPct)}</td>
           </tr>
         ))}

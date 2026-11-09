@@ -33,12 +33,12 @@ export default async function EntrantPage({ params, searchParams }: Props) {
     <>
       <ThemeColor />
       <AutoRefresh everyMs={60_000} />
-      <CompetePage section="leaderboard" joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
+      <CompetePage section={null} joinable={(phase === "upcoming" || phase === "live") && !entriesFull(info)}>
         <div className="grid gap-2">
           <h1 className={`${PAGE_TITLE} break-all`}>{handle}</h1>
           <Label>{s ? scoredOf(info.config, s.updatedAt, now, true) : "Waiting for the first score"}{view.referrals ? ` · invited ${view.referrals}` : ""}</Label>
         </div>
-        {s?.flagged && (
+        {s?.flagged && !info.config?.liveBoard && (
           <Tile tone="outlined" className="grid gap-2 border-danger">
             <TileLabel className="text-danger">Not ranked</TileLabel>
             <ul className="grid gap-1 text-[16px]">{s.flagReasons.map((r) => <li key={r}>{r}</li>)}</ul>
@@ -79,7 +79,7 @@ export default async function EntrantPage({ params, searchParams }: Props) {
             See the wallet on Stellar Expert<ArrowUpRight className="size-4" aria-hidden />
           </a>
         )}
-        <CompeteFooter />
+        <CompeteFooter terms={false} />
       </CompetePage>
     </>
   );
