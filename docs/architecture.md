@@ -2,13 +2,15 @@
 
 Koul lets a person write "if this, then that" rules for their money on Stellar. The rules run from the person's own
 passkey smart account, and the person keeps custody. This document covers how Koul uses Stellar today, component by
-component, and what the SCF #46 Build Award would fund: taking the Koul autopilot from testnet to mainnet.
+component, and what the SCF #46 Build Award would fund: taking the Koul autopilot to mainnet, with on-chain indicators,
+trailing stops and brackets, Zenex perpetuals and pull oracles.
 
 Everything described as live runs on Stellar **testnet**. Code: https://github.com/koul-me/koul (MIT). Every on-chain
 change is logged with its transaction hash in [`docs/build-log.md`](build-log.md).
 
-How this document was written: drafted with AI assistance (Claude Code) from the code, the build log and the chain,
-then reviewed and edited by the team. Every number in it was checked against the code or a testnet transaction.
+How this document was written: drafted with AI assistance (Claude Code) from the code, the build log, the chain and
+the providers' documentation, then reviewed and edited by the team. Every number in it was checked against the code,
+the chain, koul.me/status or the provider's documentation.
 
 ---
 
@@ -30,11 +32,11 @@ Koul uses four things together, in one transaction, that Stellar provides native
 - **Read, decide and act in one invocation.** A Soroban call can read XOXNO positions and Reflector prices, evaluate
   the rules and execute the action atomically, under one authorisation tree. If the world changed since the keeper
   looked, the transaction does nothing.
-- **Fees low enough to check often.** The keeper simulates every autopilot every 15 seconds for free and pays a fee
-  only when an action runs.
+- **Fees low enough to check often.** The keeper simulates every autopilot on every pass, which costs nothing, and
+  pays a fee only when an action runs.
 
-The venues are Stellar-native too: XOXNO lending and its swap aggregator, Reflector price feeds, Stellar Asset
-Contract tokens, and Soroswap in this award.
+The venues and price sources are on Stellar too: XOXNO lending and its swap aggregator, Reflector price feeds and
+Stellar Asset Contract tokens today; Zenex perpetuals, Pyth Pro and Chainlink Data Feeds in this award.
 
 ---
 
@@ -65,7 +67,7 @@ graph TD
 | Wallet relay | `web/app/api/relay` | Pays for wallet deploys and passes every other request on to SDF's public relayer. |
 | Reflector | Price feeds (`lastprice`) | Prices for price conditions and for the swap floor. Each feed is registered with a maximum age (900 s on testnet); a missing or stale price never matches. |
 | XOXNO | Lending controller, pool, position NFT, swap aggregator | The venues. The position NFT's token id is the user's XOXNO account id, so the app finds a position without storing anything. |
-| `koul_mock_fx` | Reflector's read interface | Testnet only: USD/TRY, which no Reflector testnet feed carries. Off in the app. Removed on mainnet with one `set_oracle` call. |
+| `koul_mock_fx` | Reflector's read interface | Testnet-only mock FX feed, off in the app and not used on mainnet. |
 
 ---
 
@@ -135,13 +137,14 @@ stated with their fixes.
    same ledger, and the router closes it before `tick` returns.
    *Gap A:* the policy relies on the router to close the session. A router that skipped `end_session` would leave it
    open for the rest of that ledger, and the session key could then call an allowlisted function directly. *Fix:* the
-   router's upgrades move behind a multisig with a published delay, so users can revoke before new code takes effect
-   (D7); D2 covers this case in the property tests and looks at binding the session to the tick's own invocation.
+   router admin moves to a multisig with a published upgrade policy (D8); we intend that policy to include a delay, so
+   users can revoke before new code takes effect. The D8 negative-authorization and property tests cover this case,
+   and the D8 review looks at binding the session to the tick's own invocation.
 5. **A swap never returns less than the floor.** The router computes `min_out` from Reflector prices and reverts below
    it. *Gap B:* this holds while the router code and its price feeds are honest. A malicious upgrade could call the
    allowlisted aggregator with a bad route, and a wrong feed set with `set_oracle` or `set_feed` would move the floor.
-   *Fix:* the same multisig and delay (D7), and per-venue scopes (D2) so a user can grant a key that cannot swap at
-   all.
+   *Fix:* the same multisig and upgrade policy (D8), and per-venue scopes (D5) so a user can grant a key that cannot
+   swap at all. The D4 deviation guard also refuses an action when a second source disagrees with a wrong feed.
 6. **Only the user, or the policy-bound key, can authorise a move.** The keeper, the app, the chat and the relay
    prepare, submit, display and monitor. The user can remove the key at any time with the passkey.
 
@@ -182,7 +185,8 @@ sequenceDiagram
   slippage (contract cap 20%, `MAX_SLIPPAGE_BPS = 2000`). The keeper supplies only the route. The router rejects a
   route for any other pair (`RouteMismatch`), measures what actually arrived in the wallet, and reverts below the
   floor (`BelowFloor`).
-- **Fees.** Simulation is free, so the keeper pays a fee only when an action runs. Users pay nothing per tick.
+- **Fees.** Simulation is free, so the keeper pays a fee only when an action runs. Users pay nothing per tick; from D1
+  an action that runs pays the protocol fee (section 8).
 - Code: `tick` and `next_action` in `contracts/koul_router/src/lib.rs`, `enforce` in
   `contracts/koul_agent_policy/src/lib.rs`, the keeper loop in `keeper/src/keeper.ts`.
 
@@ -240,20 +244,20 @@ is the main trust point today.
 - `set_oracle` and `set_feed` can change the prices the router trusts, and with them conditions and swap floors.
   Within the allowlisted pairs, that could make a swap execute at a bad price.
 
-Mainnet: the admin moves to a multisig and the upgrade policy is published (D7). An immutable router after the audit
-is an option we will decide on with the auditor.
+Mainnet: the admin moves to a multisig and the upgrade policy is published (D8). Whether the router later becomes
+immutable is a decision we take after the D8 security checks.
 
 ### Single points of failure
 
 | Component | Risk today | Mitigation |
 |---|---|---|
-| Session key (one Koul key) | A leak lets someone call the router with it | Bounded by the policy above; users revoke in one tap. Rotation without asking users to re-grant in D2; key handling documented in D4 |
-| Router admin key | One account can upgrade the router and change its oracle and feeds | Multisig before mainnet (D7) |
-| Keeper liveness | Runs on GitHub Actions; scheduler gaps stopped it on 2 November | Each run already dispatches its successor; a second, independent runner in D5 |
-| RPC | One public RPC provider; on 2 November a pass went from 1-2.5 s to 20-67 s | Failover across two providers in D5 (`STELLAR_RPC_URL` is already configurable) |
-| XOXNO quote server | One route source | The router trusts nothing in a route (pair, amount, received amount, Reflector floor); Soroswap as a second venue in D3 |
-| Oracle | Stale prices | Each feed has a maximum age; a stale price never matches. Reflector mainnet feeds in D7 |
-| Wallet relay | Koul runs the relay that pays for wallet deploys | Monitored with alerts in D5 |
+| Session key (one Koul key) | A leak lets someone call the router with it | Bounded by the policy above; users revoke in one tap. Rotation without asking users to re-grant, and key handling documented, in D6 |
+| Router admin key | One account can upgrade the router and change its oracle and feeds | Multisig before mainnet (D8) |
+| Keeper liveness | Runs on GitHub Actions; scheduler gaps stopped it on 2 November | Each run already dispatches its successor; on mainnet an always-on keeper and a fallback keeper on separate infrastructure (D9) |
+| RPC | One public RPC provider; on 2 November a pass over 97 wallets went from 1-2.5 s to 20-67 s | The keeper's own RPC plus a second RPC in D9 (`STELLAR_RPC_URL` is already configurable) |
+| XOXNO quote server | One route source | The router trusts nothing in a route: it checks the pair, sets the amount, measures what arrived and reverts below the Reflector floor |
+| Oracle | Stale or wrong prices | Each feed has a maximum age; a stale price never matches. A second source and a deviation guard in D4; Reflector, Pyth and Chainlink mainnet feeds in D8 |
+| Wallet relay | Koul runs the relay that pays for wallet deploys | Monitored with alerts in D6 |
 | Other contracts' rent | A dependency's wasm lease running low once made every call quote 566 XLM | A daily lease guard reads every contract Koul touches and extends anything under 30 days to 90 |
 
 ### Keys
@@ -263,7 +267,7 @@ is an option we will decide on with the auditor.
 | User passkey | Controls the smart account | The user's device or password manager. Never leaves it |
 | Session key (`GBVD753E…TSAK3`) | No funds; can only act through the policy | CI secret for the keeper |
 | Keeper and channel accounts (`GAFHZTSL…GXP6U`) | Testnet XLM for fees | CI secret |
-| Router admin (`GCCIYVPB…LBYG4`) | Admin functions in the section above | One key on one team machine, not in CI; multisig in D7 |
+| Router admin (`GCCIYVPB…LBYG4`) | Admin functions in the section above | One key on one team machine, not in CI; multisig in D8 |
 
 ### What we host and what we depend on
 
@@ -276,32 +280,37 @@ is an option we will decide on with the auditor.
 | External | XOXNO controller, pool and swap aggregator, and its quote server | Lending or swap rules cannot run; a bad quote is refused by the router |
 | External | Reflector feeds | Price conditions never match and swaps are refused while a price is stale |
 | External | OpenZeppelin smart account wasm, WebAuthn and Ed25519 verifiers | Signing fails; nothing moves |
-| External | Stellar RPC (SDF public endpoint) and SDF's relayer | Ticks slow down or stop; failover in D5 |
+| External | Stellar RPC (SDF public endpoint) and SDF's relayer | Ticks slow down or stop; a second RPC in D9 |
 
 ### Threats, summarised
 
-A short STRIDE summary. The full model is deliverable D4.
+A short STRIDE summary. The full model is deliverable D6.
 
 | Threat | Example | Answer today |
 |---|---|---|
-| Spoofing | Someone obtains the session key | Bounded by the policy; the user removes the key with the passkey; rotation in D2 |
+| Spoofing | Someone obtains the session key | Bounded by the policy; the user removes the key with the passkey; rotation in D6 |
 | Tampering | The keeper sends a bad swap route | The router fixes the pair and the amount and reverts below the floor |
 | Repudiation | A user disputes an action | Every action emits `Fired` (and `Swapped`) with the values it observed; the policy emits `KoulEnforced` per call |
-| Denial of service | The keeper or the RPC stops; a stolen key burns the rate limit (40 calls) | Rules pause, funds stay put; the window resets after 2,000 ledgers (about 2.8 hours); redundancy in D5 |
-| Elevation of privilege | The router admin upgrades to malicious code | Gaps A and B; multisig and upgrade delay in D7 |
+| Denial of service | The keeper or the RPC stops; a stolen key burns the rate limit (40 calls) | Rules pause, funds stay put; the window resets after 2,000 ledgers (about 2.8 hours); redundancy in D9 |
+| Elevation of privilege | The router admin upgrades to malicious code | Gaps A and B; multisig and upgrade policy in D8 |
 
 ---
 
 ## 6. The keeper today
 
-- Runs on GitHub Actions. Each run ticks every 15 seconds for 5 h 40 min and dispatches its own successor.
+- Runs on GitHub Actions. Each run lasts 5 h 40 min and dispatches its own successor.
+- A pass checks every autopilot; the keeper then waits 15 seconds and starts the next pass. On the public testnet RPC
+  a pass over all 106 autopilots takes about 80 to 150 s today (quarter-hour averages on koul.me/status), so a rule
+  can wait that long after its condition turns true. D9 moves the mainnet keeper to a Cloudflare Durable Object that
+  checks every ledger, placed next to its own RPC.
 - Each pass has two phases. First it reads wallets in parallel; most have nothing due. Then it submits through 32
   channel accounts, one worker each, so no two transactions race on a sequence number.
 - Wallet order is shuffled every pass, so the same wallets do not always trade first on thin pools.
-- Two keepers are safe: the loser of a race simulates to `None` and spends nothing.
+- Two keepers are safe: the router checks cooldowns in every tick, so the loser of a race simulates to `None` and
+  sends nothing, and a tick that lands second cannot fire the same rule again.
 - It is stateless. Every pass it reads `list_users` and `list_ids` from the router, so it can be restarted anywhere.
-- A heartbeat after every pass feeds the public status page (koul.me/status) and an owner alert, at most hourly, when
-  the keeper is late or a lease needs a person.
+- A heartbeat after each pass, at most once a minute, feeds the public status page (koul.me/status) and an owner
+  alert, at most hourly, when the keeper is late or a lease needs a person.
 
 **Why our own keeper.** Soroban has no native scheduler. In SoroCron the executor contract is the invoker, so it
 cannot carry a user's smart-account authorisation. Koul's keeper could later run on shared keeper networks such as
@@ -330,8 +339,6 @@ Transactions:
 
 - A user's rule firing on its own, 40 USDC into ETH:
   [`5ce0a903…72a6e`](https://stellar.expert/explorer/testnet/tx/5ce0a9032f454ab87a8f26aa5c5010a05925fe145f564d003bc9112d07872a6e)
-- Withdraw from XOXNO and swap into XLM in one tick:
-  [`29a8aa97…da064e`](https://stellar.expert/explorer/testnet/tx/29a8aa974fa1ca3df2b24458c9e79854a6c5c4cd102e62bfc5ca08db37da064e)
 - The session key rejected outside a tick: `cd keeper && pnpm session-deny` (`7110 NoSession`, three times).
 
 ### How to verify
@@ -341,6 +348,8 @@ Transactions:
 | Router tests | `cd contracts/koul_router && cargo test` | 14 passed (evaluation, ordering, cooldowns, amounts, liquidity caps, swap floor, route check, session close) | Yes |
 | Policy tests | `cd contracts/koul_agent_policy && cargo test` | 3 passed | Yes |
 | SDK tests | `cd packages/core && pnpm test` | 63 passed | Yes |
+| Keeper tests | `cd keeper && pnpm test` (the script sets `--expose-gc`) | 9 passed | Yes |
+| Web app tests | `cd web && pnpm test` | 136 passed | Yes |
 | Session key outside a tick | `cd keeper && pnpm session-deny` | Three direct calls, each rejected with `7110 NoSession` | Yes |
 | Contract leases | `cd keeper && pnpm leases --dry` | No entry reported as failed, missing or too expensive | Yes |
 | Keeper liveness | https://koul.me/status | Headline "All systems running" | No |
@@ -353,71 +362,147 @@ Contract tests need Rust 1.91.1 and the stellar CLI 27 (`source scripts/env.sh`)
 ## 8. What the award builds
 
 One product: the Koul autopilot on mainnet. Each line names its Stellar integration and how completion is measured on
-chain. 130 dev-days at $600 ($75 an hour), two engineers.
+chain. 130 dev-days at $600 ($75 an hour), $78,000 in total, two engineers. Work starts when the award is announced
+(mid-December 2026).
 
 ### Tranche 1 (MVP), completion 29/01/2027
 
 | | Deliverable | Stellar integration | Completion | Days | Owner |
 |---|---|---|---|---|---|
-| D1 | Router v3: portfolio-level cap and protocol fee, richer `Fired` event | `koul_router` | Testnet contract ID and tagged release; tests for the cap, fee rounding and fee cap; a testnet tx where a rule over the cap is refused; a testnet tx showing the fee in `Fired` | 15 | Atahan |
-| D2 | Policy v3: per-venue session scopes, session-key rotation without re-granting, property and fuzz tests | `koul_agent_policy`, OpenZeppelin `stellar-accounts` | Test report; per venue, a testnet run with the key rejected outside a tick (`7110`); a rotation tx with existing autopilots still firing after it | 14 | Atahan |
-| D3 | Soroswap as a second swap venue, with the same Reflector floor; the keeper quotes both venues and falls back to Soroswap | Soroswap router, Reflector | A rule-fired swap through Soroswap on testnet; a negative test reverting below the floor; a keeper log showing the fallback | 10 | Ahmed |
+| D1 | Router v3: portfolio-level limits, a portfolio circuit breaker, the protocol fee (0.10% of the value moved, capped at $5 per action), a richer `Fired` event | `koul_router`, Reflector | Testnet contract ID and tagged release; unit tests for the cap, the breaker and fee rounding; testnet txs showing a rule over the cap refused, the breaker firing after a simulated drawdown, and the fee in a `Fired` event | 11 | Atahan |
+| D2 | On-chain SMA, EMA, RSI and crossover conditions from Reflector price history; a price recorder contract that anyone can trigger to copy Reflector's latest price (it accepts no price input); indicator conditions per tick capped to stay within Soroban resource limits | `koul_router`, Reflector `prices`, new price recorder contract | A fixed price-series test where the contract's SMA, EMA and RSI match a reference implementation within 0.01%; a testnet tx of an EMA crossover rule firing with both EMA values in its event; the recorder's stored series readable on-chain | 15 | Atahan |
+| D3 | Trailing stops and brackets (a take-profit and a stop-loss in one group, one cancels the other in the same transaction), with editor support in the app | `koul_router`, Reflector | Testnet txs of a trailing stop firing after a rise and a fall, with the stored peak readable through `check`; a bracket where the take-profit fires and the stop-loss is disarmed in the same tx | 13 | Ahmed |
 
 ### Tranche 2 (Testnet), completion 05/03/2027
 
 | | Deliverable | Stellar integration | Completion | Days | Owner |
 |---|---|---|---|---|---|
-| D4 | STRIDE threat model of the router, the policy, the keeper and the relay; on-chain monitoring plan; key-management document | All contracts | Three documents in the repo; alerting live on testnet (failing ticks, policy rejections, oracle staleness, balances); an alert drill with its log | 10 | Atahan |
-| D5 | A second keeper runner independent of GitHub Actions, failover across two RPC providers, relay monitoring, all shown on the existing koul.me/status | Stellar RPC | A failover drill with one runner and one RPC provider down, autopilots still firing (testnet tx hashes during the drill) | 13 | Atahan |
-| D6 | Passkey recovery (a second passkey or device on the smart account), a shorter onboarding path, a plain-language explanation of every rule with its fee before signing | OpenZeppelin smart account, WebAuthn verifier | A testnet tx adding a second passkey signer; recovery working on a second device; every rule type shows its explanation and fee before signing (test suite) | 16 | Ahmed |
+| D4 | Pyth Pro pull prices: the keeper passes a signed update into `tick`; the router calls Pyth's on-chain verifier, enforces a maximum age and rejects any update older than the last one it used. Chainlink Data Feeds as a second source next to Reflector, and a deviation guard | Pyth verifier, Chainlink Data Feeds proxy, Reflector | A testnet tx of a price rule firing on a verified Pyth update; a negative test where an older update is rejected on-chain; a deviation-guard test where disagreeing sources block the action | 12 | Atahan |
+| D5 | Zenex perpetuals as a venue, with per-venue scopes in the policy. Actions: open, increase, reduce and close a position, add margin. Conditions: funding rate, liquidation distance, position PnL. Cross-venue rules, such as topping up Zenex margin from XOXNO | Zenex market router and markets, `koul_agent_policy` | Txs of a Koul rule opening and closing a Zenex position, a liquidation-distance rule adding margin from an XOXNO position, and the agent key rejected when it calls Zenex outside a tick; on Zenex's testnet deployment, or with capped small positions on Zenex mainnet if none is available | 17 | Ahmed |
+| D6 | STRIDE threat model of the router, the policy, the keeper, the relay and the oracle path; an on-chain monitoring plan with live alerting; a key-management document for the agent and admin keys; agent-key rotation in `koul_agent_policy` without users re-granting | All contracts, OpenZeppelin `stellar-accounts` | The three documents in the repo; alerting live on testnet (failing ticks, policy rejections, stale or disagreeing oracles, keeper and relay balances); an alert drill with its log; a testnet tx rotating the agent key, with existing autopilots still firing after it | 10 | Atahan |
 
 ### Tranche 3 (Mainnet), completion 11/06/2027
 
 | | Deliverable | Stellar integration | Completion | Days | Owner |
 |---|---|---|---|---|---|
-| D7 | Audit Bank remediation; `koul_router` and `koul_agent_policy` on mainnet on the current OpenZeppelin release with Reflector mainnet feeds; router admin moved to a multisig | Mainnet, Reflector, OpenZeppelin | Mainnet contract IDs; audit report with every critical, high and medium finding fixed; the multisig admin visible on-chain | 20 | Atahan 13, Ahmed 7 |
-| D8 | Mainnet keeper and relay, passkey wallet creation on mainnet, and XOXNO lending, XOXNO aggregator and Soroswap flows live with the protocol fee | XOXNO, Soroswap, mainnet | One mainnet tx per flow (supply, move between pools, repay, withdraw, swap through each venue); a rule firing on its own on mainnet; the fee received at the fee address | 18 | Ahmed |
-| D9 | Public usage dashboard (external and team accounts shown apart: value moved by rules, executed actions, autopilots still armed after 30 days) and open-source release of both contracts and the keeper | Router events | Dashboard URL live with the split; licence and tagged release in the repository | 14 | Ahmed |
+| D7 | A backtester that runs the deployed router code in a local Soroban host over recorded prices and shows what a rule set would have fired, in the app before a user arms it. Builders asked for it when we presented Koul at the Stellar Developers Meeting | `koul_router` wasm in a local Soroban host, router events | For a recorded testnet period, the backtester's output matches the router's real `Fired` events rule for rule; backtest available in the app | 10 | Ahmed |
+| D8 | Security checks and mainnet contracts: a security review of `koul_router`, `koul_agent_policy` and the price recorder against the D6 threat model, with negative-authorization, property and fuzz tests, and every finding fixed; mainnet deploy on the current OpenZeppelin smart-account release with Reflector, Pyth and Chainlink mainnet feeds; router admin moved to a multisig | Mainnet, OpenZeppelin, Reflector, Pyth, Chainlink | Mainnet contract IDs; the review and the new tests published in the repo, with every finding fixed; the contracts source-verified on stellar.expert; the multisig admin visible on-chain | 17 | Atahan |
+| D9 | Mainnet go-live: an always-on Cloudflare Durable Object keeper that checks every ledger, placed next to its RPC, with a second RPC and a fallback keeper on separate infrastructure; passkey wallet creation and recovery; every flow live (XOXNO lending, the XOXNO aggregator, Zenex perps, indicators, order types, pull-oracle prices) with the fee collected; a public status page with latency and usage, external accounts shown apart from ours | Mainnet, Stellar RPC, OpenZeppelin smart account, WebAuthn verifier, XOXNO, Zenex | One mainnet tx per flow; a rule firing on its own on mainnet; a failover drill where the fallback keeper takes over; the fee received at the fee address; the status page showing state-rule latency under 10 s and price rules within one ledger of a new report; the external/team split visible | 25 | Ahmed |
 
-Not in this award: cross-chain funding through Niet, DeFindex and a public SDK. Audit costs go through the Audit
-Bank, and nothing is billed for work already done.
+Not in this award: cross-chain funding through Niet, more swap venues (Soroswap), DCA and TWAP orders, charting, a
+public SDK, an MCP server, and any lira or on/off-ramp work. Nothing is billed for work already done, and hosting, RPC
+and oracle-data costs are paid by us outside this budget. The repository is already public under MIT; each tranche
+gets a tagged release, and the mainnet contracts are source-verified on stellar.expert (D8).
 
-### Design sketches for Tranche 1
+### Planned integrations on Stellar
 
-**D1, portfolio cap and fee.** The router today values one action at a time (`usd_value` for the swap minimum). D1 adds
-a valuation of everything the autopilot can see: idle USDC, XOXNO collateral less debt, and every registered token at
-its Reflector price. `plan` then compares each action's USD value with a cap in basis points of that total and returns
-no plan above it, so the rule is skipped as if it had nothing to do. The fee
-is a basis-point share of the moved value, capped per action, paid in the same tick from the wallet to a fee address
-the policy allowlists as a transfer recipient. `Fired` gains the fee and the amounts in and out.
+Checked on 9 November 2026 against each provider's contract or published documentation. Where a line is our design
+rather than the provider's behaviour, it says so.
 
-**D2, per-venue scopes and rotation.** `KoulAgentParams` today holds one allowlist for everything. D2 splits it per
-venue (lending, each swap venue), each with its own calls, recipients and rate limit, so a user can grant lending only.
-For rotation, the context rule's signer becomes an external verifier that Koul controls and that maps a fixed key id
-to the current Ed25519 key, so replacing the key needs one transaction from Koul rather than one from every user. The
-verifier change and its trust trade-off go into the D4 threat model.
+- **Reflector price history (D2).** Reflector's public feeds follow SEP-40. `prices(asset, records)` returns the latest
+  records at the feed's resolution, at most 20 per call (`PRICE_RECORDS_LIMIT` in Reflector's contract). The CEX and
+  DEX feed Koul uses has a 5-minute resolution and keeps 24 hours of history (`resolution` 300 and
+  `history_retention_period` 86,400 s on testnet `CCYOZJCO…RN63` and mainnet `CAFJZQWS…4DLN`). That covers short
+  indicators on 5-minute prices, not longer periods or hourly and daily series, which is why D2 adds the recorder.
+- **Pyth Pro (D4).** A pull model: a price reaches a contract only when someone brings a signed update. Updates come
+  from Pyth Pro, a subscription; verifying them on-chain is permissionless. A contract calls `verify_update` on Pyth's
+  verifier through the `pyth-lazer-stellar-sdk` crate, which checks the signer and returns the parsed update with a
+  per-feed update timestamp in microseconds. Pyth's guidance is to call the verifier from inside the consuming
+  contract, never to accept an update parsed off-chain. Verifier: mainnet
+  `CACZ3GBAKUPIAFRILUFO27J5RUH5GJ2VSJ46LP6GJYSKGDRTQ5MS3HCH`, testnet
+  `CAYFT5JE3UQTKT4Q6ZOZK4FXVYVT6RE3MFC7STA4UB6WAEGBT65MRU52`.
+- **Chainlink Data Feeds (D4).** A push model: a new round is written when the price moves past a deviation threshold
+  or a heartbeat passes (24 hours for the current Stellar feeds). One proxy contract serves every feed: a contract
+  calls `latest_round(data_id, decimals)` with the feed's 32-byte id and gets `round_id`, `answer` (stored at 18
+  decimals) and `timestamp`. The proxy is not SEP-40 compatible, so the router needs a reader of its own for it.
+  Proxy: mainnet `CDQBHEUGLDHMSUHG4IH33RJBUTMNCZOT4JIAQR4WZFRDZW6DR6S32ZLZ`, testnet
+  `CBUF6IADAWPWIDWRTHJNINKXHG2UTIQ6TU2F2HRAXWAI7OT3KJPKK6O4`.
+- **Zenex (D5).** A perpetual futures exchange on Stellar mainnet; each market has its own liquidity vault. The user
+  authorises `create_order`, and an order fills against a signed price report. The market router batches calls, can
+  create and fill an order in one transaction (`create_and_try_fill`), and holds no state or funds. Prices are
+  Chainlink Data Streams reports, which Zenex's oracle checks through Chainlink's verifier. Mainnet: market router
+  `CDOF5KRURJ7RRBPORHYSSKT727X3IBNF3LGOFHZND4HBTS5FRUZRJEZT`, XLM-USD market
+  `CAOZCITWHWAXH5FRU4EULQ5EN2HMTCHICRNC4R5ZAOVD7XHCCQSJ42IB`, price report verifier
+  `CAKA3NBYPC6OBEUEGNIYGNYG3ES2GPQK736B5SR7ASGUXRDAKXI2JCQI` (Chainlink's Data Streams verifier). Zenex's deployments
+  page lists no testnet contracts today; without them, D5 runs with capped small positions on mainnet.
+- **Cloudflare Durable Objects (D9).** A Durable Object has one alarm at a time: `setAlarm(time)` schedules it, and the
+  `alarm()` handler can set the next one. Alarms run at least once, only one `alarm()` runs at a time per object, and a
+  handler that throws is retried with exponential backoff from 2 s, up to six times. An object can be placed near a
+  region with a `locationHint`, as a best effort. Our design on top of this: the keeper's handler reads the latest
+  ledger, simulates what is due, submits, and sets the alarm for the next ledger, catching its own errors so it always
+  reschedules; a location hint puts it next to its RPC.
 
-**D3, Soroswap.** Swap actions gain a venue. For Soroswap the router builds the call itself (the path, `amount_in`,
-its own `min_out` and the wallet as recipient), so the keeper supplies only which venue to use. The router keeps the
-balance-difference floor check. The policy allowlists the Soroswap router's swap function and the pairs as transfer
-recipients. The keeper quotes both venues, submits the better one, and falls back to Soroswap when the XOXNO quote
-server does not answer.
+### Design sketches
+
+**D1, portfolio cap, circuit breaker and fee.** The router today values one action at a time (`usd_value` for the
+swap minimum). D1 adds a valuation of everything the autopilot can see: idle USDC, XOXNO collateral less debt, and
+every registered token at its Reflector price. `plan` then compares each action's USD value with a cap in basis
+points of that total and returns no plan above it, so the rule is skipped as if it had nothing to do. The circuit
+breaker uses the same valuation: the router records the account's peak value, and when the value falls a set
+percentage below it, every rule pauses, or the account moves to USDC if the user chose that. The fee is 0.10% of the
+moved value, capped at $5 per action, paid in the same tick from the wallet to a fee address the policy allowlists as
+a transfer recipient. `Fired` gains the fee and the amounts in and out.
+
+**D2, indicators and the price recorder.** A condition gains SMA, EMA and RSI of a token's price over N periods,
+compared with a level or with another indicator, and "crosses above / below", which holds when the order of two
+indicators differs between the previous period and the current one. The router computes them inside the tick in
+fixed-point integers, from Reflector's `prices` for short series and from the recorder for longer ones, so a cross is
+something the contract sees, not something the keeper reports. The recorder is a small contract: its one write
+function reads Reflector's `lastprice` and stores it in the slot for the current period if that slot is still empty.
+Anyone can call it and it takes no price, so the most a caller can do is not call it. Each indicator costs reads and
+arithmetic, so the number of indicator conditions per tick is capped, from measured costs, to keep every tick inside
+Soroban's resource limits.
+
+**D3, trailing stops and brackets.** A trailing stop stores the highest price since the rule was armed and holds when
+the price is a set percentage below it; `check` shows the stored peak. The keeper submits a tick only when an action
+runs, so the peak cannot rely on ticks alone: each evaluation also takes the highest Reflector or recorder price since
+the peak was last stored. A bracket is a group of two rules, a take-profit and a stop-loss. When one fires, the router
+disarms the other in the same transaction, so they never both run.
+
+**D4, Pyth, Chainlink and the deviation guard.** A token's price source becomes Reflector, Pyth or Chainlink. For Pyth
+the keeper fetches a signed update and passes it into `tick`, as it passes a swap route today. The router calls
+`verify_update` itself, so it never trusts a price the keeper parsed. It rejects an update older than the feed's
+maximum age, and it stores the last timestamp it used per feed, so an older update is refused even when its signature
+is valid. The keeper can choose which fresh update to bring, as it chooses timing today, but cannot replay an old one.
+The deviation guard reads a second source for the same token and refuses the action when the two differ by more than
+a set percentage. A Chainlink feed moves only past its deviation threshold or at its heartbeat, so its maximum age
+follows the heartbeat and the guard's tolerance stays wider than that threshold.
+
+**D5, Zenex and per-venue scopes.** Zenex becomes a venue next to XOXNO. Actions open, increase, reduce or close a
+position and add margin; the rule fixes the market and the limits, and the router builds the call. Conditions read the
+user's Zenex position: funding rate, distance to liquidation and PnL. A cross-venue action composes calls in one tick,
+as withdraw-and-swap does today, for example a withdrawal from XOXNO added as Zenex margin. `KoulAgentParams` today
+holds one allowlist for everything. D5 splits it per venue (XOXNO lending, the XOXNO aggregator, Zenex), each with its
+own calls, recipients and rate limit, so a user can grant lending only, or a key that cannot swap at all. A Zenex fill
+needs a signed Chainlink Data Streams report: either the keeper brings one into `tick` and the router creates and
+fills the order through the market router, or the router only creates the order and Zenex's executors fill it. We
+will settle which with the Zenex team.
+
+**D6, agent-key rotation.** Koul's key sits on each user's account as an OpenZeppelin external signer: the Ed25519
+verifier and the public key. Changing it today needs every user's passkey. D6 makes the signer's verifier part of
+`koul_agent_policy`, with a fixed key id as the key data, and the policy maps that id to the current Ed25519 key, so
+replacing the key needs one transaction from Koul rather than one from every user. The new key is bound by the same
+policy, and the user can still remove the rule with the passkey. The verifier change and its trust trade-off go into
+the D6 threat model.
 
 ---
 
 ## 9. Mainnet plan
 
-1. **Audit.** Apply to the Audit Bank once Tranche 2 is verified. The router and the policy are small and
-   self-contained, which keeps the audit affordable.
-2. **Oracle.** `koul_mock_fx` goes away. The router reads Reflector's mainnet feeds through `set_oracle` and `set_feed`,
-   with the same per-feed maximum-age checks.
-3. **Admin.** The router admin moves to a multisig before any user funds are involved, with a published upgrade policy.
-4. **Monitoring.** The D4 alerting and D5 redundancy carry over to mainnet before launch: the keeper heartbeat,
-   failing ticks, policy rejections, oracle staleness, and keeper, channel and relay balances.
+1. **Security checks (D8).** A security review of the router, the policy and the price recorder against the D6 threat
+   model, with negative-authorization, property and fuzz tests, and every finding fixed before deploy. The contracts
+   are small and self-contained, which keeps the review tractable.
+2. **Oracles.** `koul_mock_fx` goes away. The router reads Reflector, Pyth and Chainlink mainnet feeds (D8), with the
+   same per-feed maximum-age checks and the D4 deviation guard.
+3. **Admin.** The router admin moves to a multisig before any user funds are involved, with a published upgrade policy
+   (D8).
+4. **Keeper and monitoring.** The D9 keeper (a Durable Object next to its RPC, a second RPC, a fallback keeper on
+   separate infrastructure) and the D6 alerting run on mainnet before launch: the keeper heartbeat, failing ticks,
+   policy rejections, stale or disagreeing oracles, and keeper, channel and relay balances.
 5. **Rent.** The daily lease guard runs against mainnet and covers every contract Koul touches, ours and our
    dependencies'.
-6. **Open source.** Both contracts and the keeper are released under MIT with a tagged release (D9). The repository is
-   already public.
+6. **Releases.** The repository is already public under MIT. Each tranche gets a tagged release, and the mainnet
+   contracts are source-verified on stellar.expert (D8).
 
 ---
 
