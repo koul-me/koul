@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import { Address, rpc, scValToNative, xdr } from "@stellar/stellar-sdk";
 import {
-  COMP_KEYS, FLOW_POINTS, HISTORY_POINTS, KoulReader, OPENING_TOLERANCE_USD, SWAP_TOKENS, rpcMessage, USDC_TESTNET, XOXNO_POSITION_NFT, capitalCheck, capitalOpening, chunkBySize, chunkPairs, commandBytes, counterpartyKind, flagsFor, fxRules, historyEveryMs, insideMoves, rank, score, valueUsd,
+  COMP_KEYS, FLOW_POINTS, HISTORY_POINTS, KoulReader, OPENING_TOLERANCE_USD, SWAP_TOKENS, rpcMessage, USDC_TESTNET, XOXNO_POSITION_NFT, capitalCheck, capitalOpening, chunkBySize, chunkPairs, commandBytes, counterpartyKind, flagsFor, fxRules, historyEveryMs, insideMoves, rank, score, TRACTION_KEYS, valueUsd,
   type CompetitionConfig, type EntrantRecord, type EntrantScore, type EntryState, type Flow, type InsideMove, type LeaderboardRow, type Prices, type ScoredToken,
 } from "@koul/core";
 import { TESTNET, XOXNO, keeperKeypair, loadEnv } from "../src/lib/common";
@@ -306,8 +306,10 @@ async function run(): Promise<boolean> {
   const entrants = ((await exec(env, ["SMEMBERS", COMP_KEYS.entrants])) as string[] | null) ?? [];
   // A live board also scores every wallet the router lists that never registered.
   const listed = config.liveBoard ? await reader.listUsers() : [];
-  const unregistered = new Set(listed.filter((w) => !entrants.includes(w)));
-  const wallets = [...entrants, ...unregistered];
+  // A live board leaves out Koul's own wallets (load tests, bots, house accounts): the traction team set.
+  const team = new Set(config.liveBoard ? (((await exec(env, ["SMEMBERS", TRACTION_KEYS.team])) as string[] | null) ?? []) : []);
+  const unregistered = new Set(listed.filter((w) => !entrants.includes(w) && !team.has(w)));
+  const wallets = [...entrants.filter((w) => !team.has(w)), ...unregistered];
   const inSet = new Set(wallets);
   for (const w of [...records.keys()]) if (!inSet.has(w)) { records.delete(w); states.delete(w); lastScores.delete(w); }
   if (wallets.length === 0) { console.log(`${stamp()} competition: no verified entrants yet`); return true; }
