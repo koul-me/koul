@@ -1,5 +1,5 @@
 /**
- * Off-ramp through the TR Mock Anchor from a contract wallet, Kumbara's reverse landing account:
+ * Off-ramp through the TR Mock Anchor from a contract wallet, through a reverse landing account:
  *   1. keeper (sponsor) creates an ownerless landing G-account with a USDC trustline;
  *      before the lock it does SEP-10 / SEP-12 / SEP-38 (sell USDC -> TRY) / SEP-6 withdraw-exchange as that account;
  *      the anchor answers with its treasury account and an id memo; a pre-authorized classic payment carrying

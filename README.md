@@ -160,9 +160,7 @@ Issues on this repository reach both of us.
 
 ## License
 
-MIT ([`LICENSE`](LICENSE)). One exception: `packages/core/src/anchor` and its keeper counterpart are ported from
-[Kumbara](https://github.com/keyboord01/kumbara) (MIT), whose notice is kept in [`LICENSE-KUMBARA`](LICENSE-KUMBARA)
-and in each file's header.
+MIT ([`LICENSE`](LICENSE)).
 
 XOXNO lending is PolyForm Noncommercial. We don't vendor, fork or redistribute any XOXNO code. Koul calls XOXNO's
 deployed contracts like any other user, and the interfaces in [`docs/abi/`](docs/abi) were fetched from the chain for

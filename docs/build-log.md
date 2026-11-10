@@ -66,7 +66,7 @@ whose simulation had failed; the keeper now refuses to submit in that case).
 
 ## Anchor withdrawal from the contract wallet: PASS (2026-09-20, `keeper/scripts/anchor-withdraw.ts`)
 
-Kumbara's reverse landing account, with the keeper G-account as sponsor and a local fee-bump relay
+Reverse landing account, with the keeper G-account as sponsor and a local fee-bump relay
 (`keeper/src/anchor/local-relay.ts`) instead of the hosted relay. 2 USDC -> 97.08 TRY.
 
 | Step | Tx / id |
