@@ -5,9 +5,8 @@ runs the trade from your passkey smart account. You keep your funds. Our keeper 
 
 Everything described as live runs on Stellar **testnet**. Code: [github.com/koul-me/koul](https://github.com/koul-me/koul) (MIT).
 
-> **How we wrote this document.** We drafted it with Claude Code, Anthropic's AI coding assistant, working from our
-> code, the chain and each provider's documentation. We then reviewed and edited it ourselves, and checked the numbers,
-> addresses and transactions against the code, the chain, koul.me/status and the providers' docs.
+> We drafted the architecture with AI, working from our code, and checked the numbers, addresses and transactions
+> against the code, the chain and the provider docs.
 
 ---
 
