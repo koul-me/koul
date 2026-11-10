@@ -57,7 +57,7 @@ graph TD
 | Web app | Next.js | Every write is an unsigned transaction the user signs with a passkey. The chat that drafts rules returns data only; nothing changes until the user signs. |
 | Wallet relay | `web/app/api/relay` | Pays for wallet deploys and passes everything else to SDF's public relayer. |
 | Reflector | Price feeds (`lastprice`) | Prices for conditions and swap floors. Each feed has a max age (900 s on testnet), and a stale price never matches. |
-| XOXNO | Lending controller, pool, position NFT, swap aggregator | Where the money goes. The position NFT's id is the user's XOXNO account id, so we don't store it. |
+| XOXNO | Lending controller, pool, position NFT, swap aggregator | Where the money goes. The position NFT's id is the user's XOXNO account id, so we don't store it. On testnet, the aggregator's swaps settle in Soroswap pools. |
 | `koul_mock_fx` | Reflector's read interface | Testnet-only mock feed. Off in the app and not used on mainnet. |
 
 ---
