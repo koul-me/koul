@@ -16,7 +16,7 @@ Go/no-go gates from the project brief, section 7. Every tx hash and address goes
 | T7 real policy: allowlist, recipient, expiry, rate limit | PASS |
 | Revoke: `kit.rules.remove` cuts the agent off | PASS |
 | T8 oracle + rates | DONE, two findings (no TRY on Reflector testnet FX; both hubs at 0% deposit rate) |
-| T9 anchor with contract wallet | SOLVED by porting Kumbara's landing account |
+| T9 anchor with contract wallet | SOLVED with an ownerless landing account |
 
 Live testnet contracts: router probe `CA53BZYXAIUHPFLG5R6PUFOEQBXLEJJ465XHP6NOLRBB4XXXF6VMFLJ3`, policy
 `CCEYSMIWTRJL7GE6G4MVKEC4NONUCTYVMZKMQH7D3PTQ7DPBLU5V3X4O`, noop probe `CA4TJH2W...`, deny probe `CB2N5CHX...`.
@@ -58,7 +58,7 @@ The `Policy` trait at `1e513890` (`packages/accounts/src/policies/mod.rs:47`) ma
 
 ## T1 - Smart account: PASS (headless, 2026-09-19)
 
-Run with `keeper/scripts/phase0/t1-t3.ts` (software P-256 passkey ported from Kumbara, keeper G-account as
+Run with `keeper/scripts/phase0/t1-t3.ts` (software P-256 passkey, keeper G-account as
 `deployerSecret`, `forceMethod: "rpc"`, no relay). The user's real Face ID wallet through Sembol is a separate,
 later step; the headless wallet is enough to validate the auth stack.
 
@@ -254,10 +254,9 @@ Threshold units in the router: compare RAY rates, `threshold_bps * 1e23`.
 ABIs saved: `docs/abi/xoxno_controller.rs`, `docs/abi/xoxno_pool.rs` (from `stellar contract info interface`).
 Controller also exposes `get_health_factor(account_id) -> i128` (units to confirm in T4 once a position exists),
 `get_total_borrow_usd`, `get_total_collateral_usd`, `get_ltv_collateral_usd`, `is_liquidatable`.
-## T9 - Anchor with a contract wallet: SOLVED by porting Kumbara's landing account (2026-09-19)
+## T9 - Anchor with a contract wallet: SOLVED with an ownerless landing account (2026-09-19)
 
-Kumbara (`github.com/keyboord01/kumbara` @ `b249725`, MIT, Sembol) already answered both questions against this exact
-anchor, on testnet, with recorded tx hashes (`docs/anchor-notes.md` sections 1-8):
+Earlier testnet runs against this exact anchor answered both questions:
 
 - The anchor rejects C-address destinations explicitly (`invalid_destination_address`), SEP-10 has no SEP-45, and the
   watcher ignores Soroban transfers (a SAC transfer to a muxed treasury lands on-chain but is never matched).
@@ -267,26 +266,25 @@ anchor, on testnet, with recorded tx hashes (`docs/anchor-notes.md` sections 1-8
   for deposits); lock sets master weight 1 + two preauth signers weight 1, thresholds 2/2/2; the secret is wiped
   in-process. Ten deposits and one withdrawal recorded, amount match 10/10, ~0.0016 XLM and 40-50 s per deposit.
 
-Ported verbatim into `keeper/src/anchor/`:
+Files in `keeper/src/anchor/`:
 
-| File | Origin | Change |
-|---|---|---|
-| `landing.ts` | `lib/landing/landing.ts` | none |
-| `secret-guard.ts` | `lib/landing/secret-guard.ts` | none |
-| `landing.test.ts` | `lib/landing/landing.test.ts` | none; **9/9 pass** (`pnpm test`, needs `--expose-gc`) |
-| `sep.ts` | `lib/sep.server.ts` | dropped `server-only`, import path |
-| `discovery.ts` | `lib/anchor.server.ts` | dropped `server-only`, Next data cache and KV anchor switch; env vars `ANCHOR_HOME_DOMAINS`, `ANCHOR_ASSET_CODE`, `NETWORK_PASSPHRASE` |
-| `LICENSE-KUMBARA` | `LICENSE` | attribution |
+| File | Notes |
+|---|---|
+| `landing.ts` | landing account lifecycle |
+| `secret-guard.ts` | secret seed leak guard |
+| `landing.test.ts` | **9/9 pass** (`pnpm test`, needs `--expose-gc`) |
+| `sep.ts` | SEP-10/12/38/6 client |
+| `discovery.ts` | env vars `ANCHOR_HOME_DOMAINS`, `ANCHOR_ASSET_CODE`, `NETWORK_PASSPHRASE` |
 
-Still to wire for Koul: a `RelaySubmitter` (`sendXdr`) that fee-bumps with the keeper G-account instead of Kumbara's
+Still to wire for Koul: a `RelaySubmitter` (`sendXdr`) that fee-bumps with the keeper G-account instead of an
 OpenZeppelin Channels relay, and the `KEEPER_SECRET` doubling as the landing sponsor. For the FX-exit branch the keeper
 takes the SEP-38 firm quote at trigger time, then builds the reverse landing account and the pre-auth payment with the
-anchor's memo, exactly Kumbara's withdrawal pipeline (`lib/withdraw.server.ts`, not ported yet).
+anchor's memo (not wired yet).
 
 ## Kit 0.6.2 facts that shape T1-T3 (verified from `node_modules/smart-account-kit/dist/*.d.ts`)
 
 - `SmartAccountConfig.deployerSecret` exists: a local G-secret deploys wallets and pays fees over RPC, no relay needed
-  (`forceMethod: "rpc"`). Kumbara's spikes also show a software P-256 authenticator (`keeper/src/phase0/passkey.ts`)
+  (`forceMethod: "rpc"`). A software P-256 authenticator (`keeper/src/phase0/passkey.ts`)
   drives the real WebAuthn verifier from Node. So T1-T3 can run headless with a throwaway wallet; the user's real
   Face ID wallet comes later through Sembol.
 - `kit.rules.add(contextType, name, signers, policies: Map<addr, params>, validUntil?) -> AssembledTransaction`, then

@@ -1,5 +1,5 @@
 /**
- * Fee-bump relay for landing-account envelopes, standing in for Kumbara's hosted relay: the keeper G-account wraps
+ * Fee-bump relay for landing-account envelopes, standing in for a hosted relay: the keeper G-account wraps
  * the pre-authorized (already fully signed) envelope in a fee-bump transaction and pays the fee.
  */
 import { Keypair, Transaction, TransactionBuilder, rpc } from "@stellar/stellar-sdk";

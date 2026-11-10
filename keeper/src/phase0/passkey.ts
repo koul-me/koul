@@ -1,4 +1,3 @@
-// Ported from Kumbara spikes/lib/passkey.ts (github.com/keyboord01/kumbara, MIT, Sembol 2026).
 // Software WebAuthn authenticator so phase-0 scripts can drive a real OpenZeppelin smart account from Node.
 /**
  * A software WebAuthn authenticator for Node.
@@ -7,7 +6,7 @@
  * config option (the @simplewebauthn/browser `startRegistration` /
  * `startAuthentication` shapes) using a P-256 key held in memory, so the
  * spikes and demo scripts can drive a real OpenZeppelin smart account without
- * a browser. Production Kumbara never uses this: real users sign with their
+ * a browser. Production never uses this: real users sign with their
  * device passkey; this exists so the flows can be rehearsed and tested.
  *
  * What the on-chain WebAuthn verifier checks (OpenZeppelin

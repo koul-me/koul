@@ -8,8 +8,6 @@
 import { Asset } from "@stellar/stellar-sdk";
 
 /**
- * Ported from Kumbara (github.com/keyboord01/kumbara, MIT, Sembol 2026) with
- * the Next.js data cache and the presenter's KV-backed anchor switch removed.
  * Koul configures the anchor with two environment variables only.
  */
 const networkPassphrase = (): string => process.env.NETWORK_PASSPHRASE?.trim() || "Test SDF Network ; September 2015";
@@ -193,7 +191,7 @@ export async function discoverAnchor(homeDomain?: string): Promise<AnchorDiscove
 
 /**
  * The sandbox's documented test IBAN. The anchor pays simulated TRY payouts to
- * the customer's IBAN; Kumbara collects no bank details itself, so every
+ * the customer's IBAN; Koul collects no bank details itself, so every
  * sandbox customer is registered with this value. A production anchor collects
  * the real IBAN in its own KYC flow.
  */

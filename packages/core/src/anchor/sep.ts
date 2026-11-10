@@ -117,7 +117,7 @@ export async function sep12AnswerForTransaction(anchor: AnchorDiscovery, token: 
  * Testnet only: a production anchor gets the customer's real data through its own KYC flow.
  */
 export const SANDBOX_KYC_FIXTURE: Record<string, string> = {
-  email_address: "kumbara-testnet@example.com",
+  email_address: "koul-testnet@example.com",
   address: "Istanbul, testnet",
   city: "Istanbul",
   state_or_province: "Istanbul",
