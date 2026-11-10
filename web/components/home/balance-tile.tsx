@@ -1,9 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { Label, PillButton, Tile } from "@/components/signal";
+import { PillButton, Tile } from "@/components/signal";
 import { useCountUp } from "@/lib/count-up";
-import { fmtFx, fmtLira, fmtRelative, fmtUsdc } from "@/lib/format";
+import { fmtUsdc } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAppHref } from "@/lib/app-base";
 
@@ -54,21 +53,17 @@ function Breakdown({ parts }: { parts: BalanceParts }) {
 
 /**
  * The lime tile: the total (wallet plus XOXNO, minus debt, plus swap tokens at the Reflector price), where it sits,
- * the lira equivalent, Deposit and Withdraw. While
- * loading the layout stays exactly as it will be, with `0,000.00` and `₺00,000.00` in ink at 22% pulsing slowly;
- * the real figures then count up over 700 ms in tabular digits so nothing shifts.
+ * Deposit and Withdraw. While loading the layout stays exactly as it will be, with `0,000.00` in ink at 22% pulsing
+ * slowly; the real figure then counts up over 700 ms in tabular digits so nothing shifts.
  */
-export function BalanceTile({ balance, parts, lira, loading, rate }: { balance: number | null; parts?: BalanceParts | null; lira: number | null; loading: boolean; /** The USD/TRY the lira line used and when the oracle published it. */ rate?: { tryPerUsd: number; at: number } | null }) {
+export function BalanceTile({ balance, parts, loading }: { balance: number | null; parts?: BalanceParts | null; loading: boolean }) {
   const appHref = useAppHref();
-  const [showRate, setShowRate] = React.useState(false);
-  const rateLine = rate ? `at ${fmtFx(rate.tryPerUsd)}, ${fmtRelative(rate.at)}` : null;
   const canWithdraw = (balance ?? 0) > 0;
   const shownBalance = useCountUp(loading ? null : balance);
-  const shownLira = useCountUp(loading || lira === null ? null : lira);
   const balanceText = shownBalance === null ? "0,000.00" : fmtUsdc(shownBalance);
   const long = (shownBalance === null ? fmtUsdc(balance ?? 0) : balanceText).length > 9;
   return (
-    <Tile tone="lime" className="group flex h-full min-h-[380px] flex-col p-6 md:p-8">
+    <Tile tone="lime" className="flex h-full min-h-[380px] flex-col p-6 md:p-8">
       <div className="flex items-center justify-between">
         <span className="text-[16px] font-bold">Balance</span>
         {/* USDC until the wallet holds swap tokens; then the total is a dollar value. */}
@@ -82,16 +77,6 @@ export function BalanceTile({ balance, parts, lira, loading, rate }: { balance: 
           aria-label={shownBalance === null ? "Balance loading" : `${fmtUsdc(balance ?? 0)} USDC`}
         >
           <Cents text={balanceText} />
-        </div>
-        <div className="mt-3 min-h-5">
-          {shownLira === null ? (
-            <Label tone="onLime" className={cn(loading || lira === null ? "animate-pulse-slow" : "")} aria-hidden>{loading || lira === null ? "₺00,000.00" : ""}</Label>
-          ) : (
-            <button type="button" onClick={() => setShowRate((v) => !v)} title={rateLine ?? undefined} aria-label={rateLine ? `${fmtLira(shownLira)}, ${rateLine}` : undefined} className="inline-flex min-h-5 items-center gap-3 rounded text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-on-lime">
-              <Label tone="onLime">{fmtLira(shownLira)}</Label>
-              {rateLine && <Label tone="onLime" className={cn("transition-opacity", showRate ? "opacity-70" : "opacity-0 md:group-hover:opacity-70")}>{rateLine}</Label>}
-            </button>
-          )}
         </div>
       </div>
       {parts && !loading && <Breakdown parts={parts} />}

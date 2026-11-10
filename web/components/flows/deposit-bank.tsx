@@ -4,7 +4,8 @@
  * Deposit by bank: the USDC you want, the lira that costs at the oracle rate, then the transfer the anchor opened:
  * IBAN, reference and amount to copy. One primary button carries you through: Continue, then "I've sent it", and
  * once the USDC lands the page returns to Home by itself with the balance already fresh. A transfer left running
- * is picked up again from local storage (and by the app's watcher if you leave this page).
+ * is picked up again from local storage (and by the app's watcher if you leave this page). Hidden: no route renders
+ * it.
  */
 import * as React from "react";
 import { useRouter } from "next/navigation";

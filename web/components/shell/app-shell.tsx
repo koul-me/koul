@@ -17,7 +17,6 @@ import { TopBar } from "./top-bar";
 import { BottomTabs } from "./bottom-tabs";
 import { ThemeColor } from "./theme-color";
 import { isFlowRoute } from "./nav";
-import { TransferWatcher } from "./transfer-watcher";
 import { Welcome } from "@/components/welcome/welcome";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -57,7 +56,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar connected className={cn(flow && "hidden md:flex")} />
       <motion.main key={pathname} {...(still ? {} : rise(8))} className={cn(flow && "pt-2 md:pt-0")}>{children}</motion.main>
       {!flow && <BottomTabs />}
-      {!flow && <TransferWatcher />}
     </Frame>
   );
 }

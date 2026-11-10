@@ -20,7 +20,6 @@ const NEVER = [
   "Send your money anywhere else",
   "Withdraw to another wallet",
   "Touch anyone else's position",
-  "Cash out to a bank",
   "Work after you revoke it",
 ];
 

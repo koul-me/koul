@@ -13,12 +13,12 @@ import { useWallet } from "@/hooks/use-wallet";
 import { explorerTx, WRITE_CONFIG } from "@/lib/koul";
 import { fmtUsdc } from "@/lib/format";
 import { AmountInput, parseAmount } from "./amount-input";
-import { FlowFrame, type Method } from "./flow-frame";
+import { FlowFrame } from "./flow-frame";
 import { useAppHref } from "@/lib/app-base";
 
 const writer = new KoulWriter(WRITE_CONFIG);
 
-export function WithdrawCrypto({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
+export function WithdrawCrypto() {
   const appHref = useAppHref();
   const router = useRouter();
   const w = useWallet();
@@ -58,7 +58,7 @@ export function WithdrawCrypto({ method, onMethod }: { method: Method; onMethod:
   const canReview = usdc > 0 && !tooMuch && destOk && !busy;
   const label = action.phase === "prompt" ? "Confirm with your passkey" : action.phase === "signed" || action.phase === "submitting" || action.phase === "building" ? "Sending to Stellar" : "Review";
   return (
-    <FlowFrame title="Withdraw" method={method} onMethod={onMethod} action={<PillButton size="lg" full disabled={!canReview} aria-busy={busy} onClick={() => void send()}>{label}</PillButton>}>
+    <FlowFrame title="Withdraw" action={<PillButton size="lg" full disabled={!canReview} aria-busy={busy} onClick={() => void send()}>{label}</PillButton>}>
       <Tile className="grid gap-5">
         <AmountInput
           value={amount}

@@ -2,7 +2,8 @@
 
 /**
  * Withdraw to bank: an amount in USDC and an IBAN, a quote, then the transfer the anchor opened. One passkey
- * moves the USDC out of the wallet; the server carries the lira to the bank and reports when it is paid.
+ * moves the USDC out of the wallet; the server carries the lira to the bank and reports when it is paid. Hidden: no
+ * route renders it.
  */
 import * as React from "react";
 import { useRouter } from "next/navigation";
@@ -17,6 +18,7 @@ import { Steps } from "./steps";
 import { useAppHref } from "@/lib/app-base";
 
 const STEP_LABELS = ["Quoted", "Approve", "Paying", "Done"];
+const METHOD_OPTIONS: { value: Method; label: string }[] = [{ value: "bank", label: "Bank · TRY" }, { value: "crypto", label: "Crypto · USDC" }];
 const IBAN = /^TR\d{24}$/;
 
 export function WithdrawBank({ method, onMethod }: { method: Method; onMethod: (m: Method) => void }) {
@@ -83,6 +85,7 @@ export function WithdrawBank({ method, onMethod }: { method: Method; onMethod: (
       title="Withdraw"
       method={method}
       onMethod={onMethod}
+      options={METHOD_OPTIONS}
       action={<PillButton size="lg" full disabled={!canReview} aria-busy={runner.busy} onClick={() => void runner.start("out", { amountTry: lira ?? 0, amountUsdc: usdc, rate: rate ?? 0, iban: cleanIban })}>{runner.busy ? "Getting a quote" : "Review"}</PillButton>}
     >
       <Tile className="grid gap-5">
