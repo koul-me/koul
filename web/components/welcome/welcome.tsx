@@ -10,7 +10,7 @@ import { useWalletOnboarding, type PasskeyPhase } from "@/hooks/use-wallet";
 
 const STEPS = [
   { n: "01", title: "Create a wallet", line: "One passkey prompt." },
-  { n: "02", title: "Deposit", line: "Lira or crypto. It lands as USDC." },
+  { n: "02", title: "Get test funds", line: "Test XLM and 100 test USDC, free." },
   { n: "03", title: "Set your rules", line: "Koul watches and acts." },
 ];
 

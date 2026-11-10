@@ -2,13 +2,12 @@
 
 /**
  * Deposit on testnet, the default: one button puts 100 test USDC in the wallet, bought with friendbot XLM on the
- * testnet DEX by the server. No anchor, no bank step. Once it lands the page returns to Home with the balance fresh.
+ * testnet DEX by the server. Once it lands the page returns to Home with the balance fresh.
  */
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { KeyValue, Label, PillButton, Tile } from "@/components/signal";
 import { refreshAfterTx, toastTx } from "@/hooks/use-passkey-action";
-import { useTransferRunner } from "@/hooks/use-transfer-runner";
 import { useWallet } from "@/hooks/use-wallet";
 import { track } from "@/lib/analytics";
 import { useAppHref } from "@/lib/app-base";
@@ -24,16 +23,6 @@ export function DepositTest({ method, onMethod }: { method: Method; onMethod: (m
   const w = useWallet();
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  // A bank deposit left running is still followed here, and one tap away on the Bank tab.
-  const runner = useTransferRunner();
-  const resumed = React.useRef(false);
-  React.useEffect(() => {
-    if (resumed.current) return;
-    resumed.current = true;
-    runner.resume();
-  }, [runner]);
-  const bankRunning = runner.transfer?.direction === "in" && runner.transfer.status === "running";
 
   const entry = useCompetitionEntry();
   const [armed, setArmed] = React.useState(false);
@@ -72,16 +61,10 @@ export function DepositTest({ method, onMethod }: { method: Method; onMethod: (m
           <KeyValue label="Cost" value="FREE" />
           <KeyValue label="Takes" value="About 20 seconds" tone="muted" />
         </div>
-        <p className="text-[15px] text-muted">Testnet USDC to try Koul with. It has no value. For the lira route through the anchor, use Bank.</p>
+        <p className="text-[15px] text-muted">Testnet USDC to try Koul with. It has no value. To send USDC from another Stellar wallet, use Crypto.</p>
         <div role="status" aria-live="polite" className="grid gap-2">
           {busy && <Label tone="lime" className="animate-blink">Buying test USDC and sending it to your wallet</Label>}
           {error && <Label tone="danger">{error}</Label>}
-          {bankRunning && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Label tone="lime">A bank deposit is in progress</Label>
-              <PillButton variant="outline" size="sm" onClick={() => onMethod("bank")}>View</PillButton>
-            </div>
-          )}
         </div>
       </Tile>
     </FlowFrame>

@@ -5,8 +5,6 @@ export const USDC_UNIT = 10_000_000n;
 
 const usdcFormatter = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usdcCompact = new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-const tryFormatter = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const tryWhole = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const pctFormatter = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fxFormatter = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const intFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
@@ -15,9 +13,6 @@ const intFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }
 export const fmtUsdc = (n: number) => usdcFormatter.format(n);
 /** "1,234.5" — loose form for headlines and pills. */
 export const fmtUsdcLoose = (n: number) => usdcCompact.format(n);
-/** "₺7.318,50" in Turkish locale conventions. */
-export const fmtTry = (n: number) => tryFormatter.format(n);
-export const fmtTryWhole = (n: number) => tryWhole.format(n);
 /** "5.56%" */
 export const fmtPct = (n: number) => `${pctFormatter.format(n)}%`;
 /** "4.21 pts" — a difference between two percentages. */

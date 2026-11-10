@@ -7,12 +7,13 @@
  * - A bare number, or "make it 51", answers that question or changes the current draft.
  * - In editing mode, "make the lira exit 51" or "set rule 2 to 1.3" changes that rule in the list.
  * - Anything outside the router's vocabulary is unsupported, with what Koul can watch and do.
- * - While USD/TRY is off (lib/fx.ts), a sentence about the lira or USD/TRY is unsupported with that note.
+ * - While USD/TRY is off (lib/fx.ts), a sentence about the lira or USD/TRY gets the plain unsupported reply, which
+ *   names neither.
  */
 import { newId, POOLS, type Condition, type ConditionKind, type PoolId, type Rule } from "@/lib/model/autopilot";
 import { actionShort } from "@/lib/model/labels";
 import { parseSentence } from "@/lib/sentence";
-import { FX_OFF_NOTE, FX_ON } from "@/lib/fx";
+import { FX_ON } from "@/lib/fx";
 import type { ChatReply, ChatMessage } from "./reducer";
 import type { LiveContext } from "./schema";
 
@@ -33,7 +34,8 @@ const ASKS_FX = /lira|usd ?\/ ?try|usdtry|dolar|\bkur\b|exchange rate|\bfx\b/i;
 
 function subjectOf(c: Condition): string {
   switch (c.kind) {
-    case "fx_price": return "USD/TRY";
+    // A USD/TRY rule read back while it is off is named by what it does, so no reply says USD/TRY.
+    case "fx_price": return FX_ON ? "USD/TRY" : "exit";
     case "health_factor": return "health";
     case "rate_gap": return "rate gap";
     case "idle_usdc": return "wallet";
@@ -96,7 +98,7 @@ export function answerLocally(messages: ChatMessage[], rules: Rule[], mode: "liv
   const last = messages[messages.length - 1];
   const text = last?.role === "user" ? last.text.trim() : "";
   if (!text) return { kind: "unsupported", message: UNSUPPORTED };
-  if (!FX_ON && ASKS_FX.test(text)) return { kind: "unsupported", message: `${FX_OFF_NOTE} ${UNSUPPORTED.replace("Koul cannot do that. It", "Koul")}` };
+  if (!FX_ON && ASKS_FX.test(text)) return { kind: "unsupported", message: UNSUPPORTED };
   const prev = [...messages].reverse().find((m) => m.role === "koul");
   const value = numberIn(text);
   const onlyNumberOrMakeIt = value !== null && /^(?:make it|set it to|change it to|use)?\s*\d+(?:[.,]\d+)?\s*%?$/i.test(text);

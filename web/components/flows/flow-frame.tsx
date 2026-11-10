@@ -12,11 +12,10 @@ import { cn } from "@/lib/utils";
 import { useAppHref } from "@/lib/app-base";
 
 export type Method = "test" | "bank" | "crypto";
-export const METHOD_OPTIONS: { value: Method; label: string }[] = [{ value: "bank", label: "Bank · TRY" }, { value: "crypto", label: "Crypto · USDC" }];
-/** Deposit leads with test USDC; the labels are short so three fit on a phone. */
-export const DEPOSIT_OPTIONS: { value: Method; label: string }[] = [{ value: "test", label: "Testnet" }, { value: "bank", label: "Bank" }, { value: "crypto", label: "Crypto" }];
+/** Deposit leads with test USDC, then USDC sent from another Stellar wallet. The bank route is hidden. */
+export const DEPOSIT_OPTIONS: { value: Method; label: string }[] = [{ value: "test", label: "Testnet" }, { value: "crypto", label: "Crypto" }];
 
-export function FlowFrame({ title, back, method, onMethod, options = METHOD_OPTIONS, children, action, notice }: { title: React.ReactNode; back?: string; method?: Method; onMethod?: (m: Method) => void; options?: { value: Method; label: string }[]; children: React.ReactNode; action?: React.ReactNode; /** Above the tile: a warning that belongs to the whole screen. */ notice?: React.ReactNode }) {
+export function FlowFrame({ title, back, method, onMethod, options = DEPOSIT_OPTIONS, children, action, notice }: { title: React.ReactNode; back?: string; method?: Method; onMethod?: (m: Method) => void; options?: { value: Method; label: string }[]; children: React.ReactNode; action?: React.ReactNode; /** Above the tile: a warning that belongs to the whole screen. */ notice?: React.ReactNode }) {
   const appHref = useAppHref();
   return (
     <div className={cn("mx-auto w-full max-w-[600px]", action && "pb-24 md:pb-0")}>

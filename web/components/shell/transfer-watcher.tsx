@@ -3,7 +3,7 @@
 /**
  * Keeps an eye on a bank transfer you left running while you use the rest of the app. It polls the saved transfer,
  * and when the USDC lands it says so and the balance on screen reads itself again. Deposit and Withdraw pages run
- * their own copy, so this one only sits outside them.
+ * their own copy, so this one only sits outside them. Hidden: the bank route is out of the app, so nothing mounts it.
  */
 import * as React from "react";
 import { toast } from "sonner";

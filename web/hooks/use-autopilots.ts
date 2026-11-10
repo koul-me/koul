@@ -37,7 +37,7 @@ function chainAutopilot(c: ChainAutopilot, agent: ReturnType<typeof useAgentAcce
   const rules = fromCoreAutopilot(c.autopilot).map((r) => ({ ...r, inferred: local?.rules.find((l) => l.id === r.id)?.inferred ?? r.inferred }));
   return {
     id: chainUiId(c.id),
-    name: local?.name ?? (rules.length === 3 && rules.some(hasFx) ? "Lira shield" : rules.length === 1 ? rules[0]!.name : `Autopilot ${c.id}`),
+    name: local?.name ?? (FX_ON && rules.length === 3 && rules.some(hasFx) ? "Lira shield" : rules.length === 1 ? rules[0]!.name : `Autopilot ${c.id}`),
     description: local?.description ?? "",
     rules,
     status: agent ? "armed" : "paused",

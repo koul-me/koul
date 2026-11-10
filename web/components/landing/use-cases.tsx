@@ -36,9 +36,9 @@ const CASES: { icon: LucideIcon; title: string; chips: Chip[] }[] = [
     icon: LogOut,
     title: "Exit on a price",
     chips: [
-      { key: "s", text: "USD/TRY", tone: "mono" },
-      { key: "l", text: "> 50", tone: "accent" },
-      { key: "a", text: "Withdraw", tone: "action" },
+      { key: "s", text: "XLM", tone: "mono" },
+      { key: "l", text: "> $0.50", tone: "accent" },
+      { key: "a", text: "Sell XLM", tone: "action" },
     ],
   },
 ];

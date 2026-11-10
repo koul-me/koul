@@ -1,6 +1,6 @@
 /**
  * What the competition pages show, worked out from what the indexer stored: the phase (before, during, after), the
- * dates in Turkey time and UTC, and the number formats. Pure, so the server pages and the join page agree. The preview
+ * dates in GMT+3 and UTC, and the number formats. Pure, so the server pages and the join page agree. The preview
  * data lets the pages be looked at locally before a competition is configured (?preview=upcoming|live|ended|full, never
  * in production).
  */
@@ -21,9 +21,9 @@ const DAY = (tz: string) => new Intl.DateTimeFormat("en-GB", { timeZone: tz, wee
 const TIME = (tz: string) => new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const TR = "Europe/Istanbul";
 
-/** "Fri 6 Nov" in Turkey time. */
+/** "Fri 6 Nov" in GMT+3. */
 export const dayOf = (iso: string) => DAY(TR).format(new Date(iso)).replace(",", "");
-/** "21:00 GMT+3 · 18:00 UTC" (Turkey time, written as an offset people elsewhere can read). */
+/** "21:00 GMT+3 · 18:00 UTC" (the organizer's time zone, written as an offset people elsewhere can read). */
 export const timeOf = (iso: string) => `${TIME(TR).format(new Date(iso))} GMT+3 · ${TIME("UTC").format(new Date(iso))} UTC`;
 /** "21:00 GMT+3", for one-line mentions like the banner. */
 export const hourOf = (iso: string) => `${TIME(TR).format(new Date(iso))} GMT+3`;
@@ -39,11 +39,11 @@ export function lengthOf(config: CompetitionConfig): string | null {
   return days % 7 === 0 ? `${days / 7} week${days === 7 ? "" : "s"}` : `${days} days`;
 }
 
-/** "Friday 30 October 2026, 18:00 Turkey time (15:00 UTC)", for the terms. */
+/** "Friday 30 October 2026, 18:00 GMT+3 (15:00 UTC)", for the terms. */
 export function longDateOf(iso: string): string {
   const d = new Date(iso);
   const day = new Intl.DateTimeFormat("en-GB", { timeZone: TR, weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d).replace(",", "");
-  return `${day}, ${TIME(TR).format(d)} Turkey time (${TIME("UTC").format(d)} UTC)`;
+  return `${day}, ${TIME(TR).format(d)} GMT+3 (${TIME("UTC").format(d)} UTC)`;
 }
 
 /**

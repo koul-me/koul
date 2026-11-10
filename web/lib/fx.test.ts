@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { FX_OFF_NOTE, FX_ON, fxProblem } from "./fx";
-import { answerLocally } from "@/lib/chat/fallback";
+import { FX_ON, fxProblem } from "./fx";
+import { UNSUPPORTED, answerLocally } from "@/lib/chat/fallback";
 import { parseSentence } from "@/lib/sentence";
 import { TEMPLATES, foldCoreRules, makeRule, type Rule } from "@/lib/model/autopilot";
 
@@ -27,13 +27,19 @@ describe("USD/TRY off", () => {
     expect(r.rules).toEqual([]);
     expect(r.unplaced.length).toBe(1);
   });
-  it("the local answerer says USD/TRY is not available", () => {
-    for (const text of ["Exit if the lira drops", "Pull everything back to my wallet if USD/TRY passes 50"]) {
+  it("the local answerer turns down the lira without naming it, TRY or a bank", () => {
+    for (const text of ["Exit if the lira drops", "Pull everything back to my wallet if USD/TRY passes 50", "Can I deposit lira from my bank?", "Send my USDC to my bank"]) {
       const r = answerLocally([{ role: "user", text }], [health], "live", live);
       expect(r.kind).toBe("unsupported");
-      expect(r.message.startsWith(FX_OFF_NOTE)).toBe(true);
-      expect(r.message).not.toContain("USD/TRY,");
+      expect(r.message).toBe(UNSUPPORTED);
+      expect(r.message).not.toMatch(/lira|bank|iban/i);
+      expect(r.message).not.toMatch(/\bTRY\b|₺/);
     }
+  });
+  it("a USD/TRY rule the wallet already has is not named in a reply", () => {
+    const r = answerLocally([{ role: "user", text: "Repay my loan if health drops under 1.3" }], [fxRule], "live", live);
+    expect(r.kind).toBe("draft");
+    expect(r.message).not.toMatch(/\bTRY\b|lira/i);
   });
   it("a USD/TRY rule read back from the chain still renders", () => {
     const { rules } = foldCoreRules({ account_id: "12", rules: [{ conditions: [{ type: "FxPrice", asset: "TRY", cmp: "Below", level: "2000000000000", max_age_secs: "900" }], match_all: true, action: { type: "WithdrawToWallet", hub: 1, amount: { type: "All" } }, cooldown_ledgers: 120 }] });

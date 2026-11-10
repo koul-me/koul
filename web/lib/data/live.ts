@@ -9,6 +9,7 @@ import { MARKETS, type Market } from "./markets";
 import { KOUL, MAX_PRICE_AGE_SECS, READ_CONFIG, SWAP_TOKENS, XOXNO, usdPerTryToTryPerUsd, type TokenSymbol } from "@/lib/koul";
 import { fromUnits } from "@/lib/format";
 import { POOLS, poolByHub, type PoolId } from "@/lib/model/autopilot";
+import { FX_ON } from "@/lib/fx";
 import type { ActivityItem, FxPrice, Health, Pool, Positions } from "./types";
 
 export const reader = new KoulReader(READ_CONFIG);
@@ -172,8 +173,9 @@ export function firedToActivity(f: Fired): ActivityItem {
       return { ...base, title: `Repaid ${amt} USDC from the wallet`, detail: first !== undefined && first < 10n ** 30n ? `Loan health was ${(Number(first) / WAD).toFixed(2)}, under your minimum.` : "" };
     case "repay_collateral":
       return { ...base, title: `Repaid ${amt} USDC from ${pool(f.from_hub)}`, detail: first !== undefined && first < 10n ** 30n ? `Loan health was ${(Number(first) / WAD).toFixed(2)}, under your minimum.` : "" };
+    // Any condition can lead to a withdrawal; the reading is USD/TRY only for the exit, so it is said only while USD/TRY is on.
     case "withdraw":
-      return { ...base, title: `Withdrew ${amt} USDC from ${pool(f.from_hub)} to the wallet`, detail: first !== undefined && first > 0n ? `USD/TRY was ${usdPerTryToTryPerUsd(first).toFixed(2)}.` : "" };
+      return { ...base, title: `Withdrew ${amt} USDC from ${pool(f.from_hub)} to the wallet`, detail: FX_ON && first !== undefined && first > 0n ? `USD/TRY was ${usdPerTryToTryPerUsd(first).toFixed(2)}.` : "" };
     default:
       return { ...base, title: `${f.kind}: ${amt} USDC`, detail: "" };
   }
