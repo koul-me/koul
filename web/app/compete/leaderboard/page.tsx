@@ -50,7 +50,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
         )}
         <Tile>
           {board.rows.length > 0 ? (
-            <BoardTable rows={board.rows} preview={preview} invites={false} hideNames />
+            <BoardTable rows={board.rows} preview={preview} invites={false} />
           ) : (
             <p className="py-6 text-[16px] text-muted">The board fills in a few minutes after the next scoring run.</p>
           )}
@@ -63,7 +63,7 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
           </nav>
         )}
         <div className="grid gap-2 text-[15px] text-muted">
-          <p>Return is value against the money that came into the wallet, so a deposit never counts as profit. Names are hidden: hover over one, or tap it, to see it.</p>
+          <p>Return is value against the money that came into the wallet, so a deposit never counts as profit.</p>
           <p>All numbers are Stellar testnet and count every wallet, Koul&apos;s own test wallets included. Swap volume is each swap&apos;s input at the Reflector price.</p>
         </div>
         <CompeteFooter terms={false} />
