@@ -204,8 +204,9 @@ Both depend on the router being honest, and the same fix closes both.
   swap through the allowlisted aggregator with a bad route, and a wrong feed (`set_oracle`, `set_feed`) would move the
   floor.
 
-**The fix.** Before mainnet, the router admin moves to a multisig with a published upgrade policy. We intend that
-policy to include a delay, so users can revoke before new code takes effect. Per-venue scopes will let a user grant a
+**The fix.** Before mainnet, the router admin moves to a 2-of-3 multisig with a published delay of at least 48 hours
+on `upgrade`, `set_oracle` and `set_feed`, so users can revoke before new code or a new feed takes effect. Per-venue
+scopes will let a user grant a
 key that can't swap at all, and the deviation guard refuses a price that a second source disagrees with. The
 negative-authorization tests before mainnet cover gap A.
 
@@ -220,7 +221,8 @@ One admin account (`GCCIYVPB…LBYG4`) can `upgrade` the router and call `set_or
 - `set_aggregator` can't redirect swaps. The policy allowlists the aggregator by address, so a new one fails with `7103`.
 - `set_oracle` and `set_feed` change the prices the router trusts.
 
-Before mainnet the admin becomes a multisig. Whether the router later becomes immutable is something we decide after
+Before mainnet the admin becomes a 2-of-3 multisig, with the 48-hour delay above. Whether the router later becomes
+immutable is something we decide after
 the security checks.
 
 ### Single points of failure
@@ -433,13 +435,16 @@ None of this is live yet.
 1. The security checks done and published.
 2. `koul_mock_fx` removed. The router reads Pyth and Reflector mainnet feeds, with max-age checks and the deviation
    guard.
-3. The router admin on a multisig with a published upgrade policy, before any user funds are involved.
+3. The router admin on a 2-of-3 multisig, with a published delay of at least 48 hours on `upgrade`, `set_oracle` and
+   `set_feed`, before any user funds are involved.
 4. The new keeper, a second RPC and a fallback keeper, with alerts for the heartbeat, failing ticks, policy rejections,
    stale or disagreeing prices, and keeper, channel and relay balances.
 5. Backup passkeys, so losing one device doesn't lock a user out, and a cap of $1,000 per account under automation for
    the first 60 days.
 6. The daily lease guard covering every contract we touch, ours and our dependencies'.
-7. Tagged releases, and the contracts source-verified on stellar.expert.
+7. Tagged releases, and the contracts source-verified on stellar.expert. `koul_agent_policy` is published as a
+   documented, reusable policy with an integration guide, so other teams can give an agent key the same on-chain
+   limits.
 
 ## 11. After mainnet
 
