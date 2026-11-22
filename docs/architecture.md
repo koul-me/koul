@@ -206,9 +206,8 @@ Both depend on the router being honest, and the same fix closes both.
 
 **The fix.** Before mainnet, the router admin moves to a 2-of-3 multisig with a published delay of at least 48 hours
 on `upgrade`, `set_oracle` and `set_feed`, so users can revoke before new code or a new feed takes effect. Per-venue
-scopes will let a user grant a
-key that can't swap at all, and the deviation guard refuses a price that a second source disagrees with. The
-negative-authorization tests before mainnet cover gap A.
+scopes will let a user grant a key that can't swap at all. The negative-authorization tests before mainnet cover
+gap A.
 
 ### The router admin
 
@@ -234,7 +233,7 @@ the security checks.
 | Keeper | Runs on GitHub Actions; scheduler gaps stopped it on 2 November | Each run starts the next; an always-on keeper and a fallback keeper on mainnet |
 | RPC | One public provider; on 2 November a pass over 97 wallets went from 1-2.5 s to 20-67 s | Our own RPC plus a second one (`STELLAR_RPC_URL` is already configurable) |
 | XOXNO quote server | One route source | The router trusts nothing in a route: it checks the pair, sets the amount, measures the output and enforces the floor |
-| Prices | Stale or wrong | Max age per feed, and a stale price never matches. Pyth plus Reflector with a deviation guard (planned) |
+| Prices | Stale or wrong | Max age per feed, and a stale price never matches. A feed change waits 48 hours under the multisig (planned) |
 | Wallet relay | We pay for wallet deploys | Alerts (planned) |
 | Other contracts' rent | A dependency's lease running low once made every call quote 566 XLM | A daily lease guard extends anything under 30 days to 90 |
 
@@ -354,20 +353,6 @@ None of this is live yet.
   is empty. Anyone can call it and it takes no price input, so the worst a caller can do is not call it.
 - Indicator conditions per tick are capped, based on measured costs, to stay inside Soroban's resource limits.
 
-### Pull prices (Pyth Pro) with Reflector as a second source
-
-- Price rules wait for Reflector's 5-minute updates today. With Pyth, the keeper brings a signed price into `tick`, the
-  same way it brings a swap route now.
-- The router calls Pyth's verifier itself (`verify_update`, through `pyth-lazer-stellar-sdk`), so it never trusts a
-  price the keeper parsed.
-- It rejects updates older than a max age, and stores the last timestamp it used per feed, so an older update is
-  refused even with a valid signature.
-- Reflector stays as the second source. If Pyth and Reflector disagree by more than a set percentage, the action
-  doesn't run. Reflector moves every 5 minutes, so the tolerance allows for that lag.
-- Pyth Pro is a paid subscription, but anyone can verify its updates on-chain. Verifier: mainnet
-  `CACZ3GBAKUPIAFRILUFO27J5RUH5GJ2VSJ46LP6GJYSKGDRTQ5MS3HCH`, testnet
-  `CAYFT5JE3UQTKT4Q6ZOZK4FXVYVT6RE3MFC7STA4UB6WAEGBT65MRU52`.
-
 ### Portfolio cap, circuit breaker and fee
 
 - The router values everything the autopilot can see: idle USDC, XOXNO collateral minus debt, and every token at its
@@ -394,10 +379,11 @@ None of this is live yet.
 - A Zenex trade is an order. The router calls the market's `create_order` from the user's smart account, and that
   function only needs the user's authorisation. Zenex's own keepers fill the order, usually in the next ledger, with
   their own price reports, so Koul needs no price-report access.
-- Actions: open, increase, reduce, close, add margin. Conditions: funding rate, distance to liquidation and PnL. Zenex
-  has no view for the last two, so the router computes them from the position and a price.
-- Cross-venue rules, for example moving funds from XOXNO into Zenex margin. Margin lands at the fill a ledger later,
-  so these rules fire with a buffer.
+- Actions: open, close and add margin. Condition: distance to liquidation. Zenex has no view for it, so the router
+  computes it from the position and a price.
+- One cross-venue rule: top up Zenex margin from the user's XOXNO lending position. Margin lands at the fill a ledger
+  later, so the rule fires with a buffer.
+- Increase and reduce, funding-rate and PnL conditions, and an exit when funding flips are future work.
 - We test in a local Soroban environment running Zenex's deployed market code, and on Zenex's testnet market.
 
 ### Per-venue key scopes and key rotation
@@ -433,12 +419,11 @@ None of this is live yet.
 ## 10. Mainnet plan
 
 1. The security checks done and published.
-2. `koul_mock_fx` removed. The router reads Pyth and Reflector mainnet feeds, with max-age checks and the deviation
-   guard.
+2. `koul_mock_fx` removed. The router reads Reflector mainnet feeds, each with a max age.
 3. The router admin on a 2-of-3 multisig, with a published delay of at least 48 hours on `upgrade`, `set_oracle` and
    `set_feed`, before any user funds are involved.
 4. The new keeper, a second RPC and a fallback keeper, with alerts for the heartbeat, failing ticks, policy rejections,
-   stale or disagreeing prices, and keeper, channel and relay balances.
+   stale prices, and keeper, channel and relay balances.
 5. Backup passkeys, so losing one device doesn't lock a user out, and a cap of $1,000 per account under automation for
    the first 60 days.
 6. The daily lease guard covering every contract we touch, ours and our dependencies'.
@@ -453,3 +438,7 @@ context rule can have no signer, only a policy. A signer-less version of `koul_a
 so rules would no longer depend on us staying online. Two things need fixing first: griefing of the rate limit (`tick`
 should revert when nothing runs) and route MEV from a profit-seeking keeper (tighter default slippage, or a route the
 router computes itself).
+
+Prices come from Reflector only, and the router refuses a price older than a set max age. A pull oracle could bring
+fresher prices than Reflector's 5-minute updates. The router's oracle interface stays pluggable (`set_oracle`,
+`set_feed`), so one can be added later without changing users' rules.
