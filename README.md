@@ -48,8 +48,8 @@ The full design, the security model and the known gaps are in [`docs/architectur
   passkeys, and a cap of $1,000 per account under automation for the first 60 days.
 - **Indicators on-chain:** SMA, EMA, RSI and crossovers, computed by the router itself.
 - **Trailing stops and brackets.**
-- **Perpetuals on Zenex:** entries and exits on indicators, exits when funding flips, margin top-ups from XOXNO.
-- **Faster prices:** Pyth Pro pull prices verified on-chain, with Reflector as a second source.
+- **Perpetuals on Zenex:** open and close positions on indicators, and add margin when a position nears liquidation,
+  including top-ups from XOXNO lending.
 - **Safety limits:** a portfolio cap and a circuit breaker.
 - **Backtesting** that runs the real router code over recorded prices.
 - **A fee:** 0.10% of the value an executed action moves, capped at $5. No execution, no fee.
